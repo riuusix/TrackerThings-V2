@@ -24,7 +24,7 @@ $result_semua_matkul = $stmt_matkul->get_result();
     :class="{ 'dark': darkMode }">
 
 <head>
-    <meta charset="UTF-8">
+    <meta charset="UTF-8" meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tambah Jadwal Ujian</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
@@ -71,8 +71,8 @@ $result_semua_matkul = $stmt_matkul->get_result();
 </head>
 
 <body class="bg-gray-100 dark:bg-gray-900 flex items-center justify-center min-h-screen p-4 antialiased">
-    <div class="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg w-full max-w-2xl">
-        <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-6">Tambah Jadwal Ujian Baru</h1>
+    <div class="bg-white dark:bg-gray-800 p-6 sm:p-8 rounded-2xl shadow-lg w-full max-w-md md:max-w-2xl">
+        <h1 class="text-xl sm:text-2x font-bold text-gray-800 dark:text-gray-200 mb-6">Tambah Jadwal Ujian Baru</h1>
 
         <form x-data="{ 
                 init() { 

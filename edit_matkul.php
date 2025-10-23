@@ -11,7 +11,7 @@ $matkul = $result->fetch_assoc();
 <html lang="en" x-data="{ darkMode: localStorage.getItem('darkMode') === 'true' }" x-init="$watch('darkMode', val => localStorage.setItem('darkMode', val))" :class="{ 'dark': darkMode }">
 
 <head>
-    <meta charset="UTF-8">
+    <meta charset="UTF-8" name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Edit Mata Kuliah</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
@@ -78,8 +78,8 @@ $matkul = $result->fetch_assoc();
 <body class="bg-gray-100 dark:bg-gray-900 flex items-center justify-center min-h-screen p-6 antialiased transition-colors duration-300">
 
     <!-- Container Card -->
-    <div class="bg-white dark:bg-gray-800 p-10 rounded-2xl shadow-lg w-full max-w-3xl">
-        <h1 class="text-3xl font-bold text-gray-800 dark:text-gray-200 mb-8 text-center">Edit Mata Kuliah</h1>
+    <div class="bg-white dark:bg-gray-800 p-6 sm:p-8 lg:p-10 rounded-2xl shadow-lg w-full max-w-md md:max-w-3xl">
+        <h1 class="text-2xl sm:text-3xl font-bold text-gray-800 dark:text-gray-200 mb-8 text-center">Edit Mata Kuliah</h1>
 
         <form
             x-data="{

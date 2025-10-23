@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 $show_forgot_modal = (isset($_SESSION['login_attempts']) && $_SESSION['login_attempts'] >= 3);
 ?>
 <!DOCTYPE html>
-<html lang="en" x-data="{ darkMode: localStorage.getItem('darkMode') === 'true' }" x-init="$watch('darkMode', val => localStorage.setItem('darkMode', val))" :class="{ 'dark': darkMode }">
+<html lang="en" class="dark">
 
 <head>
     <meta charset="UTF-8">

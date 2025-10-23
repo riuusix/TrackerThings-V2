@@ -83,19 +83,17 @@ $result = $stmt->get_result();
 
 <head>
 
-    <meta charset="UTF-8">
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kelola Mata Kuliah</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
 
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@sweetalert2/theme-dark@5/dark.css" id="swal2-dark-theme" disabled>
     <script>
         tailwind.config = {
-
             darkMode: 'class',
-
         }
     </script>
 
@@ -273,6 +271,47 @@ $result = $stmt->get_result();
         }
     </style>
 
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.watch('darkMode', value => {
+                document.getElementById('swal2-dark-theme').disabled = !value;
+            });
+            // Set initial theme based on Alpine's darkMode
+            document.getElementById('swal2-dark-theme').disabled = !Alpine.store('darkMode');
+            // Gunakan Alpine.store jika darkMode didefinisikan secara global
+            // Jika tidak, pakai: !JSON.parse(localStorage.getItem('darkMode') || 'false');
+        });
+
+        function confirmDeleteSweetAlert(event) {
+            // 1. Cegah link langsung jalan
+            event.preventDefault();
+
+            // 2. Simpan URL tujuan
+            const deleteUrl = event.target.href;
+
+            // 3. Tampilkan SweetAlert
+            Swal.fire({
+                title: 'Konfirmasi Hapus',
+                text: "Yakin mau hapus mata kuliah ini? Menghapus ini bisa mempengaruhi jadwal, tugas, dan ujian terkait. Tindakan ini tidak dapat dibatalkan.",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33', // Merah
+                cancelButtonColor: '#6b7280', // Abu-abu
+                confirmButtonText: 'Ya, Hapus!',
+                cancelButtonText: 'Batal',
+                customClass: { // Menyesuaikan dengan dark mode jika aktif
+                    popup: document.documentElement.classList.contains('dark') ? 'swal2-dark' : '',
+                }
+            }).then((result) => {
+                // 4. Jika user klik "Ya, Hapus!"
+                if (result.isConfirmed) {
+                    // Arahkan ke URL hapus
+                    window.location.href = deleteUrl;
+                }
+            });
+        }
+    </script>
+
 </head>
 
 
@@ -339,12 +378,14 @@ $result = $stmt->get_result();
 
     <header class="mb-8 flex justify-between items-center">
 
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-white drop-shadow-md">Kelola Mata Kuliah</h1>
+        <h1 class="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white drop-shadow-md">Kelola Mata Kuliah</h1>
 
         <div class="flex items-center gap-4">
 
-            <a href="tambah_matkul.php" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-700 transition-all shadow-md">Tambah Baru</a>
-
+            <a href="tambah_matkul.php"
+                class="bg-blue-600 text-white font-semibold py-1.5 px-3 sm:py-2 sm:px-4 rounded-lg hover:bg-blue-700 transition-all shadow-md">
+                Tambah Baru
+            </a>
             <button @click="darkMode = !darkMode" class="glass-button text-gray-800 dark:text-gray-200 p-2 rounded-full transition-colors" title="Toggle Dark Mode">
 
                 <svg x-show="!darkMode" x-cloak class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -367,9 +408,9 @@ $result = $stmt->get_result();
 
 
 
-    <div class="w-full mx-auto glass-card p-8 rounded-2xl">
+    <div class="w-full mx-auto glass-card p-4 sm:p-6 lg:p-8 rounded-2xl">
 
-        <div class="mb-6">
+        <div class=" mb-6">
 
             <form action="matakuliah.php" method="GET" class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
 
@@ -381,7 +422,7 @@ $result = $stmt->get_result();
 
                         <input type="text" name="search" id="search"
 
-                            class="glass-input w-full pl-10 pr-4 py-2 rounded-lg focus:border-blue-500 focus:ring-blue-400 focus:outline-none"
+                            class="glass-input w-full pl-10 pr-2 sm:pr-4 py-2 rounded-lg focus:border-blue-500 focus:ring-blue-400 focus:outline-none"
 
                             placeholder="Contoh: Kalkulus..."
 
@@ -400,44 +441,101 @@ $result = $stmt->get_result();
                     </div>
                 </div>
                 <div>
-                    <button type="submit" class="w-full bg-blue-600 text-white font-semibold py-2.5 px-4 rounded-lg hover:bg-blue-700 transition-all">
+                    <button type="submit" class="w-full bg-blue-600 text-white font-semibold py-2 sm:py-2.5 px-4 rounded-lg hover:bg-blue-700 transition-all">
                         Cari
                     </button>
                 </div>
             </form>
         </div>
-        <div class="overflow-x-auto">
+        <div class="overflow-x-auto hidden md:block">
             <table class="min-w-full">
                 <thead class="bg-black/5 dark:bg-white/5">
                     <tr>
-                        <th class="py-3 px-4 text-left text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider">Mata Kuliah</th>
-                        <th class="py-3 px-4 text-left text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider">Dosen</th>
-                        <th class="py-3 px-4 text-left text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider">Kategori</th>
-                        <th class="py-3 px-4 text-left text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider">Lokasi</th>
-                        <th class="py-3 px-4 text-left text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider">Jadwal</th>
-                        <th class="py-3 px-4 text-right text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider">Aksi</th>
+                        <th class="py-3 px-2 sm:px-4 text-left text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider">Mata Kuliah</th>
+                        <th class="py-3 px-2 sm:px-4 text-left text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider">Dosen</th>
+                        <th class="py-3 px-2 sm:px-4 text-left text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider">Kategori</th>
+                        <th class="py-3 px-2 sm:px-4 text-left text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider">Lokasi</th>
+                        <th class="py-3 px-2 sm:px-4 text-left text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider">Jadwal</th>
+                        <th class="py-3 px-2 sm:px-4 text-right text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wider">Aksi</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-black/10 dark:divide-white/10">
                     <?php while ($row = $result->fetch_assoc()): ?>
                         <tr class="hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
-                            <td class="py-4 px-4 whitespace-nowrap"><span class="font-semibold text-gray-800 dark:text-gray-100"><?php echo htmlspecialchars($row['nama_matkul']); ?></span></td>
-                            <td class="py-4 px-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300"><?php echo htmlspecialchars($row['dosen'] ?: '-'); ?></td>
-                            <td class="py-4 px-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300"><?php echo htmlspecialchars($row['kategori'] ?: '-'); ?></td>
-                            <td class="py-4 px-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300"><?php echo htmlspecialchars($row['lokasi'] ?: '-'); ?></td>
-                            <td class="py-4 px-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300"><?php echo htmlspecialchars($row['hari'] . ', ' . substr($row['waktu_mulai'], 0, 5) . ' – ' . substr($row['waktu_selesai'], 0, 5)); ?></td>
-                            <td class="py-4 px-4 whitespace-nowrap text-right text-sm font-medium">
+                            <td class="py-4 px-2 sm:px-4 whitespace-nowrap"><span class="font-semibold text-gray-800 dark:text-gray-100"><?php echo htmlspecialchars($row['nama_matkul']); ?></span></td>
+                            <td class="py-4 px-2 sm:px-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300"><?php echo htmlspecialchars($row['dosen'] ?: '-'); ?></td>
+                            <td class="py-4 px-2 sm:px-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300"><?php echo htmlspecialchars($row['kategori'] ?: '-'); ?></td>
+                            <td class="py-4 px-2 sm:px-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300"><?php echo htmlspecialchars($row['lokasi'] ?: '-'); ?></td>
+                            <td class="py-4 px-2 sm:px-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300"><?php echo htmlspecialchars($row['hari'] . ', ' . substr($row['waktu_mulai'], 0, 5) . ' – ' . substr($row['waktu_selesai'], 0, 5)); ?></td>
+                            <td class="py-4 px-2 sm:px-4 whitespace-nowrap text-right text-sm font-medium">
                                 <a href="edit_matkul.php?id=<?php echo $row['id']; ?>" class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 mr-4">Edit</a>
-                                <a href="hapus_matkul.php?id=<?php echo $row['id']; ?>" onclick="return confirm('Yakin mau hapus matkul ini? Menghapus ini bisa mempengaruhi tugas terkait.')" class="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300">Hapus</a>
+                                <a href="hapus_matkul.php?id=<?php echo $row['id']; ?>"
+                                    onclick="confirmDeleteSweetAlert(event)"
+                                    class="text-red-600 dark:text-red-400 hover:underline text-sm">Hapus</a>
                             </td>
                         </tr>
                     <?php endwhile; ?>
                 </tbody>
             </table>
         </div>
-        <div class="mt-6">
-            <a href="index.php" class="text-blue-600 dark:text-blue-400 hover:underline">← Kembali ke Dashboard</a>
+        <div class="block md:hidden space-y-4">
+            <?php
+            // Reset pointer result set untuk loop lagi
+            mysqli_data_seek($result, 0);
+
+            // Loop data lagi, khusus untuk tampilan mobile
+            while ($row = $result->fetch_assoc()):
+            ?>
+                <div class="glass-card p-4 rounded-lg shadow-sm">
+                    <div class="flex justify-between items-start mb-2">
+                        <h3 class="font-semibold text-gray-800 dark:text-gray-100 text-lg break-words mr-2">
+                            <?php echo htmlspecialchars($row['nama_matkul']); ?>
+                        </h3>
+                        <div class="flex-shrink-0 space-x-3">
+                            <a href="edit_matkul.php?id=<?php echo $row['id']; ?>" class="text-blue-600 dark:text-blue-400 hover:underline text-sm">Edit</a>
+                            <a href="hapus_matkul.php?id=<?php echo $row['id']; ?>"
+                                onclick="confirmDeleteSweetAlert(event)"
+                                class="text-red-600 dark:text-red-400 hover:underline text-sm">Hapus</a>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-x-2 text-sm text-gray-600 dark:text-gray-300 mb-2">
+                        <div>
+                            <span class="font-medium text-gray-500 dark:text-gray-400 block text-xs">Dosen</span>
+                            <?php echo htmlspecialchars($row['dosen'] ?: '-'); ?>
+                        </div>
+                        <div>
+                            <span class="font-medium text-gray-500 dark:text-gray-400 block text-xs">Kategori</span>
+                            <?php echo htmlspecialchars($row['kategori'] ?: '-'); ?>
+                        </div>
+                        <div>
+                            <span class="font-medium text-gray-500 dark:text-gray-400 block text-xs">Lokasi</span>
+                            <?php echo htmlspecialchars($row['lokasi'] ?: '-'); ?>
+                        </div>
+                    </div>
+
+                    <div>
+                        <span class="font-medium text-gray-500 dark:text-gray-400 block text-xs">Jadwal</span>
+                        <span class="text-sm text-gray-700 dark:text-gray-200 font-medium">
+                            <?php echo htmlspecialchars($row['hari'] . ', ' . substr($row['waktu_mulai'], 0, 5) . ' – ' . substr($row['waktu_selesai'], 0, 5)); ?>
+                        </span>
+                    </div>
+                </div>
+            <?php endwhile; ?>
+
+            <?php
+            // Cek jika tidak ada hasil sama sekali (untuk mobile)
+            if (mysqli_num_rows($result) === 0):
+            ?>
+                <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                    Tidak ada mata kuliah ditemukan.
+                </div>
+            <?php endif; ?>
         </div>
+    </div>
+    <div class="mt-6">
+        <a href="index.php" class="text-blue-600 dark:text-blue-400 hover:underline">← Kembali ke Dashboard</a>
+    </div>
     </div>
 </body>
 

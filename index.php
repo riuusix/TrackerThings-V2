@@ -774,12 +774,12 @@ while ($row = $result_matkul_all->fetch_assoc()) {
     </div>
 
     <!-- Header -->
-    <header class="mb-8 flex flex-wrap justify-between items-center gap-4">
-        <div>
-            <h1 class="text-2xl sm:text-4xl font-bold tracking-tight text-gray-900 dark:text-white drop-shadow-md">TrackerThings - Hi, <?= $_SESSION['username'] ?>!</h1>
+    <header class="mb-8 flex justify-between items-center gap-4">
+        <div class="min-w-0">
+            <h1 class="text-2xl sm:text-4xl font-bold tracking-tight text-gray-900 dark:text-white drop-shadow-md truncate">TrackerThings - Hi, <?= $_SESSION['username'] ?>!</h1>
             <p class="text-gray-700 dark:text-gray-300 text-sm sm:text-lg drop-shadow"><?php echo date("l, j F Y"); ?></p>
         </div>
-        <div class="flex items-center gap-2 sm:gap-4">
+        <div class="flex items-centergap-2 sm:gap-4 flex-shrink-0 md:ml-auto">
             <a href="matakuliah.php" class="hidden md:inline-block glass-button text-gray-800 dark:text-gray-200 px-4 py-2 text-sm font-semibold rounded-full shadow-sm transition-all">Kelola Mata Kuliah</a>
             <a href="ujian.php" class="hidden md:inline-block glass-button text-gray-800 dark:text-gray-200 px-4 py-2 text-sm font-semibold rounded-full shadow-sm transition-all">Kelola Ujian</a>
             <button @click="darkMode = !darkMode" class="glass-button text-gray-800 dark:text-gray-200 p-2 rounded-full hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
@@ -809,12 +809,14 @@ while ($row = $result_matkul_all->fetch_assoc()) {
                     x-transition:leave="transition ease-in duration-150"
                     x-transition:leave-start="opacity-100 transform translate-y-0"
                     x-transition:leave-end="opacity-0 transform -translate-y-2"
-                    class="absolute right-0 mt-2 w-48 glass-dropdown-menu rounded-lg shadow-xl z-20" x-cloak>
+                    class="absolute right-0 mt-2 w-40 sm:w-48 glass-dropdown-menu rounded-lg shadow-xl z-20" x-cloak>
                     <div class="px-4 py-3 border-b border-black/10 dark:border-white/10">
                         <p class="text-sm text-gray-800 dark:text-gray-200">Masuk sebagai</p>
                         <p class="text-sm font-medium text-gray-900 dark:text-white truncate"><?php echo htmlspecialchars($_SESSION['username']); ?></p>
                     </div>
                     <div class="py-1">
+                        <a href="matakuliah.php" class="block md:hidden px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5">Kelola Mata Kuliah</a>
+                        <a href="ujian.php" class="block md:hidden px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5">Kelola Ujian</a>
                         <a href="profile.php" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5">Profil Saya</a>
                         <a href="history.php" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5">Riwayat Kelas</a>
                         <a href="ubah_password.php" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5">Pengaturan Akun</a>

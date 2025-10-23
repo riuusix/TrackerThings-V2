@@ -66,12 +66,12 @@ $history = $stmt->get_result();
 </head>
 
 <body class="p-4 sm:p-6 lg:p-8 antialiased">
-    <div class="max-w-4xl mx-auto">
-        <div class="glass-card p-8 rounded-2xl">
+    <div class="max-w-md md:max-w-4xl mx-auto">
+        <div class="glass-card p-4 sm:p-6 lg:p-8 rounded-2xl">
             <h1 class="text-3xl font-bold text-gray-800 dark:text-white">Riwayat Kelas Pengganti</h1>
             <p class="mt-1 text-gray-600 dark:text-gray-400">Daftar semua kelas pengganti yang telah selesai atau terlewat.</p>
 
-            <div class="mt-6 overflow-x-auto">
+            <div class="mt-6 overflow-x-auto hidden md:block">
                 <table class="min-w-full">
                     <thead class="bg-black/5 dark:bg-white/5">
                         <tr>
@@ -101,11 +101,60 @@ $history = $stmt->get_result();
                     </tbody>
                 </table>
             </div>
+            <div class="mt-6 block md:hidden space-y-4">
+                <?php
+                // Reset pointer result set untuk loop lagi
+                mysqli_data_seek($history, 0);
 
-            <div class="mt-8">
-                <a href="index.php" class="font-medium text-blue-600 hover:underline dark:text-blue-400">← Kembali ke Dashboard</a>
+                // Cek lagi jika ada data (khusus untuk loop mobile)
+                if (mysqli_num_rows($history) > 0):
+                    while ($row = $history->fetch_assoc()):
+                ?>
+                        <div class="glass-card p-4 rounded-lg shadow-sm">
+                            <h3 class="font-semibold text-gray-800 dark:text-gray-100 text-lg break-words mb-2">
+                                <?php echo htmlspecialchars($row['nama_matkul']); ?>
+                            </h3>
+
+                            <div class="grid grid-cols-3 gap-x-2 text-sm text-gray-600 dark:text-gray-300 mb-2">
+                                <div>
+                                    <span class="font-medium text-gray-500 dark:text-gray-400 block text-xs">Tanggal</span>
+                                    <?php echo date('d M Y', strtotime($row['tanggal'])); ?>
+                                </div>
+                                <div>
+                                    <span class="font-medium text-gray-500 dark:text-gray-400 block text-xs">Waktu</span>
+                                    <?php echo htmlspecialchars(substr($row['waktu_mulai'], 0, 5) . ' - ' . substr($row['waktu_selesai'], 0, 5)); ?>
+                                </div>
+                                <div>
+                                    <span class="font-medium text-gray-500 dark:text-gray-400 block text-xs">Lokasi</span>
+                                    <?php echo htmlspecialchars($row['lokasi'] ?: '-'); ?>
+                                </div>
+                            </div>
+
+                            <?php if (!empty($row['catatan'])): ?>
+                                <div class="mt-2 pt-2 border-t border-black/10 dark:border-white/10">
+                                    <span class="font-medium text-gray-500 dark:text-gray-400 block text-xs">Catatan</span>
+                                    <p class="text-sm text-gray-700 dark:text-gray-200 break-words">
+                                        <?php echo htmlspecialchars($row['catatan']); ?>
+                                    </p>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    <?php
+                    endwhile;
+                else: // Jika tidak ada data sama sekali
+                    ?>
+                    <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                        Tidak ada riwayat kelas pengganti yang ditemukan.
+                    </div>
+                <?php endif; // Tutup if num_rows > 0 
+                ?>
             </div>
         </div>
+
+        <div class="mt-8">
+            <a href="index.php" class="font-medium text-blue-600 hover:underline dark:text-blue-400">← Kembali ke Dashboard</a>
+        </div>
+    </div>
     </div>
 </body>
 

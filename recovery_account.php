@@ -35,7 +35,7 @@ $security_prompt = $user['security_prompt']; // Ini akan kita teruskan ke Alpine
 $conn->close();
 ?>
 <!DOCTYPE html>
-<html lang="en" x-data="{ darkMode: localStorage.getItem('darkMode') === 'true' }" x-init="$watch('darkMode', val => localStorage.setItem('darkMode', val))" :class="{ 'dark': darkMode }">
+<html lang="en" class="dark">
 
 <head>
     <meta charset="UTF-8">

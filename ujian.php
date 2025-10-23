@@ -58,7 +58,7 @@ $result = $stmt->get_result();
 <html lang="en" x-data="{ darkMode: localStorage.getItem('darkMode') === 'true' }" x-init="$watch('darkMode', val => localStorage.setItem('darkMode', val))" :class="{ 'dark': darkMode }">
 
 <head>
-    <meta charset="UTF-8">
+    <meta charset="UTF-8" meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kelola Jadwal Ujian</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
@@ -67,6 +67,8 @@ $result = $stmt->get_result();
             darkMode: 'class',
         }
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@sweetalert2/theme-dark@5/dark.css" id="swal2-dark-theme" disabled>
     <style>
         @import url('https://rsms.me/inter/inter.css');
 
@@ -135,6 +137,48 @@ $result = $stmt->get_result();
             background: rgba(31, 41, 55, 0.8);
         }
     </style>
+
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.watch('darkMode', value => {
+                document.getElementById('swal2-dark-theme').disabled = !value;
+            });
+            // Set initial theme based on Alpine's darkMode
+            document.getElementById('swal2-dark-theme').disabled = !Alpine.store('darkMode');
+            // Gunakan Alpine.store jika darkMode didefinisikan secara global
+            // Jika tidak, pakai: !JSON.parse(localStorage.getItem('darkMode') || 'false');
+        });
+
+        function confirmDeleteSweetAlert(event) {
+            // 1. Cegah link langsung jalan
+            event.preventDefault();
+
+            // 2. Simpan URL tujuan
+            const deleteUrl = event.target.href;
+
+            // 3. Tampilkan SweetAlert
+            Swal.fire({
+                title: 'Konfirmasi Hapus',
+                text: "Yakin mau hapus mata kuliah ini? Menghapus ini bisa mempengaruhi jadwal, tugas, dan ujian terkait. Tindakan ini tidak dapat dibatalkan.",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33', // Merah
+                cancelButtonColor: '#6b7280', // Abu-abu
+                confirmButtonText: 'Ya, Hapus!',
+                cancelButtonText: 'Batal',
+                customClass: { // Menyesuaikan dengan dark mode jika aktif
+                    popup: document.documentElement.classList.contains('dark') ? 'swal2-dark' : '',
+                }
+            }).then((result) => {
+                // 4. Jika user klik "Ya, Hapus!"
+                if (result.isConfirmed) {
+                    // Arahkan ke URL hapus
+                    window.location.href = deleteUrl;
+                }
+            });
+        }
+    </script>
+
 </head>
 
 <body class="p-8 antialiased transition-colors duration-300">
@@ -168,9 +212,9 @@ $result = $stmt->get_result();
     </div>
 
     <header class="mb-8 flex justify-between items-center">
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-white drop-shadow-md">Kelola Jadwal Ujian</h1>
+        <h1 class="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white drop-shadow-md">Kelola Jadwal Ujian</h1>
         <div class="flex items-center gap-4">
-            <a href="tambah_ujian.php" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-700 transition-all shadow-md">Tambah Ujian Baru</a>
+            <a href="tambah_ujian.php" class="bg-blue-600 text-white font-semibold py-1.5 px-3 sm:py-2 sm:px-4 rounded-lg hover:bg-blue-700 transition-all shadow-md">Tambah Ujian Baru</a>
             <button @click="darkMode = !darkMode" class="glass-button text-gray-800 dark:text-gray-200 p-2 rounded-full transition-colors" title="Toggle Dark Mode">
                 <svg x-show="!darkMode" x-cloak class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
@@ -182,8 +226,8 @@ $result = $stmt->get_result();
         </div>
     </header>
 
-    <div class="w-full mx-auto glass-card p-8 rounded-2xl">
-        <div class="overflow-x-auto">
+    <div class="w-full mx-auto glass-card p-4 sm:p-6 lg:p-8 rounded-2xl">
+        <div class="overflow-x-auto hidden md:block">
             <table class="min-w-full">
                 <thead class="bg-black/5 dark:bg-white/5">
                     <tr>
@@ -228,9 +272,72 @@ $result = $stmt->get_result();
                 </tbody>
             </table>
         </div>
-        <div class="mt-6">
-            <a href="index.php" class="text-blue-600 dark:text-blue-400 hover:underline">← Kembali ke Dashboard</a>
+        <div class="block md:hidden space-y-4">
+            <?php
+            // Reset pointer result set untuk loop lagi
+            mysqli_data_seek($result, 0);
+
+            // Cek lagi jika ada data (khusus untuk loop mobile)
+            if (mysqli_num_rows($result) > 0):
+                while ($row = $result->fetch_assoc()):
+                    // Tentukan warna tag jenis ujian
+                    $jenis_ujian_color = 'bg-blue-500'; // Default
+                    if ($row['jenis_ujian'] == 'UTS') $jenis_ujian_color = 'bg-orange-500';
+                    elseif ($row['jenis_ujian'] == 'UAS') $jenis_ujian_color = 'bg-red-500';
+            ?>
+                    <div class="glass-card p-4 rounded-lg shadow-sm">
+                        <div class="flex justify-between items-start mb-3">
+                            <div>
+                                <h3 class="font-semibold text-gray-800 dark:text-gray-100 text-lg break-words mb-1">
+                                    <?php echo htmlspecialchars($row['nama_matkul']); ?>
+                                </h3>
+                                <span class="px-2 py-1 text-xs font-bold leading-none text-white rounded-md <?php echo $jenis_ujian_color; ?>">
+                                    <?php echo htmlspecialchars($row['jenis_ujian']); ?>
+                                </span>
+                            </div>
+                            <div class="flex-shrink-0 space-x-3 mt-1">
+                                <a href="edit_ujian.php?id=<?php echo $row['id']; ?>" class="text-blue-600 dark:text-blue-400 hover:underline text-sm">Edit</a>
+                                <a href="hapus_ujian.php?id=<?php echo $row['id']; ?>"
+                                    onclick="confirmDeleteSweetAlert(event)"
+                                    class="text-red-600 dark:text-red-400 hover:underline text-sm">Hapus</a>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-x-3 text-sm text-gray-600 dark:text-gray-300 mb-2">
+                            <div>
+                                <span class="font-medium text-gray-500 dark:text-gray-400 block text-xs">Jadwal</span>
+                                <?php echo date('d M Y', strtotime($row['tanggal'])); ?><br>
+                                <?php echo substr($row['waktu_mulai'], 0, 5); ?> - <?php echo substr($row['waktu_selesai'], 0, 5); ?>
+                            </div>
+                            <div>
+                                <span class="font-medium text-gray-500 dark:text-gray-400 block text-xs">Ruangan</span>
+                                <?php echo htmlspecialchars($row['ruangan'] ?: '-'); ?>
+                            </div>
+                        </div>
+
+                        <?php if (!empty($row['catatan'])): ?>
+                            <div class="mt-2 pt-2 border-t border-black/10 dark:border-white/10">
+                                <span class="font-medium text-gray-500 dark:text-gray-400 block text-xs">Catatan</span>
+                                <p class="text-sm text-gray-700 dark:text-gray-200 break-words">
+                                    <?php echo htmlspecialchars($row['catatan']); ?>
+                                </p>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                <?php
+                endwhile;
+            else: // Jika tidak ada data sama sekali
+                ?>
+                <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                    Belum ada jadwal ujian yang ditambahkan.
+                </div>
+            <?php endif; // Tutup if num_rows > 0 
+            ?>
         </div>
+    </div>
+    <div class="mt-6">
+        <a href="index.php" class="text-blue-600 dark:text-blue-400 hover:underline">← Kembali ke Dashboard</a>
+    </div>
     </div>
 </body>
 

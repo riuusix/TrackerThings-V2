@@ -202,7 +202,12 @@ $conn->close();
             </div>
 
             <!-- Form Edit Profil -->
-            <div x-show="isEditing" x-transition:enter="transition ease-out duration-500 delay-200" x-transition:enter-start="opacity-0 transform translate-x-8" x-transition:enter-end="opacity-100 transform translate-x-0" x-transition:leave="transition ease-in duration-300" x-transition:leave-start="opacity-100 transform translate-x-0" x-transition:leave-end="opacity-0 transform translate-x-8" class="hidden lg:block" x-cloak>
+            <div x-show="isEditing"
+                x-transition:enter="transition ease-out duration-500 delay-200"
+                x-transition:enter-start="opacity-0 transform translate-y-8 lg:translate-y-0 lg:translate-x-8" x-transition:enter-end="opacity-100 transform translate-y-0 lg:translate-x-0"
+                x-transition:leave="transition ease-in duration-300"
+                x-transition:leave-start="opacity-100 transform translate-y-0 lg:translate-x-0"
+                x-transition:leave-end="opacity-0 transform translate-y-8 lg:translate-y-0 lg:translate-x-8" x-cloak>
                 <div class="glass-card rounded-2xl shadow-lg h-full flex flex-col">
                     <div class="custom-scrollbar overflow-y-auto p-8">
                         <h2 class="text-2xl font-bold text-slate-800 dark:text-white mb-6 white:text-dark drop-shadow-black">Edit Profil Anda</h2>
@@ -230,25 +235,25 @@ $conn->close();
                         </form>
                     </div>
                 </div>
+                </>
+
             </div>
 
+            <div class="w-full max-w-4xl mx-auto mt-4">
+                <?php if (isset($_SESSION['success'])): ?>
+                    <div x-data="{ show: true }" x-init="setTimeout(() => show = false, 4000)" x-show="show" x-transition class="bg-green-500/10 border border-green-500/30 text-green-800 dark:text-green-300 px-4 py-3 rounded-lg text-sm" role="alert">
+                        <span><?php echo $_SESSION['success'];
+                                unset($_SESSION['success']); ?></span>
+                    </div>
+                <?php endif; ?>
+                <?php if (isset($_SESSION['error'])): ?>
+                    <div x-data="{ show: true }" x-init="setTimeout(() => show = false, 4000)" x-show="show" x-transition class="bg-red-500/10 border border-red-500/30 text-red-800 dark:text-red-300 px-4 py-3 rounded-lg text-sm" role="alert">
+                        <span><?php echo $_SESSION['error'];
+                                unset($_SESSION['error']); ?></span>
+                    </div>
+                <?php endif; ?>
+            </div>
         </div>
-
-        <div class="w-full max-w-4xl mx-auto mt-4">
-            <?php if (isset($_SESSION['success'])): ?>
-                <div x-data="{ show: true }" x-init="setTimeout(() => show = false, 4000)" x-show="show" x-transition class="bg-green-500/10 border border-green-500/30 text-green-800 dark:text-green-300 px-4 py-3 rounded-lg text-sm" role="alert">
-                    <span><?php echo $_SESSION['success'];
-                            unset($_SESSION['success']); ?></span>
-                </div>
-            <?php endif; ?>
-            <?php if (isset($_SESSION['error'])): ?>
-                <div x-data="{ show: true }" x-init="setTimeout(() => show = false, 4000)" x-show="show" x-transition class="bg-red-500/10 border border-red-500/30 text-red-800 dark:text-red-300 px-4 py-3 rounded-lg text-sm" role="alert">
-                    <span><?php echo $_SESSION['error'];
-                            unset($_SESSION['error']); ?></span>
-                </div>
-            <?php endif; ?>
-        </div>
-    </div>
 </body>
 
 </html>
