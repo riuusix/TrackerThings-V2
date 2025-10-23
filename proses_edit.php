@@ -1,56 +1,90 @@
 <?php
-// --- PERBAIKAN 1: Memulai session dan mengamankan halaman ---
-session_start();
+// --- 1. Memulai session, atur error reporting, dan header JSON ---
+require_once 'koneksi.php';
+error_reporting(0); // Mencegah PHP Notice/Warning merusak output JSON
+header('Content-Type: application/json'); // Memberitahu browser bahwa ini adalah JSON
 
-// Jika user belum login, tendang ke halaman login
+
+// Siapkan array untuk respons
+$response = [
+    'status' => 'error',
+    'message' => 'Terjadi kesalahan.'
+];
+
+// --- 2. Validasi Login ---
 if (!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
+    $response['message'] = 'Akses ditolak. Silakan login terlebih dahulu.';
+    echo json_encode($response);
     exit();
 }
 
-// Ambil user_id dari session untuk keamanan
 $user_id = $_SESSION['user_id'];
 
-require_once 'koneksi.php';
-
+// --- 3. Validasi Metode Request ---
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // Ambil semua data dari form
-    $id_tugas   = $_POST['id_tugas'];
-    $nama_tugas = $_POST['nama_tugas'];
-    $deadline   = $_POST['deadline'];
-    $id_jadwal  = $_POST['id_jadwal'];
-    $prioritas  = $_POST['prioritas'];
-    $jenis      = $_POST['jenis'];
 
-    // --- PERBAIKAN 2: Tambahkan "AND user_id = ?" pada query UPDATE ---
-    // Ini memastikan pengguna hanya bisa mengedit data miliknya sendiri.
+    // --- 4. Ambil dan Validasi Data POST ---
+    $id_tugas   = $_POST['id_tugas'] ?? null;
+    $nama_tugas = $_POST['nama_tugas'] ?? null;
+    $deadline   = $_POST['deadline'] ?? null;
+    $id_jadwal  = $_POST['id_jadwal'] ?? null;
+    $prioritas  = $_POST['prioritas'] ?? null;
+    $jenis      = $_POST['jenis'] ?? null;
+
+    // Validasi data tidak boleh kosong
+    if (!$id_tugas || !$nama_tugas || !$deadline || !$id_jadwal || !$prioritas || !$jenis) {
+        $response['message'] = 'Data tidak lengkap. Semua field wajib diisi.';
+        echo json_encode($response);
+        exit();
+    }
+
+    // --- 5. Logika Database ---
     $stmt = $conn->prepare("UPDATE tugas 
                             SET nama_tugas = ?, deadline = ?, id_jadwal = ?, prioritas = ?, jenis = ? 
                             WHERE id = ? AND user_id = ?");
+
     if (!$stmt) {
-        die("Prepare failed: (" . $conn->errno . ") " . $conn->error);
-    }
-
-    // --- PERBAIKAN 3: Sesuaikan bind_param (ssissi -> ssissii) ---
-    $stmt->bind_param(
-        "ssissii",
-        $nama_tugas,
-        $deadline,
-        $id_jadwal,
-        $prioritas,
-        $jenis,
-        $id_tugas,
-        $user_id // <-- Variabel user_id dari session diikatkan di sini
-    );
-
-    // Eksekusi statement
-    if ($stmt->execute()) {
-        header("Location: index.php?edit=sukses");
-        exit();
+        // Gagal menyiapkan statement
+        $response['message'] = 'Gagal menyiapkan statement: ' . $conn->error;
     } else {
-        echo "Error: " . $stmt->error;
-    }
+        // Bind parameter (ssissii)
+        $stmt->bind_param(
+            "ssissii",
+            $nama_tugas,
+            $deadline,
+            $id_jadwal,
+            $prioritas,
+            $jenis,
+            $id_tugas,
+            $user_id
+        );
 
-    $stmt->close();
+        // Eksekusi statement
+        if ($stmt->execute()) {
+            if ($stmt->affected_rows > 0) {
+                // Sukses dan ada data yang berubah
+                $response['status'] = 'success';
+                $response['message'] = 'Tugas berhasil diperbarui!';
+            } else {
+                // Sukses tapi tidak ada data yang berubah (mungkin datanya sama)
+                $response['status'] = 'success'; // Tetap sukses
+                $response['message'] = 'Tidak ada perubahan disimpan (data mungkin sama).';
+            }
+        } else {
+            // Gagal saat eksekusi
+            $response['message'] = 'Gagal memperbarui tugas: ' . $stmt->error;
+        }
+        $stmt->close();
+    }
     $conn->close();
+} else {
+    $response['message'] = 'Metode request tidak valid.';
 }
+
+// --- 6. Kirim Respons JSON ---
+// Hapus semua 'header("Location: ...")' dan 'echo' lainnya.
+// Cukup cetak array $response sebagai JSON.
+echo json_encode($response);
+exit();
+
+// Pastikan tidak ada spasi atau baris kosong setelah tag PHP penutup di bawah ini

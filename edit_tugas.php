@@ -154,6 +154,27 @@ foreach ($semua_matkul_arr as $matkul) {
             color: #fff;
         }
     </style>
+    <script>
+        function submitEditTask(event) {
+            event.preventDefault();
+            const formData = new FormData(event.target);
+            fetch('edit_tugas.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        alert(data.message);
+                        setTimeout(() => window.location.href = 'index.php', 1000);
+                    } else {
+                        alert(data.message);
+                    }
+                })
+                .catch(err => console.error('Fetch error:', err));
+        }
+    </script>
+
 </head>
 
 <body class="flex items-center justify-center min-h-screen p-4 antialiased transition-colors duration-300">
@@ -166,7 +187,7 @@ foreach ($semua_matkul_arr as $matkul) {
             <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-200 tracking-tight">Edit Tugas</h1>
         </div>
 
-        <form x-data="{ init() { flatpickr(this.$refs.deadlinePicker, { altInput: true, altFormat: 'F j, Y', dateFormat: 'Y-m-d', defaultDate: '<?php echo $tugas['deadline']; ?>' }); } }" x-init="init()" action="proses_edit_tugas.php" method="POST" class="space-y-6">
+        <form x-data="{ init() { flatpickr(this.$refs.deadlinePicker, { altInput: true, altFormat: 'F j, Y', dateFormat: 'Y-m-d', defaultDate: '<?php echo $tugas['deadline']; ?>' }); } }" x-init="init()" @submit.prevent="submitEditTask($event)" class="space-y-6">
             <input type="hidden" name="id_tugas" value="<?php echo $tugas['id']; ?>">
 
             <div>

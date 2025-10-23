@@ -1,6 +1,7 @@
 <?php
 // --- PERBAIKAN 1: Memulai session dan mengamankan halaman ---
-session_start();
+require_once 'koneksi.php';
+// session_start();
 
 // Jika user belum login, tendang ke halaman login
 if (!isset($_SESSION['user_id'])) {
@@ -11,7 +12,6 @@ if (!isset($_SESSION['user_id'])) {
 // Ambil user_id yang aman dari session
 $user_id = $_SESSION['user_id'];
 
-require_once 'koneksi.php';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // Ambil semua data dari form

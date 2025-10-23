@@ -1,5 +1,5 @@
 <?php
-session_start();
+// session_start();
 require_once 'koneksi.php';
 require_once 'security_helpers.php'; // 👈 pakai helper biar konsisten
 

@@ -1,6 +1,6 @@
 <?php
-session_start();
 require_once 'koneksi.php';
+// session_start();
 require_once 'security_helpers.php';
 
 // 1️⃣ Cek login user

@@ -1,6 +1,6 @@
 <?php
-// --- PERBAIKAN 1: KEAMANAN - Memulai session dan validasi akses ---
-session_start();
+
+require_once 'koneksi.php';
 
 // Jika user belum login, tendang ke halaman login
 if (!isset($_SESSION['user_id'])) {
@@ -10,7 +10,6 @@ if (!isset($_SESSION['user_id'])) {
 // Ambil user_id dari session
 $user_id = $_SESSION['user_id'];
 
-require_once 'koneksi.php';
 
 // --- PERBAIKAN 2: Ambil daftar matkul HANYA milik user yang login & cegah error GROUP BY ---
 $stmt_matkul = $conn->prepare("SELECT MIN(id) as id, nama_matkul FROM jadwal WHERE user_id = ? GROUP BY nama_matkul ORDER BY nama_matkul ASC");

@@ -1,6 +1,8 @@
 <?php
+require_once 'koneksi.php';
+
 // --- PERBAIKAN 1: Memulai session dan mengamankan halaman ---
-session_start();
+// session_start();
 
 // Jika user belum login, tendang ke halaman login
 if (!isset($_SESSION['user_id'])) {
@@ -34,7 +36,6 @@ if (isset($_GET['status'])) {
 }
 
 
-require_once 'koneksi.php';
 
 // --- PERBAIKAN 2: LOGIKA PENCARIAN & FILTER YANG DIAMANKAN ---
 

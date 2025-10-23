@@ -1,6 +1,7 @@
 <?php
 // --- KEAMANAN - Memulai session dan validasi akses ---
-session_start();
+// session_start();
+require_once 'koneksi.php';
 
 // Jika user belum login, tendang ke halaman login
 if (!isset($_SESSION['user_id'])) {
