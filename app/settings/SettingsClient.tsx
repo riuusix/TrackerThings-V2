@@ -1,0 +1,294 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { Navbar } from "@/components/Navbar";
+import { UserProfile } from "@/types";
+import {
+  updatePasswordAction,
+  updateSecurityPromptAction,
+} from "@/app/actions/auth";
+import { formatIndonesianDateTime } from "@/lib/utils";
+import {
+  Shield,
+  KeyRound,
+  ShieldQuestion,
+  History,
+  Lock,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+} from "lucide-react";
+
+interface SettingsClientProps {
+  user: UserProfile;
+}
+
+export function SettingsClient({ user }: SettingsClientProps) {
+  const [pwdPending, startPwdTransition] = useTransition();
+  const [pwdError, setPwdError] = useState<string | null>(null);
+  const [pwdSuccess, setPwdSuccess] = useState<string | null>(null);
+
+  const [secPending, startSecTransition] = useTransition();
+  const [secError, setSecError] = useState<string | null>(null);
+  const [secSuccess, setSecSuccess] = useState<string | null>(null);
+
+  const handlePasswordSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setPwdError(null);
+    setPwdSuccess(null);
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+
+    startPwdTransition(async () => {
+      const res = await updatePasswordAction(formData);
+      if (res.success) {
+        setPwdSuccess("Kata sandi berhasil diperbarui!");
+        form.reset();
+      } else {
+        setPwdError(res.error || "Gagal mengubah kata sandi.");
+      }
+    });
+  };
+
+  const handleSecuritySubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setSecError(null);
+    setSecSuccess(null);
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+
+    startSecTransition(async () => {
+      const res = await updateSecurityPromptAction(formData);
+      if (res.success) {
+        setSecSuccess("Pertanyaan keamanan berhasil disimpan!");
+        form.reset();
+      } else {
+        setSecError(res.error || "Gagal memperbarui pertanyaan keamanan.");
+      }
+    });
+  };
+
+  return (
+    <div className="min-h-screen pb-16">
+      <Navbar username={user.username} userEmail={user.email} />
+
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-8">
+        <div className="pb-2">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+              Pengaturan Akun
+            </span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+            Keamanan & Kata Sandi
+          </h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            Ubah kata sandi akun dan atur pertanyaan pemulihan keamanan jika lupa kata sandi.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Change Password Card */}
+          <div className="glass-card rounded-3xl p-6 border border-white/60 dark:border-white/10 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center gap-2.5 pb-4 mb-4 border-b border-slate-100 dark:border-slate-800">
+                <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                  <KeyRound className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-800 dark:text-white text-base">
+                    Ganti Kata Sandi
+                  </h3>
+                  <p className="text-xs text-slate-400">Gunakan kombinasi yang kuat dan unik</p>
+                </div>
+              </div>
+
+              {pwdError && (
+                <div className="mb-4 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-400 text-xs flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{pwdError}</span>
+                </div>
+              )}
+
+              {pwdSuccess && (
+                <div className="mb-4 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-900 text-emerald-600 dark:text-emerald-400 text-xs flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{pwdSuccess}</span>
+                </div>
+              )}
+
+              <form onSubmit={handlePasswordSubmit} className="space-y-3.5">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Kata Sandi Saat Ini
+                  </label>
+                  <input
+                    type="password"
+                    name="current_password"
+                    required
+                    placeholder="••••••••"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-white text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Kata Sandi Baru
+                  </label>
+                  <input
+                    type="password"
+                    name="new_password"
+                    required
+                    placeholder="Minimal 6 karakter"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-white text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Konfirmasi Kata Sandi Baru
+                  </label>
+                  <input
+                    type="password"
+                    name="confirm_password"
+                    required
+                    placeholder="Ketik ulang kata sandi baru"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-white text-sm"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={pwdPending}
+                  className="w-full py-2.5 px-4 rounded-xl font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-500/25 transition-all text-sm flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
+                >
+                  {pwdPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                  <span>Perbarui Kata Sandi</span>
+                </button>
+              </form>
+            </div>
+          </div>
+
+          {/* Security Question Card */}
+          <div className="glass-card rounded-3xl p-6 border border-white/60 dark:border-white/10 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center gap-2.5 pb-4 mb-4 border-b border-slate-100 dark:border-slate-800">
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                  <ShieldQuestion className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-800 dark:text-white text-base">
+                    Pertanyaan Keamanan
+                  </h3>
+                  <p className="text-xs text-slate-400">Untuk pemulihan jika lupa kata sandi</p>
+                </div>
+              </div>
+
+              {secError && (
+                <div className="mb-4 p-3 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-400 text-xs flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{secError}</span>
+                </div>
+              )}
+
+              {secSuccess && (
+                <div className="mb-4 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-900 text-emerald-600 dark:text-emerald-400 text-xs flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{secSuccess}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleSecuritySubmit} className="space-y-3.5">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Pertanyaan Keamanan
+                  </label>
+                  <input
+                    type="text"
+                    name="security_prompt"
+                    required
+                    defaultValue={user.securityPrompt || ""}
+                    placeholder="Contoh: Apa nama hewan peliharaan pertama Anda?"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-white text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Jawaban Rahasia
+                  </label>
+                  <input
+                    type="text"
+                    name="security_answer"
+                    required
+                    placeholder="Jawaban pertanyaan keamanan"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-white text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Konfirmasi Kata Sandi Saat Ini
+                  </label>
+                  <input
+                    type="password"
+                    name="current_password"
+                    required
+                    placeholder="••••••••"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-white text-sm"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={secPending}
+                  className="w-full py-2.5 px-4 rounded-xl font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md shadow-emerald-500/25 transition-all text-sm flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
+                >
+                  {secPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                  <span>Simpan Pertanyaan</span>
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        {/* Audit Log Card */}
+        <div className="glass-card rounded-3xl p-6 border border-white/60 dark:border-white/10">
+          <div className="flex items-center gap-2.5 pb-4 mb-4 border-b border-slate-100 dark:border-slate-800">
+            <History className="w-5 h-5 text-indigo-500" />
+            <h3 className="font-bold text-slate-800 dark:text-white text-base">
+              Catatan Aktivitas Akun
+            </h3>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs sm:text-sm">
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
+              <span className="text-slate-400 block mb-1">Akun Dibuat</span>
+              <strong className="text-slate-800 dark:text-slate-200">
+                {formatIndonesianDateTime(user.createdAt)}
+              </strong>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
+              <span className="text-slate-400 block mb-1">Profil Terakhir Diperbarui</span>
+              <strong className="text-slate-800 dark:text-slate-200">
+                {user.profileUpdatedAt
+                  ? formatIndonesianDateTime(user.profileUpdatedAt)
+                  : "Belum pernah"}
+              </strong>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
+              <span className="text-slate-400 block mb-1">Sandi Terakhir Diubah</span>
+              <strong className="text-slate-800 dark:text-slate-200">
+                {user.passwordChangedAt
+                  ? formatIndonesianDateTime(user.passwordChangedAt)
+                  : "Belum pernah"}
+              </strong>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}

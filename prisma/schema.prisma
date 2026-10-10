@@ -1,0 +1,104 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 Int              @id @default(autoincrement())
+  username           String           @unique
+  password           String
+  email              String           @unique
+  fullName           String?          @map("full_name")
+  phoneNumber        String?          @map("phone_number")
+  profilePictureUrl  String?          @map("profile_picture_url")
+  securityPrompt     String?          @map("security_prompt")
+  securityAnswerHash String?          @map("security_answer_hash")
+  createdAt          DateTime         @default(now()) @map("created_at")
+  profileUpdatedAt   DateTime?        @map("profile_updated_at")
+  passwordChangedAt  DateTime?        @map("password_changed_at")
+
+  jadwal             Jadwal[]
+  tugas              Tugas[]
+  ujian              Ujian[]
+  kelasPengganti     KelasPengganti[]
+
+  @@map("users")
+}
+
+model Jadwal {
+  id             Int              @id @default(autoincrement())
+  userId         Int              @map("user_id")
+  namaMatkul     String           @map("nama_matkul")
+  dosen          String?
+  kategori       String?
+  lokasi         String?
+  hari           String
+  waktuMulai     String           @map("waktu_mulai")
+  waktuSelesai   String           @map("waktu_selesai")
+  createdAt      DateTime         @default(now()) @map("created_at")
+
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tugas          Tugas[]
+  ujian          Ujian[]
+  kelasPengganti KelasPengganti[]
+
+  @@map("jadwal")
+}
+
+model Tugas {
+  id         Int      @id @default(autoincrement())
+  userId     Int      @map("user_id")
+  idJadwal   Int      @map("id_jadwal")
+  namaTugas  String   @map("nama_tugas")
+  deadline   DateTime
+  prioritas  String
+  jenis      String
+  status     String   @default("Belum Dikerjakan")
+  progress   Int      @default(0)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jadwal     Jadwal   @relation(fields: [idJadwal], references: [id], onDelete: Cascade)
+
+  @@map("tugas")
+}
+
+model Ujian {
+  id           Int      @id @default(autoincrement())
+  userId       Int      @map("user_id")
+  idJadwal     Int      @map("id_jadwal")
+  jenisUjian   String   @map("jenis_ujian")
+  tanggal      DateTime
+  waktuMulai   String?  @map("waktu_mulai")
+  waktuSelesai String?  @map("waktu_selesai")
+  ruangan      String?
+  catatan      String?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jadwal       Jadwal   @relation(fields: [idJadwal], references: [id], onDelete: Cascade)
+
+  @@map("ujian")
+}
+
+model KelasPengganti {
+  id           Int      @id @default(autoincrement())
+  userId       Int      @map("user_id")
+  idJadwal     Int      @map("id_jadwal")
+  tanggal      DateTime
+  waktuMulai   String   @map("waktu_mulai")
+  waktuSelesai String   @map("waktu_selesai")
+  lokasi       String?
+  catatan      String?
+  status       String   @default("Belum Selesai")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jadwal       Jadwal   @relation(fields: [idJadwal], references: [id], onDelete: Cascade)
+
+  @@map("kelas_pengganti")
+}
