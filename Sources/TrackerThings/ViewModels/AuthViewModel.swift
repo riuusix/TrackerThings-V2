@@ -7,6 +7,7 @@ public final class AuthViewModel {
     public var currentUser: UserProfile?
     public var isAuthenticated: Bool = false
     public var isLoading: Bool = false
+    public var isRestoringSession: Bool = true
     public var errorMessage: String?
     public var successMessage: String?
 
@@ -14,6 +15,24 @@ public final class AuthViewModel {
 
     public init(authService: AuthServiceProtocol = AuthService()) {
         self.authService = authService
+    }
+
+    public func restoreSession() async {
+        isRestoringSession = true
+        defer { isRestoringSession = false }
+
+        do {
+            if let user = try await authService.restoreSession() {
+                currentUser = user
+                isAuthenticated = true
+            } else {
+                currentUser = nil
+                isAuthenticated = false
+            }
+        } catch {
+            currentUser = nil
+            isAuthenticated = false
+        }
     }
 
     public func login(username: String, password: String) async {
@@ -72,7 +91,8 @@ public final class AuthViewModel {
         }
     }
 
-    public func logout() {
+    public func logout() async {
+        await authService.logout()
         currentUser = nil
         isAuthenticated = false
         errorMessage = nil

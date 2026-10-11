@@ -16,6 +16,8 @@ public struct BaseResponse: Codable, Sendable {
 public protocol AuthServiceProtocol: Sendable {
     func login(username: String, password: String) async throws -> UserProfile
     func register(username: String, email: String, password: String, fullName: String?, phoneNumber: String?) async throws -> BaseResponse
+    func restoreSession() async throws -> UserProfile?
+    func logout() async
     func getProfile() async throws -> UserProfile
     func updateProfile(fullName: String?, email: String, phoneNumber: String?, profilePictureUrl: String?) async throws -> BaseResponse
     func updatePassword(currentPassword: String, newPassword: String) async throws -> BaseResponse
@@ -45,9 +47,44 @@ public actor AuthService: AuthServiceProtocol {
 
         if let token = resp.token {
             await network.setAuthToken(token)
+            KeychainHelper.shared.saveToken(token)
         }
 
         return user
+    }
+
+    public func restoreSession() async throws -> UserProfile? {
+        guard let token = KeychainHelper.shared.getToken(), !token.isEmpty else {
+            return nil
+        }
+
+        // Periksa apakah token kedaluwarsa
+        if JWTTokenHelper.isExpired(token: token) {
+            KeychainHelper.shared.deleteToken()
+            await network.setAuthToken(nil)
+            return nil
+        }
+
+        await network.setAuthToken(token)
+
+        // Buat UserProfile dari payload JWT yang valid
+        if let payload = JWTTokenHelper.decode(token: token),
+           let userId = payload.userId,
+           let username = payload.username,
+           let email = payload.email {
+            return UserProfile(
+                id: userId,
+                username: username,
+                email: email
+            )
+        }
+
+        return nil
+    }
+
+    public func logout() async {
+        KeychainHelper.shared.deleteToken()
+        await network.setAuthToken(nil)
     }
 
     public func register(
@@ -102,6 +139,44 @@ public actor AuthService: AuthServiceProtocol {
         ]
         let data = try JSONSerialization.data(withJSONObject: payload)
         return try await network.request(endpoint: "auth/security-prompt", method: "POST", body: data)
+    }
+}
+
+public struct JWTPayload: Codable, Sendable {
+    public let userId: Int?
+    public let username: String?
+    public let email: String?
+    public let role: String?
+    public let exp: TimeInterval?
+
+    enum CodingKeys: String, CodingKey {
+        case userId
+        case username
+        case email
+        case role
+        case exp
+    }
+}
+
+public enum JWTTokenHelper {
+    public static func decode(token: String) -> JWTPayload? {
+        let parts = token.components(separatedBy: ".")
+        guard parts.count == 3 else { return nil }
+        var base64 = parts[1]
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        while base64.count % 4 != 0 {
+            base64.append("=")
+        }
+        guard let data = Data(base64Encoded: base64) else { return nil }
+        return try? JSONDecoder().decode(JWTPayload.self, from: data)
+    }
+
+    public static func isExpired(token: String) -> Bool {
+        guard let payload = decode(token: token), let exp = payload.exp else {
+            return true
+        }
+        return Date().timeIntervalSince1970 >= exp
     }
 }
 

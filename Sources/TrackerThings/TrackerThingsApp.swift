@@ -6,7 +6,7 @@ public struct TrackerThingsApp: App {
 
     public var body: some Scene {
         WindowGroup {
-            RootTabView()
+            AppRootView()
         }
     }
 }
