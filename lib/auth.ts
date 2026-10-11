@@ -1,5 +1,6 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
+import type { NextRequest } from "next/server";
 import bcrypt from "bcryptjs";
 import { UserSession } from "@/types";
 
@@ -57,11 +58,39 @@ export async function createSession(user: { id: number; username: string; email:
   });
 }
 
+
 export async function getSession(): Promise<UserSession | null> {
   const cookieStore = cookies();
   const token = cookieStore.get(COOKIE_NAME)?.value;
   if (!token) return null;
   return verifySessionToken(token);
+}
+
+export async function getAuthSession(req?: NextRequest | Request): Promise<UserSession | null> {
+  // 1. Coba verifikasi dari header Authorization (Bearer <token>) untuk klien native
+  if (req) {
+    const authHeader = req.headers.get("authorization") || req.headers.get("Authorization");
+    if (authHeader && authHeader.toLowerCase().startsWith("bearer ")) {
+      const token = authHeader.slice(7).trim();
+      if (token) {
+        const session = await verifySessionToken(token);
+        if (session) return session;
+      }
+    }
+  }
+
+  // 2. Fallback ke session cookie untuk klien web
+  try {
+    const cookieStore = cookies();
+    const token = cookieStore.get(COOKIE_NAME)?.value;
+    if (token) {
+      return verifySessionToken(token);
+    }
+  } catch {
+    // Abaikan jika dipanggil di luar konteks request cookies
+  }
+
+  return null;
 }
 
 export async function destroySession() {

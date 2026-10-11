@@ -1,0 +1,27 @@
+{
+  "object" : {
+    "artifacts" : [
+
+    ],
+    "dependencies" : [
+      {
+        "basedOn" : null,
+        "packageRef" : {
+          "identity" : "rewrite_trackerthings_swiftui",
+          "kind" : "fileSystem",
+          "location" : "/mnt/c/Users/Budy/.gemini/antigravity/worktrees/jadwalmatkul/rewrite_trackerthings_swiftui",
+          "name" : "rewrite_trackerthings_swiftui"
+        },
+        "state" : {
+          "name" : "fileSystem",
+          "path" : "/mnt/c/Users/Budy/.gemini/antigravity/worktrees/jadwalmatkul/rewrite_trackerthings_swiftui"
+        },
+        "subpath" : "rewrite_trackerthings_swiftui"
+      }
+    ],
+    "prebuilts" : [
+
+    ]
+  },
+  "version" : 7
+}

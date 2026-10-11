@@ -24,7 +24,7 @@ public enum NetworkError: LocalizedError, Sendable {
 }
 
 public protocol NetworkServiceProtocol: Sendable {
-    func request<T: Decodable>(
+    func request<T: Decodable & Sendable>(
         endpoint: String,
         method: String,
         body: Data?,
@@ -35,17 +35,25 @@ public protocol NetworkServiceProtocol: Sendable {
 public actor NetworkService: NetworkServiceProtocol {
     public static let shared = NetworkService()
 
-    private let baseURL: URL
+    private var baseURL: URL
     private let urlSession: URLSession
     private let jsonDecoder: JSONDecoder
     private let jsonEncoder: JSONEncoder
     private var authToken: String?
 
     public init(
-        baseURL: URL = URL(string: "http://localhost:3000/api")!,
+        baseURL: URL? = nil,
         urlSession: URLSession = .shared
     ) {
-        self.baseURL = baseURL
+        if let customURL = baseURL {
+            self.baseURL = customURL
+        } else if let savedURLStr = UserDefaults.standard.string(forKey: "trackerthings_custom_server_url"),
+                  let savedURL = URL(string: savedURLStr) {
+            self.baseURL = savedURL
+        } else {
+            self.baseURL = URL(string: "http://localhost:3000/api")!
+        }
+
         self.urlSession = urlSession
 
         let decoder = JSONDecoder()
@@ -55,19 +63,39 @@ public actor NetworkService: NetworkServiceProtocol {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         self.jsonEncoder = encoder
+
+        // Muat token awal dari Keychain secara aman jika tersedia
+        self.authToken = KeychainHelper.shared.getToken()
+    }
+
+    public func setBaseURL(_ url: URL) {
+        self.baseURL = url
+    }
+
+    public func getBaseURL() -> URL {
+        return self.baseURL
     }
 
     public func setAuthToken(_ token: String?) {
         self.authToken = token
     }
 
-    public func request<T: Decodable>(
+    private func buildURL(for endpoint: String) -> URL? {
+        let cleanEndpoint = endpoint.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        var baseString = baseURL.absoluteString
+        if !baseString.hasSuffix("/") {
+            baseString += "/"
+        }
+        return URL(string: cleanEndpoint, relativeTo: URL(string: baseString))?.absoluteURL
+    }
+
+    public func request<T: Decodable & Sendable>(
         endpoint: String,
         method: String = "GET",
         body: Data? = nil,
         headers: [String: String]? = nil
     ) async throws -> T {
-        guard let url = URL(string: endpoint, relativeTo: baseURL) else {
+        guard let url = buildURL(for: endpoint) else {
             throw NetworkError.invalidURL
         }
 
@@ -97,11 +125,20 @@ public actor NetworkService: NetworkServiceProtocol {
         }
 
         if httpResponse.statusCode == 401 {
+            // Jika token kedaluwarsa/tidak valid pada request selain login, hapus token
+            if !endpoint.contains("auth/login") {
+                KeychainHelper.shared.deleteToken()
+                self.authToken = nil
+            }
+
+            if let parsedMessage = extractErrorMessage(from: data) {
+                throw NetworkError.serverError(statusCode: 401, message: parsedMessage)
+            }
             throw NetworkError.unauthorized
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {
-            let errorMsg = String(data: data, encoding: .utf8) ?? "HTTP \(httpResponse.statusCode)"
+            let errorMsg = extractErrorMessage(from: data) ?? (String(data: data, encoding: .utf8) ?? "HTTP \(httpResponse.statusCode)")
             throw NetworkError.serverError(statusCode: httpResponse.statusCode, message: errorMsg)
         }
 
@@ -110,6 +147,17 @@ public actor NetworkService: NetworkServiceProtocol {
         } catch {
             throw NetworkError.decodingError(error.localizedDescription)
         }
+    }
+
+    private func extractErrorMessage(from data: Data) -> String? {
+        struct APIErrorResponse: Decodable {
+            let error: String?
+            let message: String?
+        }
+        if let decoded = try? jsonDecoder.decode(APIErrorResponse.self, from: data) {
+            return decoded.error ?? decoded.message
+        }
+        return nil
     }
 }
 

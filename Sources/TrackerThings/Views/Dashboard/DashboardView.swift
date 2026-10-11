@@ -50,7 +50,7 @@ public struct DashboardView: View {
                                     withAnimation(.snappy) {
                                         viewModel.selectedDay = day
                                     }
-                                } label {
+                                } label: {
                                     VStack(spacing: 4) {
                                         Text(day)
                                             .font(.subheadline.weight(isSelected ? .bold : .medium))
