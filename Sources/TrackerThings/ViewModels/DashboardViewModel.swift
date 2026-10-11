@@ -117,6 +117,34 @@ public final class DashboardViewModel {
         }
     }
 
+    public func saveTask(
+        namaTugas: String,
+        idJadwal: Int,
+        deadline: Date,
+        prioritas: TugasItem.PrioritasTugas,
+        jenis: TugasItem.JenisTugas
+    ) async -> Bool {
+        let newTask = TugasItem(
+            id: 0,
+            idJadwal: idJadwal,
+            namaTugas: namaTugas,
+            deadline: deadline,
+            prioritas: prioritas,
+            jenis: jenis,
+            status: .belumDikerjakan,
+            progress: 0
+        )
+
+        do {
+            _ = try await dataService.createTugas(newTask)
+            await loadDashboardData()
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
     public func markReplacementCompleted(item: JadwalGabunganItem) async {
         guard item.tipe == .pengganti else { return }
         do {

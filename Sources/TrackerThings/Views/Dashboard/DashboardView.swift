@@ -214,6 +214,9 @@ public struct DashboardView: View {
             .task {
                 await viewModel.loadDashboardData()
             }
+            .sheet(isPresented: $isPresentingAddTask) {
+                TaskFormSheet(viewModel: viewModel)
+            }
         }
     }
 }
