@@ -53,8 +53,17 @@ public actor TrackerDataService: TrackerDataServiceProtocol {
     }
 
     // MARK: - Tugas
+    private struct TasksResponse: Decodable {
+        let tasks: [TugasItem]
+    }
+
     public func getTugasList() async throws -> [TugasItem] {
-        return try await network.request(endpoint: "tugas", method: "GET")
+        do {
+            let res: TasksResponse = try await network.request(endpoint: "tugas", method: "GET")
+            return res.tasks
+        } catch {
+            return try await network.request(endpoint: "tugas", method: "GET")
+        }
     }
 
     public func createTugas(_ item: TugasItem) async throws -> BaseResponse {
@@ -68,9 +77,9 @@ public actor TrackerDataService: TrackerDataServiceProtocol {
     }
 
     public func updateTugasProgress(id: Int, progress: Int) async throws -> BaseResponse {
-        let payload = ["progress": progress]
+        let payload: [String: Any] = ["id": id, "progress": progress]
         let body = try JSONSerialization.data(withJSONObject: payload)
-        return try await network.request(endpoint: "tugas/\(id)/progress", method: "PATCH", body: body)
+        return try await network.request(endpoint: "tugas", method: "PATCH", body: body)
     }
 
     public func deleteTugas(id: Int) async throws -> BaseResponse {

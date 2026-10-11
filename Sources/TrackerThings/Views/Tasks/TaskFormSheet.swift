@@ -78,7 +78,7 @@ public struct TaskFormSheet: View {
                             }
                         }
                     }
-                    .disabled(namaTugas.trimmingCharacters(in: .whitespaces).isEmpty || isSubmitting)
+                    .disabled(namaTugas.trimmingCharacters(in: .whitespaces).isEmpty || idJadwal <= 0 || isSubmitting)
                 }
             }
             .onAppear {
