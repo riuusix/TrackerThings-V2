@@ -1,0 +1,57 @@
+
+name: Build TrackerThings IPA
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build iOS IPA
+    runs-on: macos-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Check Apple toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+          xcrun -sdk iphoneos -show-sdk-path
+
+      - name: Install xtool
+        run: |
+          brew install xtool-org/tap/xtool
+          xtool --help
+
+      - name: Build IPA
+        run: |
+          xtool dev build --ipa --configuration release
+
+      - name: Locate IPA
+        run: |
+          IPA_PATH="$(find . -type f -name '*.ipa' \
+            -not -path './.git/*' -print -quit)"
+
+          if [ -z "$IPA_PATH" ]; then
+            echo "::error::Build finished without producing an IPA."
+            exit 1
+          fi
+
+          mkdir -p dist
+          cp "$IPA_PATH" dist/TrackerThings.ipa
+          ls -lh dist/TrackerThings.ipa
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TrackerThings-IPA
+          path: dist/TrackerThings.ipa
+          if-no-files-found: error
+          retention-days: 7
