@@ -81,12 +81,28 @@ public actor NetworkService: NetworkServiceProtocol {
     }
 
     private func buildURL(for endpoint: String) -> URL? {
-        let cleanEndpoint = endpoint.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        var baseString = baseURL.absoluteString
-        if !baseString.hasSuffix("/") {
-            baseString += "/"
+        // 1. Bersihkan base string dari trailing slash dan suffix /api yang mungkin ada
+        var base = baseURL.absoluteString.trimmingCharacters(in: .whitespacesAndNewlines)
+        while base.hasSuffix("/") {
+            base.removeLast()
         }
-        return URL(string: cleanEndpoint, relativeTo: URL(string: baseString))?.absoluteURL
+        if base.lowercased().hasSuffix("/api") {
+            base = String(base.dropLast(4))
+        }
+        while base.hasSuffix("/") {
+            base.removeLast()
+        }
+
+        // 2. Bersihkan endpoint dari leading/trailing slash dan awalan api/ jika ada
+        var ep = endpoint.trimmingCharacters(in: CharacterSet(charactersIn: "/ \t\n\r"))
+        if ep.lowercased().hasPrefix("api/") {
+            ep = String(ep.dropFirst(4))
+            ep = ep.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        }
+
+        // 3. Gabungkan secara deterministik ke root /api/
+        let fullString = "\(base)/api/\(ep)"
+        return URL(string: fullString)
     }
 
     public func request<T: Decodable & Sendable>(
@@ -138,7 +154,7 @@ public actor NetworkService: NetworkServiceProtocol {
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {
-            let errorMsg = extractErrorMessage(from: data) ?? (String(data: data, encoding: .utf8) ?? "HTTP \(httpResponse.statusCode)")
+            let errorMsg = extractErrorMessage(from: data) ?? "Server mengembalikan status HTTP \(httpResponse.statusCode)"
             throw NetworkError.serverError(statusCode: httpResponse.statusCode, message: errorMsg)
         }
 
@@ -156,6 +172,20 @@ public actor NetworkService: NetworkServiceProtocol {
         }
         if let decoded = try? jsonDecoder.decode(APIErrorResponse.self, from: data) {
             return decoded.error ?? decoded.message
+        }
+        if let text = String(data: data, encoding: .utf8) {
+            if text.contains("<!DOCTYPE html") || text.contains("<html") {
+                if text.contains("404") {
+                    return "Endpoint API tidak ditemukan (HTTP 404). Pastikan URL server benar dan route /api tersedia."
+                } else if text.contains("500") {
+                    return "Terjadi kesalahan internal pada server backend (HTTP 500)."
+                }
+                return "Server mengembalikan halaman web (HTML), bukan respon JSON."
+            }
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty && trimmed.count < 300 {
+                return trimmed
+            }
         }
         return nil
     }

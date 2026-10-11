@@ -28,12 +28,12 @@ public final class AppConfig {
     }
 
     public var serverURLString: String {
-        didSet {
-            let normalized = Self.normalizeURLString(serverURLString)
-            if normalized != serverURLString {
-                serverURLString = normalized
-                return
-            }
+        get {
+            let saved = UserDefaults.standard.string(forKey: serverURLKey)
+            return (saved?.isEmpty == false) ? saved! : Self.defaultServerURL
+        }
+        set {
+            let normalized = Self.normalizeURLString(newValue)
             UserDefaults.standard.set(normalized, forKey: serverURLKey)
             if let validURL = URL(string: normalized) {
                 Task {
@@ -44,9 +44,13 @@ public final class AppConfig {
     }
 
     private init() {
-        let saved = UserDefaults.standard.string(forKey: serverURLKey)
-        let initial = (saved?.isEmpty == false) ? saved! : Self.defaultServerURL
-        self.serverURLString = Self.normalizeURLString(initial)
+        // Pastikan NetworkService disinkronkan dengan URL tersimpan saat inisialisasi
+        let initial = serverURLString
+        if let validURL = URL(string: initial) {
+            Task {
+                await NetworkService.shared.setBaseURL(validURL)
+            }
+        }
     }
 
     public var currentBaseURL: URL {
