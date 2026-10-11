@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getSupabaseServerClient } from "@/utils/supabase/server";
 import { getAuthSession } from "@/lib/auth";
+import { apiSuccess, apiError } from "@/lib/apiResponse";
 
 export async function PUT(
   req: NextRequest,
@@ -8,18 +9,18 @@ export async function PUT(
 ) {
   const session = await getAuthSession(req);
   if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return apiError("Sesi login telah berakhir. Silakan masuk kembali.", 401);
   }
 
   const taskId = parseInt(params.id, 10);
   if (isNaN(taskId) || taskId <= 0) {
-    return NextResponse.json({ error: "ID tugas tidak valid" }, { status: 400 });
+    return apiError("ID tugas tidak valid.", 400);
   }
 
   try {
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== "object") {
-      return NextResponse.json({ error: "Payload tidak valid" }, { status: 400 });
+      return apiError("Payload permintaan tidak valid.", 400);
     }
 
     const namaTugas = typeof body.nama_tugas === "string" ? body.nama_tugas.trim() : (typeof body.namaTugas === "string" ? body.namaTugas.trim() : "");
@@ -39,11 +40,11 @@ export async function PUT(
       .maybeSingle();
 
     if (checkErr || !existing) {
-      return NextResponse.json({ error: "Tugas tidak ditemukan" }, { status: 404 });
+      return apiError("Tugas tidak ditemukan.", 404);
     }
 
     if (existing.user_id !== session.userId) {
-      return NextResponse.json({ error: "Akses ditolak" }, { status: 403 });
+      return apiError("Akses ditolak: Anda tidak memiliki izin untuk mengubah tugas ini.", 403);
     }
 
     const updateData: any = {
@@ -61,13 +62,13 @@ export async function PUT(
 
     if (updateErr) {
       console.error("Supabase update tugas error:", updateErr);
-      return NextResponse.json({ error: "Gagal memperbarui tugas" }, { status: 500 });
+      return apiError("Gagal memperbarui tugas di database.", 500);
     }
 
-    return NextResponse.json({ success: true, message: "Tugas berhasil diperbarui" });
+    return apiSuccess("Tugas berhasil diperbarui!", null, 200);
   } catch (error) {
     console.error("PUT /api/tugas/[id] exception:", error);
-    return NextResponse.json({ error: "Gagal memperbarui tugas" }, { status: 500 });
+    return apiError("Terjadi kesalahan internal pada server saat memperbarui tugas.", 500);
   }
 }
 
@@ -77,12 +78,12 @@ export async function DELETE(
 ) {
   const session = await getAuthSession(req);
   if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return apiError("Sesi login telah berakhir. Silakan masuk kembali.", 401);
   }
 
   const taskId = parseInt(params.id, 10);
   if (isNaN(taskId) || taskId <= 0) {
-    return NextResponse.json({ error: "ID tugas tidak valid" }, { status: 400 });
+    return apiError("ID tugas tidak valid.", 400);
   }
 
   try {
@@ -96,13 +97,13 @@ export async function DELETE(
 
     if (error) {
       console.error("Supabase delete tugas error:", error);
-      return NextResponse.json({ error: "Gagal menghapus tugas" }, { status: 500 });
+      return apiError("Gagal menghapus tugas dari database.", 500);
     }
 
-    return NextResponse.json({ success: true, message: "Tugas berhasil dihapus" });
+    return apiSuccess("Tugas berhasil dihapus!", null, 200);
   } catch (error) {
     console.error("DELETE /api/tugas/[id] exception:", error);
-    return NextResponse.json({ error: "Gagal menghapus tugas" }, { status: 500 });
+    return apiError("Terjadi kesalahan internal pada server saat menghapus tugas.", 500);
   }
 }
 

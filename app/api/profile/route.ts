@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     const supabase = await getSupabaseServerClient();
     const { data: user, error } = await supabase
       .from("users")
-      .select("id, username, email, full_name, phone_number, profile_picture_url, security_prompt, created_at, profile_updated_at, password_changed_at")
+      .select("id, username, email, role, full_name, phone_number, profile_picture_url, security_prompt, created_at, profile_updated_at, password_changed_at")
       .eq("id", session.userId)
       .maybeSingle();
 
@@ -20,10 +20,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "User profile tidak ditemukan" }, { status: 404 });
     }
 
+    const role = user.role || "user";
+
     return NextResponse.json({
       id: user.id,
       username: user.username,
       email: user.email,
+      role,
       fullName: user.full_name,
       phoneNumber: user.phone_number,
       profilePictureUrl: user.profile_picture_url,
@@ -67,7 +70,7 @@ export async function PUT(req: NextRequest) {
 
     if (error) {
       console.error("Supabase update profile error:", error);
-      return NextResponse.json({ error: "Gagal memperbarui profil: " + error.message }, { status: 500 });
+      return NextResponse.json({ error: "Gagal memperbarui profil" }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, message: "Profil berhasil diperbarui" });

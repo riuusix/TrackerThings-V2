@@ -2,7 +2,9 @@ import SwiftUI
 
 @main
 public struct TrackerThingsApp: App {
-    public init() {}
+    public init() {
+        NotificationService.shared.configureForegroundPresentation()
+    }
 
     public var body: some Scene {
         WindowGroup {

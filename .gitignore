@@ -31,8 +31,13 @@ yarn-error.log*
 *.db
 *.db-journal
 
-# OS
-.DS_Store
-Thumbs.db
 # Playwright CLI output (may contain credentials)
 .playwright-cli/
+
+# Swift / Xcode build artifacts
+.build/
+.build-*/
+DerivedData/
+
+# xtool temporary build artifacts
+xtool/.xtool-tmp/

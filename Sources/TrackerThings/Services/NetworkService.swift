@@ -1,26 +1,19 @@
 import Foundation
 
-public enum NetworkError: LocalizedError, Sendable {
-    case invalidURL
-    case serverError(statusCode: Int, message: String)
-    case decodingError(String)
-    case unauthorized
-    case unknown(String)
+private struct DataEnvelope<D: Decodable>: Decodable {
+    let data: D
+}
 
-    public var errorDescription: String? {
-        switch self {
-        case .invalidURL:
-            return "URL tidak valid."
-        case .serverError(let statusCode, let message):
-            return "Server error (\(statusCode)): \(message)"
-        case .decodingError(let msg):
-            return "Gagal memproses respon server: \(msg)"
-        case .unauthorized:
-            return "Sesi login telah berakhir. Silakan masuk kembali."
-        case .unknown(let msg):
-            return msg
-        }
-    }
+private struct UserEnvelope<D: Decodable>: Decodable {
+    let user: D
+}
+
+private struct TaskEnvelope<D: Decodable>: Decodable {
+    let task: D
+}
+
+private struct TasksEnvelope<D: Decodable>: Decodable {
+    let tasks: D
 }
 
 public protocol NetworkServiceProtocol: Sendable {
@@ -57,7 +50,49 @@ public actor NetworkService: NetworkServiceProtocol {
         self.urlSession = urlSession
 
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let dateStr = try container.decode(String.self)
+
+            let isoFractional = ISO8601DateFormatter()
+            isoFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = isoFractional.date(from: dateStr) {
+                return date
+            }
+
+            let isoStandard = ISO8601DateFormatter()
+            isoStandard.formatOptions = [.withInternetDateTime]
+            if let date = isoStandard.date(from: dateStr) {
+                return date
+            }
+
+            let dfDateOnly = DateFormatter()
+            dfDateOnly.dateFormat = "yyyy-MM-dd"
+            dfDateOnly.locale = Locale(identifier: "en_US_POSIX")
+            dfDateOnly.timeZone = TimeZone(secondsFromGMT: 0)
+            if let date = dfDateOnly.date(from: dateStr) {
+                return date
+            }
+
+            let dfMicro = DateFormatter()
+            dfMicro.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZZZZZ"
+            dfMicro.locale = Locale(identifier: "en_US_POSIX")
+            if let date = dfMicro.date(from: dateStr) {
+                return date
+            }
+
+            let dfSimple = DateFormatter()
+            dfSimple.dateFormat = "yyyy-MM-dd HH:mm:ss"
+            dfSimple.locale = Locale(identifier: "en_US_POSIX")
+            if let date = dfSimple.date(from: dateStr) {
+                return date
+            }
+
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Format tanggal tidak didukung: \(dateStr)"
+            )
+        }
         self.jsonDecoder = decoder
 
         let encoder = JSONEncoder()
@@ -148,30 +183,44 @@ public actor NetworkService: NetworkServiceProtocol {
             }
 
             if let parsedMessage = extractErrorMessage(from: data) {
-                throw NetworkError.serverError(statusCode: 401, message: parsedMessage)
+                throw AppError.serverError(code: 401, message: parsedMessage)
             }
-            throw NetworkError.unauthorized
+            throw AppError.unauthorized
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {
             let errorMsg = extractErrorMessage(from: data) ?? "Server mengembalikan status HTTP \(httpResponse.statusCode)"
-            throw NetworkError.serverError(statusCode: httpResponse.statusCode, message: errorMsg)
+            throw AppError.serverError(code: httpResponse.statusCode, message: errorMsg)
         }
 
         do {
             return try jsonDecoder.decode(T.self, from: data)
-        } catch {
-            throw NetworkError.decodingError(error.localizedDescription)
+        } catch let primaryError {
+            // Dukung standardized response envelope: { success: true, data: T }
+            if let envelope = try? jsonDecoder.decode(DataEnvelope<T>.self, from: data) {
+                return envelope.data
+            }
+            if let envelope = try? jsonDecoder.decode(UserEnvelope<T>.self, from: data) {
+                return envelope.user
+            }
+            if let envelope = try? jsonDecoder.decode(TaskEnvelope<T>.self, from: data) {
+                return envelope.task
+            }
+            if let envelope = try? jsonDecoder.decode(TasksEnvelope<T>.self, from: data) {
+                return envelope.tasks
+            }
+            throw AppError.decodingError(primaryError.localizedDescription)
         }
     }
 
     private func extractErrorMessage(from data: Data) -> String? {
         struct APIErrorResponse: Decodable {
-            let error: String?
             let message: String?
+            let error: String?
+            let code: Int?
         }
         if let decoded = try? jsonDecoder.decode(APIErrorResponse.self, from: data) {
-            return decoded.error ?? decoded.message
+            return decoded.message ?? decoded.error
         }
         if let text = String(data: data, encoding: .utf8) {
             if text.contains("<!DOCTYPE html") || text.contains("<html") {

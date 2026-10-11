@@ -101,6 +101,16 @@ public final class DashboardViewModel {
             // Build notifications for tasks due soon
             generateNotifications()
 
+            // Sinkronkan pengingat lokal sistem untuk tugas-tugas aktif
+            for task in urgentTasks where task.deadline > now {
+                await NotificationService.shared.scheduleReminderForTask(
+                    id: task.id,
+                    title: task.namaTugas,
+                    courseName: task.jadwal?.namaMatkul,
+                    deadline: task.deadline
+                )
+            }
+
             isLoading = false
         } catch {
             errorMessage = error.localizedDescription
@@ -111,6 +121,9 @@ public final class DashboardViewModel {
     public func updateTaskProgress(task: TugasItem, progress: Int) async {
         do {
             _ = try await dataService.updateTugasProgress(id: task.id, progress: progress)
+            if progress >= 100 {
+                NotificationService.shared.cancelReminderForTask(id: task.id)
+            }
             await loadDashboardData()
         } catch {
             errorMessage = error.localizedDescription
@@ -138,6 +151,19 @@ public final class DashboardViewModel {
         do {
             _ = try await dataService.createTugas(newTask)
             await loadDashboardData()
+
+            // Jadwalkan pengingat lokal untuk tugas yang baru disimpan
+            let course = courses.first(where: { $0.id == idJadwal })
+            let createdTask = urgentTasks.first(where: { $0.namaTugas == namaTugas })
+            let reminderId = createdTask?.id ?? Int.random(in: 1000...9999)
+
+            await NotificationService.shared.scheduleReminderForTask(
+                id: reminderId,
+                title: namaTugas,
+                courseName: course?.namaMatkul,
+                deadline: deadline
+            )
+
             return true
         } catch {
             errorMessage = error.localizedDescription

@@ -21,7 +21,8 @@ public protocol AuthServiceProtocol: Sendable {
     func getProfile() async throws -> UserProfile
     func updateProfile(fullName: String?, email: String, phoneNumber: String?, profilePictureUrl: String?) async throws -> BaseResponse
     func updatePassword(currentPassword: String, newPassword: String) async throws -> BaseResponse
-    func updateSecurityPrompt(prompt: String, answer: String, currentPassword: String) async throws -> BaseResponse
+    func updateUserSettings(fullName: String?, phoneNumber: String?) async throws -> UserProfile
+    func changeUserPassword(currentPassword: String, newPassword: String, confirmPassword: String) async throws -> BaseResponse
 }
 
 public actor AuthService: AuthServiceProtocol {
@@ -67,16 +68,23 @@ public actor AuthService: AuthServiceProtocol {
 
         await network.setAuthToken(token)
 
-        // Buat UserProfile dari payload JWT yang valid
-        if let payload = JWTTokenHelper.decode(token: token),
-           let userId = payload.userId,
-           let username = payload.username,
-           let email = payload.email {
-            return UserProfile(
-                id: userId,
-                username: username,
-                email: email
-            )
+        // Coba sinkronisasi profil terbaru dari server (termasuk verifikasi role admin teraktual)
+        do {
+            let serverProfile: UserProfile = try await network.request(endpoint: "user/profile", method: "GET")
+            return serverProfile
+        } catch {
+            // Fallback ke decoding JWT payload lokal jika jaringan belum tersedia
+            if let payload = JWTTokenHelper.decode(token: token),
+               let userId = payload.userId,
+               let username = payload.username,
+               let email = payload.email {
+                return UserProfile(
+                    id: userId,
+                    username: username,
+                    email: email,
+                    role: payload.role
+                )
+            }
         }
 
         return nil
@@ -139,6 +147,24 @@ public actor AuthService: AuthServiceProtocol {
         ]
         let data = try JSONSerialization.data(withJSONObject: payload)
         return try await network.request(endpoint: "auth/security-prompt", method: "POST", body: data)
+    }
+
+    public func updateUserSettings(fullName: String?, phoneNumber: String?) async throws -> UserProfile {
+        var payload: [String: Any] = [:]
+        if let fullName = fullName { payload["full_name"] = fullName }
+        if let phoneNumber = phoneNumber { payload["phone_number"] = phoneNumber }
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        return try await network.request(endpoint: "user/profile", method: "PUT", body: data)
+    }
+
+    public func changeUserPassword(currentPassword: String, newPassword: String, confirmPassword: String) async throws -> BaseResponse {
+        let payload = [
+            "current_password": currentPassword,
+            "new_password": newPassword,
+            "confirm_password": confirmPassword,
+        ]
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        return try await network.request(endpoint: "user/password", method: "PUT", body: data)
     }
 }
 

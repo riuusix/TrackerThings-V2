@@ -31,6 +31,9 @@ public struct AppRootView: View {
         }
         .task {
             await authViewModel.restoreSession()
+            if authViewModel.isAuthenticated {
+                _ = await NotificationService.shared.requestAuthorization()
+            }
         }
     }
 }

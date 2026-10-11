@@ -3,10 +3,26 @@ import { cookies } from "next/headers";
 import type { NextRequest } from "next/server";
 import bcrypt from "bcryptjs";
 import { UserSession } from "@/types";
+import { getSupabaseServerClient } from "@/utils/supabase/server";
 
 const COOKIE_NAME = "auth_session";
-const JWT_SECRET = process.env.JWT_SECRET || "trackerthings_jwt_super_secret_key_32bytes_min!";
-const key = new TextEncoder().encode(JWT_SECRET);
+
+function getJwtSecretKey(): Uint8Array {
+  const secret = process.env.JWT_SECRET;
+  if (process.env.NODE_ENV === "production") {
+    if (!secret || secret.trim().length < 32) {
+      throw new Error(
+        "CRITICAL_SECURITY_ERROR: JWT_SECRET environment variable is missing or shorter than 32 characters in production."
+      );
+    }
+    return new TextEncoder().encode(secret);
+  }
+  const fallbackSecret =
+    secret && secret.trim().length >= 32
+      ? secret
+      : "trackerthings_jwt_super_secret_key_32bytes_min!";
+  return new TextEncoder().encode(fallbackSecret);
+}
 
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10);
@@ -17,6 +33,7 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 }
 
 export async function signSessionToken(payload: UserSession): Promise<string> {
+  const key = getJwtSecretKey();
   return new SignJWT({ ...payload })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -26,6 +43,7 @@ export async function signSessionToken(payload: UserSession): Promise<string> {
 
 export async function verifySessionToken(token: string): Promise<UserSession | null> {
   try {
+    const key = getJwtSecretKey();
     const { payload } = await jwtVerify(token, key, {
       algorithms: ["HS256"],
     });
@@ -45,7 +63,7 @@ export async function createSession(user: { id: number; username: string; email:
     userId: user.id,
     username: user.username,
     email: user.email,
-    role: user.role || (user.username.toLowerCase() === "admin" ? "admin" : "user"),
+    role: user.role || "user",
   });
 
   const cookieStore = cookies();
@@ -91,6 +109,34 @@ export async function getAuthSession(req?: NextRequest | Request): Promise<UserS
   }
 
   return null;
+}
+
+export async function requireAdminSession(req?: NextRequest | Request): Promise<UserSession | null> {
+  const session = await getAuthSession(req);
+  if (!session || !session.userId) {
+    return null;
+  }
+
+  try {
+    const supabase = await getSupabaseServerClient();
+    const { data: dbUser, error } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", session.userId)
+      .maybeSingle();
+
+    if (error || !dbUser || dbUser.role !== "admin") {
+      return null;
+    }
+
+    return {
+      ...session,
+      role: "admin",
+    };
+  } catch (err) {
+    console.error("Database role verification failed in requireAdminSession:", err);
+    return null;
+  }
 }
 
 export async function destroySession() {

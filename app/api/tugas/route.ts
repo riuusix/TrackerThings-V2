@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getSupabaseServerClient } from "@/utils/supabase/server";
 import { getAuthSession } from "@/lib/auth";
+import { apiSuccess, apiError } from "@/lib/apiResponse";
 
 function formatTaskResponse(t: any) {
   if (!t) return null;
@@ -25,12 +26,12 @@ function formatTaskResponse(t: any) {
 }
 
 export async function GET(req: NextRequest) {
-  const session = await getAuthSession(req);
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   try {
+    const session = await getAuthSession(req);
+    if (!session) {
+      return apiError("Sesi login telah berakhir. Silakan masuk kembali.", 401);
+    }
+
     const supabase = await getSupabaseServerClient();
     const { data: tasks, error } = await supabase
       .from("tugas")
@@ -40,27 +41,27 @@ export async function GET(req: NextRequest) {
 
     if (error) {
       console.error("Supabase fetch tugas error:", error);
-      return NextResponse.json({ error: "Failed to fetch tasks" }, { status: 500 });
+      return apiError("Gagal mengambil daftar tugas dari server.", 500);
     }
 
     const formattedTasks = (tasks || []).map(formatTaskResponse);
-    return NextResponse.json({ tasks: formattedTasks });
-  } catch (error) {
+    return apiSuccess("Daftar tugas berhasil dimuat.", formattedTasks, 200, { tasks: formattedTasks });
+  } catch (error: any) {
     console.error("GET /api/tugas exception:", error);
-    return NextResponse.json({ error: "Failed to fetch tasks" }, { status: 500 });
+    return apiError("Terjadi kesalahan internal pada server.", 500);
   }
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getAuthSession(req);
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   try {
+    const session = await getAuthSession(req);
+    if (!session) {
+      return apiError("Sesi login telah berakhir. Silakan masuk kembali.", 401);
+    }
+
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== "object") {
-      return NextResponse.json({ error: "Payload tidak valid" }, { status: 400 });
+      return apiError("Payload permintaan tidak valid.", 400);
     }
 
     const namaTugas = typeof body.nama_tugas === "string" 
@@ -74,12 +75,12 @@ export async function POST(req: NextRequest) {
     const jenis = body.jenis || "Individu";
 
     if (!namaTugas || isNaN(parsedJadwalId) || !deadline) {
-      return NextResponse.json({ error: "Nama tugas, id_jadwal, dan deadline wajib diisi." }, { status: 400 });
+      return apiError("Nama tugas, id_jadwal, dan deadline wajib diisi.", 400);
     }
 
     const parsedDeadline = new Date(deadline);
     if (isNaN(parsedDeadline.getTime())) {
-      return NextResponse.json({ error: "Format deadline tidak valid." }, { status: 400 });
+      return apiError("Format deadline tidak valid.", 400);
     }
 
     const supabase = await getSupabaseServerClient();
@@ -94,14 +95,11 @@ export async function POST(req: NextRequest) {
 
     if (jadwalErr) {
       console.error("Supabase jadwal check error:", jadwalErr);
-      return NextResponse.json({ error: "Gagal memverifikasi jadwal mata kuliah" }, { status: 500 });
+      return apiError("Gagal memverifikasi jadwal mata kuliah.", 500);
     }
 
     if (!jadwal) {
-      return NextResponse.json(
-        { error: "Jadwal mata kuliah tidak ditemukan atau bukan milik Anda." },
-        { status: 404 }
-      );
+      return apiError("Jadwal mata kuliah tidak ditemukan atau bukan milik Anda.", 404);
     }
 
     const { data: newTask, error: insertError } = await supabase
@@ -123,41 +121,42 @@ export async function POST(req: NextRequest) {
 
     if (insertError) {
       console.error("Supabase insert tugas error:", insertError);
-      return NextResponse.json({ error: "Gagal membuat tugas di database" }, { status: 500 });
+      return apiError("Gagal membuat tugas di database.", 500);
     }
 
-    return NextResponse.json({ success: true, task: formatTaskResponse(newTask) }, { status: 201 });
-  } catch (error) {
+    const formatted = formatTaskResponse(newTask);
+    return apiSuccess("Tugas berhasil dibuat!", formatted, 201, { task: formatted });
+  } catch (error: any) {
     console.error("POST /api/tugas exception:", error);
-    return NextResponse.json({ error: "Gagal membuat tugas" }, { status: 500 });
+    return apiError("Terjadi kesalahan internal pada server saat membuat tugas.", 500);
   }
 }
 
 export async function PATCH(req: NextRequest) {
-  const session = await getAuthSession(req);
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   try {
+    const session = await getAuthSession(req);
+    if (!session) {
+      return apiError("Sesi login telah berakhir. Silakan masuk kembali.", 401);
+    }
+
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== "object") {
-      return NextResponse.json({ error: "Payload tidak valid" }, { status: 400 });
+      return apiError("Payload permintaan tidak valid.", 400);
     }
 
     const { id, progress } = body;
     const taskId = parseInt(id, 10);
     if (isNaN(taskId) || taskId <= 0) {
-      return NextResponse.json({ error: "ID tugas tidak valid" }, { status: 400 });
+      return apiError("ID tugas tidak valid.", 400);
     }
 
     if (progress === undefined || progress === null) {
-      return NextResponse.json({ error: "Nilai progress wajib diisi" }, { status: 400 });
+      return apiError("Nilai progress wajib diisi.", 400);
     }
 
     const parsedProgress = parseInt(progress, 10);
     if (isNaN(parsedProgress)) {
-      return NextResponse.json({ error: "Nilai progress harus berupa angka" }, { status: 400 });
+      return apiError("Nilai progress harus berupa angka.", 400);
     }
 
     const supabase = await getSupabaseServerClient();
@@ -171,19 +170,16 @@ export async function PATCH(req: NextRequest) {
 
     if (fetchErr) {
       console.error("Supabase fetch single tugas error:", fetchErr);
-      return NextResponse.json({ error: "Gagal memeriksa tugas" }, { status: 500 });
+      return apiError("Gagal memeriksa tugas di database.", 500);
     }
 
     if (!existingTask) {
-      return NextResponse.json({ error: "Tugas tidak ditemukan" }, { status: 404 });
+      return apiError("Tugas tidak ditemukan.", 404);
     }
 
     // Validasi kepemilikan tugas
     if (existingTask.user_id !== session.userId) {
-      return NextResponse.json(
-        { error: "Akses ditolak: Anda tidak memiliki izin untuk mengubah tugas ini" },
-        { status: 403 }
-      );
+      return apiError("Akses ditolak: Anda tidak memiliki izin untuk mengubah tugas ini.", 403);
     }
 
     const clampedProgress = Math.min(100, Math.max(0, parsedProgress));
@@ -198,12 +194,13 @@ export async function PATCH(req: NextRequest) {
 
     if (updateErr) {
       console.error("Supabase update tugas error:", updateErr);
-      return NextResponse.json({ error: "Gagal memperbarui tugas" }, { status: 500 });
+      return apiError("Gagal memperbarui progress tugas di database.", 500);
     }
 
-    return NextResponse.json({ success: true, task: formatTaskResponse(updated) });
-  } catch (error) {
+    const formatted = formatTaskResponse(updated);
+    return apiSuccess("Progress tugas berhasil diperbarui!", formatted, 200, { task: formatted });
+  } catch (error: any) {
     console.error("PATCH /api/tugas exception:", error);
-    return NextResponse.json({ error: "Gagal memperbarui tugas" }, { status: 500 });
+    return apiError("Terjadi kesalahan internal pada server saat memperbarui tugas.", 500);
   }
 }

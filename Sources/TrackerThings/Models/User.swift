@@ -21,6 +21,7 @@ public struct UserProfile: Codable, Sendable, Identifiable {
     public let id: Int
     public var username: String
     public var email: String
+    public var role: String?
     public var fullName: String?
     public var phoneNumber: String?
     public var profilePictureUrl: String?
@@ -33,6 +34,7 @@ public struct UserProfile: Codable, Sendable, Identifiable {
         case id
         case username
         case email
+        case role
         case fullName = "full_name"
         case phoneNumber = "phone_number"
         case profilePictureUrl = "profile_picture_url"
@@ -46,6 +48,7 @@ public struct UserProfile: Codable, Sendable, Identifiable {
         id: Int,
         username: String,
         email: String,
+        role: String? = nil,
         fullName: String? = nil,
         phoneNumber: String? = nil,
         profilePictureUrl: String? = nil,
@@ -57,6 +60,7 @@ public struct UserProfile: Codable, Sendable, Identifiable {
         self.id = id
         self.username = username
         self.email = email
+        self.role = role
         self.fullName = fullName
         self.phoneNumber = phoneNumber
         self.profilePictureUrl = profilePictureUrl
