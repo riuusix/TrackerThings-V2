@@ -51,7 +51,7 @@ jobs:
 
           # 1. Compile Assets.car with actool if available
           mkdir -p compiled_assets
-          if xcrun actool xtool/TrackerThings.app/AppIcon.appiconset \
+          if xcrun actool xtool/assets/Assets.xcassets \
             --compile compiled_assets \
             --platform iphoneos \
             --minimum-deployment-target 18.0 \
@@ -73,12 +73,12 @@ jobs:
           fi
           echo "Injecting icon assets into $APP_DIR"
 
-          cp -v xtool/TrackerThings.app/AppIcon*.png "$APP_DIR/" || true
-          cp -v xtool/TrackerThings.app/iTunesArtwork* "$APP_DIR/" || true
+          cp -v xtool/assets/AppIcon*.png "$APP_DIR/" || true
+          cp -v xtool/assets/iTunesArtwork* "$APP_DIR/" || true
           if [ -f compiled_assets/Assets.car ]; then
             cp -v compiled_assets/Assets.car "$APP_DIR/"
           fi
-          cp -v xtool/TrackerThings.app/Info.plist "$APP_DIR/"
+          cp -v xtool/assets/Info.plist "$APP_DIR/"
 
           # 3. Repackage into dist/TrackerThings.ipa
           mkdir -p dist
