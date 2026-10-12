@@ -2,6 +2,7 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { UjianClient } from "./UjianClient";
+import { formatTimeFromDate } from "@/lib/utils";
 
 export default async function UjianPage() {
   const session = await getSession();
@@ -42,8 +43,8 @@ export default async function UjianPage() {
     idJadwal: u.idJadwal,
     jenisUjian: u.jenisUjian,
     tanggal: new Date(u.tanggal),
-    waktuMulai: u.waktuMulai,
-    waktuSelesai: u.waktuSelesai,
+    waktuMulai: u.waktuMulai ? formatTimeFromDate(u.waktuMulai) : null,
+    waktuSelesai: u.waktuSelesai ? formatTimeFromDate(u.waktuSelesai) : null,
     ruangan: u.ruangan,
     catatan: u.catatan,
     createdAt: new Date(),

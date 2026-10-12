@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { DashboardClient } from "./DashboardClient";
 import { JadwalGabunganItem, NotificationItem, TugasItem } from "@/types";
+import { formatTimeFromDate } from "@/lib/utils";
 
 const DAY_NAMES = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 
@@ -78,8 +79,8 @@ export default async function DashboardPage() {
         dosen: item.dosen,
         kategori: item.kategori,
         lokasi: item.lokasi,
-        waktuMulai: item.waktuMulai,
-        waktuSelesai: item.waktuSelesai,
+        waktuMulai: formatTimeFromDate(item.waktuMulai),
+        waktuSelesai: formatTimeFromDate(item.waktuSelesai),
         tipe: "reguler",
       });
     }
@@ -94,8 +95,8 @@ export default async function DashboardPage() {
         namaMatkul: kp.jadwal?.namaMatkul || "Kelas Pengganti",
         kategori: kp.jadwal?.kategori,
         lokasi: kp.lokasi,
-        waktuMulai: kp.waktuMulai,
-        waktuSelesai: kp.waktuSelesai,
+        waktuMulai: formatTimeFromDate(kp.waktuMulai),
+        waktuSelesai: formatTimeFromDate(kp.waktuSelesai),
         tipe: "pengganti",
         catatan: kp.catatan,
         status: kp.status,
@@ -137,8 +138,8 @@ export default async function DashboardPage() {
         idJadwal: upcomingExamRaw.idJadwal,
         jenisUjian: upcomingExamRaw.jenisUjian,
         tanggal: new Date(upcomingExamRaw.tanggal),
-        waktuMulai: upcomingExamRaw.waktuMulai,
-        waktuSelesai: upcomingExamRaw.waktuSelesai,
+        waktuMulai: upcomingExamRaw.waktuMulai ? formatTimeFromDate(upcomingExamRaw.waktuMulai) : null,
+        waktuSelesai: upcomingExamRaw.waktuSelesai ? formatTimeFromDate(upcomingExamRaw.waktuSelesai) : null,
         ruangan: upcomingExamRaw.ruangan,
         catatan: upcomingExamRaw.catatan,
         createdAt: new Date(),

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
+import { parseTimeToDate } from "@/lib/utils";
 
 export async function PUT(
   req: NextRequest,
@@ -43,8 +44,16 @@ export async function PUT(
     const updateData: any = {};
     if (namaMatkul) updateData.namaMatkul = namaMatkul;
     if (hari) updateData.hari = hari;
-    if (waktuMulai) updateData.waktuMulai = waktuMulai;
-    if (waktuSelesai) updateData.waktuSelesai = waktuSelesai;
+    if (waktuMulai) {
+      const parsed = parseTimeToDate(waktuMulai);
+      if (!parsed) return NextResponse.json({ error: "Format waktu_mulai tidak valid (gunakan HH:mm)" }, { status: 400 });
+      updateData.waktuMulai = parsed;
+    }
+    if (waktuSelesai) {
+      const parsed = parseTimeToDate(waktuSelesai);
+      if (!parsed) return NextResponse.json({ error: "Format waktu_selesai tidak valid (gunakan HH:mm)" }, { status: 400 });
+      updateData.waktuSelesai = parsed;
+    }
     if (body.dosen !== undefined) updateData.dosen = body.dosen;
     if (body.kategori !== undefined) updateData.kategori = body.kategori;
     if (body.lokasi !== undefined) updateData.lokasi = body.lokasi;

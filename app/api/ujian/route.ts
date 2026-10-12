@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 import { apiSuccess, apiError } from "@/lib/apiResponse";
+import { formatTimeFromDate, parseTimeToDate, parseDateOnly } from "@/lib/utils";
 
 export async function GET(req: NextRequest) {
   const session = await getAuthSession(req);
@@ -20,25 +21,29 @@ export async function GET(req: NextRequest) {
       orderBy: { tanggal: "asc" },
     });
 
-    const formatted = exams.map((e) => ({
-      id: e.id,
-      user_id: e.userId,
-      userId: e.userId,
-      id_jadwal: e.idJadwal,
-      idJadwal: e.idJadwal,
-      jenis_ujian: e.jenisUjian,
-      jenisUjian: e.jenisUjian,
-      tanggal: e.tanggal instanceof Date ? e.tanggal.toISOString() : e.tanggal,
-      waktu_mulai: e.waktuMulai,
-      waktuMulai: e.waktuMulai,
-      waktu_selesai: e.waktuSelesai,
-      waktuSelesai: e.waktuSelesai,
-      ruangan: e.ruangan,
-      catatan: e.catatan,
-      created_at: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
-      jadwal: e.jadwal ? { nama_matkul: e.jadwal.namaMatkul, namaMatkul: e.jadwal.namaMatkul } : null,
-    }));
+    const formatted = exams.map((e) => {
+      const formattedMulai = e.waktuMulai ? formatTimeFromDate(e.waktuMulai) : null;
+      const formattedSelesai = e.waktuSelesai ? formatTimeFromDate(e.waktuSelesai) : null;
+      return {
+        id: e.id,
+        user_id: e.userId,
+        userId: e.userId,
+        id_jadwal: e.idJadwal,
+        idJadwal: e.idJadwal,
+        jenis_ujian: e.jenisUjian,
+        jenisUjian: e.jenisUjian,
+        tanggal: e.tanggal instanceof Date ? e.tanggal.toISOString() : e.tanggal,
+        waktu_mulai: formattedMulai,
+        waktuMulai: formattedMulai,
+        waktu_selesai: formattedSelesai,
+        waktuSelesai: formattedSelesai,
+        ruangan: e.ruangan,
+        catatan: e.catatan,
+        created_at: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        jadwal: e.jadwal ? { nama_matkul: e.jadwal.namaMatkul, namaMatkul: e.jadwal.namaMatkul } : null,
+      };
+    });
 
     return NextResponse.json(formatted);
   } catch (error) {
@@ -78,10 +83,9 @@ export async function POST(req: NextRequest) {
       return apiError("Mata kuliah, jenis ujian, dan tanggal ujian wajib diisi.", 400);
     }
 
-    const parsedDate = new Date(tanggalStr);
-    if (isNaN(parsedDate.getTime())) {
-      return apiError("Format tanggal ujian tidak valid.", 400);
-    }
+    const parsedDate = parseDateOnly(tanggalStr);
+    const parsedMulai = waktuMulai ? parseTimeToDate(waktuMulai) : null;
+    const parsedSelesai = waktuSelesai ? parseTimeToDate(waktuSelesai) : null;
 
     // Verifikasi mata kuliah milik pengguna yang sedang login
     const jadwal = await prisma.jadwal.findFirst({
@@ -102,8 +106,8 @@ export async function POST(req: NextRequest) {
         idJadwal: parsedJadwalId,
         jenisUjian,
         tanggal: parsedDate,
-        waktuMulai,
-        waktuSelesai,
+        waktuMulai: parsedMulai,
+        waktuSelesai: parsedSelesai,
         ruangan,
         catatan,
       },
@@ -114,6 +118,9 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    const formattedMulai = newUjian.waktuMulai ? formatTimeFromDate(newUjian.waktuMulai) : null;
+    const formattedSelesai = newUjian.waktuSelesai ? formatTimeFromDate(newUjian.waktuSelesai) : null;
+
     const formatted = {
       id: newUjian.id,
       user_id: newUjian.userId,
@@ -123,10 +130,10 @@ export async function POST(req: NextRequest) {
       jenis_ujian: newUjian.jenisUjian,
       jenisUjian: newUjian.jenisUjian,
       tanggal: newUjian.tanggal instanceof Date ? newUjian.tanggal.toISOString() : newUjian.tanggal,
-      waktu_mulai: newUjian.waktuMulai,
-      waktuMulai: newUjian.waktuMulai,
-      waktu_selesai: newUjian.waktuSelesai,
-      waktuSelesai: newUjian.waktuSelesai,
+      waktu_mulai: formattedMulai,
+      waktuMulai: formattedMulai,
+      waktu_selesai: formattedSelesai,
+      waktuSelesai: formattedSelesai,
       ruangan: newUjian.ruangan,
       catatan: newUjian.catatan,
       created_at: new Date().toISOString(),

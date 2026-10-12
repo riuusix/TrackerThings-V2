@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { parseDateOnly, parseTimeToDate } from "@/lib/utils";
 
 export async function createUjianAction(formData: FormData) {
   const session = await getSession();
@@ -11,8 +12,8 @@ export async function createUjianAction(formData: FormData) {
   const idJadwal = parseInt(formData.get("id_jadwal") as string, 10);
   const jenisUjian = (formData.get("jenis_ujian") as string)?.trim();
   const tanggalStr = formData.get("tanggal") as string;
-  const waktuMulai = (formData.get("waktu_mulai") as string)?.trim() || null;
-  const waktuSelesai = (formData.get("waktu_selesai") as string)?.trim() || null;
+  const waktuMulaiStr = (formData.get("waktu_mulai") as string)?.trim() || null;
+  const waktuSelesaiStr = (formData.get("waktu_selesai") as string)?.trim() || null;
   const ruangan = (formData.get("ruangan") as string)?.trim() || null;
   const catatan = (formData.get("catatan") as string)?.trim() || null;
 
@@ -20,10 +21,9 @@ export async function createUjianAction(formData: FormData) {
     return { success: false, error: "Mata kuliah, jenis ujian, dan tanggal ujian wajib diisi." };
   }
 
-  const parsedDate = new Date(tanggalStr);
-  if (isNaN(parsedDate.getTime())) {
-    return { success: false, error: "Format tanggal ujian tidak valid." };
-  }
+  const parsedDate = parseDateOnly(tanggalStr);
+  const waktuMulai = waktuMulaiStr ? parseTimeToDate(waktuMulaiStr) : null;
+  const waktuSelesai = waktuSelesaiStr ? parseTimeToDate(waktuSelesaiStr) : null;
 
   try {
     const jadwal = await prisma.jadwal.findFirst({
@@ -68,8 +68,8 @@ export async function updateUjianAction(formData: FormData) {
   const idJadwal = parseInt(formData.get("id_jadwal") as string, 10);
   const jenisUjian = (formData.get("jenis_ujian") as string)?.trim();
   const tanggalStr = formData.get("tanggal") as string;
-  const waktuMulai = (formData.get("waktu_mulai") as string)?.trim() || null;
-  const waktuSelesai = (formData.get("waktu_selesai") as string)?.trim() || null;
+  const waktuMulaiStr = (formData.get("waktu_mulai") as string)?.trim() || null;
+  const waktuSelesaiStr = (formData.get("waktu_selesai") as string)?.trim() || null;
   const ruangan = (formData.get("ruangan") as string)?.trim() || null;
   const catatan = (formData.get("catatan") as string)?.trim() || null;
 
@@ -77,10 +77,9 @@ export async function updateUjianAction(formData: FormData) {
     return { success: false, error: "Mata kuliah, jenis ujian, dan tanggal ujian wajib diisi." };
   }
 
-  const parsedDate = new Date(tanggalStr);
-  if (isNaN(parsedDate.getTime())) {
-    return { success: false, error: "Format tanggal ujian tidak valid." };
-  }
+  const parsedDate = parseDateOnly(tanggalStr);
+  const waktuMulai = waktuMulaiStr ? parseTimeToDate(waktuMulaiStr) : null;
+  const waktuSelesai = waktuSelesaiStr ? parseTimeToDate(waktuSelesaiStr) : null;
 
   try {
     const existing = await prisma.ujian.findUnique({

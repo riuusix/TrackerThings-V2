@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 import { apiSuccess, apiError } from "@/lib/apiResponse";
+import { parseDateOnly, parseTimeToDate } from "@/lib/utils";
 
 export async function PUT(
   req: NextRequest,
@@ -66,21 +67,17 @@ export async function PUT(
     }
 
     if (body.tanggal) {
-      const parsedDate = new Date(body.tanggal);
-      if (isNaN(parsedDate.getTime())) {
-        return apiError("Format tanggal ujian tidak valid.", 400);
-      }
-      updatePayload.tanggal = parsedDate;
+      updatePayload.tanggal = parseDateOnly(body.tanggal);
     }
 
     if (body.waktu_mulai !== undefined || body.waktuMulai !== undefined) {
       const val = body.waktu_mulai !== undefined ? body.waktu_mulai : body.waktuMulai;
-      updatePayload.waktuMulai = typeof val === "string" ? val.trim() : null;
+      updatePayload.waktuMulai = typeof val === "string" && val.trim() ? parseTimeToDate(val) : null;
     }
 
     if (body.waktu_selesai !== undefined || body.waktuSelesai !== undefined) {
       const val = body.waktu_selesai !== undefined ? body.waktu_selesai : body.waktuSelesai;
-      updatePayload.waktuSelesai = typeof val === "string" ? val.trim() : null;
+      updatePayload.waktuSelesai = typeof val === "string" && val.trim() ? parseTimeToDate(val) : null;
     }
 
     if (body.ruangan !== undefined) {

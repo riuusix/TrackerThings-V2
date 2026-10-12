@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { parseDateOnly, parseTimeToDate } from "@/lib/utils";
 
 export async function createKelasPenggantiAction(formData: FormData) {
   const session = await getSession();
@@ -10,18 +11,21 @@ export async function createKelasPenggantiAction(formData: FormData) {
 
   const idJadwal = parseInt(formData.get("id_jadwal") as string, 10);
   const tanggalStr = formData.get("tanggal") as string;
-  const waktuMulai = (formData.get("waktu_mulai") as string)?.trim();
-  const waktuSelesai = (formData.get("waktu_selesai") as string)?.trim();
+  const waktuMulaiStr = (formData.get("waktu_mulai") as string)?.trim();
+  const waktuSelesaiStr = (formData.get("waktu_selesai") as string)?.trim();
   const lokasi = (formData.get("lokasi") as string)?.trim() || null;
   const catatan = (formData.get("catatan") as string)?.trim() || null;
 
-  if (!idJadwal || !tanggalStr || !waktuMulai || !waktuSelesai) {
+  if (!idJadwal || !tanggalStr || !waktuMulaiStr || !waktuSelesaiStr) {
     return { success: false, error: "Mata kuliah, tanggal, dan rentang waktu wajib diisi." };
   }
 
-  const parsedDate = new Date(tanggalStr);
-  if (isNaN(parsedDate.getTime())) {
-    return { success: false, error: "Format tanggal tidak valid." };
+  const parsedDate = parseDateOnly(tanggalStr);
+  const waktuMulai = parseTimeToDate(waktuMulaiStr);
+  const waktuSelesai = parseTimeToDate(waktuSelesaiStr);
+
+  if (!waktuMulai || !waktuSelesai) {
+    return { success: false, error: "Format waktu kelas pengganti tidak valid." };
   }
 
   try {

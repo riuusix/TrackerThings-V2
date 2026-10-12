@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 import { apiSuccess, apiError } from "@/lib/apiResponse";
+import { parseDateOnly } from "@/lib/utils";
 
 export async function PUT(
   req: NextRequest,
@@ -61,7 +62,7 @@ export async function PUT(
     };
     if (namaTugas) updateData.namaTugas = namaTugas;
     if (!isNaN(parsedJadwalId) && parsedJadwalId > 0) updateData.idJadwal = parsedJadwalId;
-    if (deadline) updateData.deadline = new Date(deadline);
+    if (deadline) updateData.deadline = parseDateOnly(deadline);
 
     await prisma.tugas.update({
       where: { id: taskId },

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 import { apiSuccess, apiError } from "@/lib/apiResponse";
+import { parseDateOnly } from "@/lib/utils";
 
 function formatTaskResponse(t: any) {
   if (!t) return null;
@@ -76,7 +77,7 @@ export async function POST(req: NextRequest) {
       return apiError("Nama tugas, id_jadwal, dan deadline wajib diisi.", 400);
     }
 
-    const parsedDeadline = new Date(deadline);
+    const parsedDeadline = parseDateOnly(deadline);
     if (isNaN(parsedDeadline.getTime())) {
       return apiError("Format deadline tidak valid.", 400);
     }

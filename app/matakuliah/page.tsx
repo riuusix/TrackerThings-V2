@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { MatakuliahClient } from "./MatakuliahClient";
 import { JadwalItem } from "@/types";
+import { formatTimeFromDate } from "@/lib/utils";
 
 export default async function MatakuliahPage() {
   const session = await getSession();
@@ -26,8 +27,8 @@ export default async function MatakuliahPage() {
     kategori: c.kategori,
     lokasi: c.lokasi,
     hari: c.hari,
-    waktuMulai: c.waktuMulai,
-    waktuSelesai: c.waktuSelesai,
+    waktuMulai: formatTimeFromDate(c.waktuMulai),
+    waktuSelesai: formatTimeFromDate(c.waktuSelesai),
     createdAt: new Date(),
   }));
 

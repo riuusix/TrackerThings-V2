@@ -39,8 +39,8 @@ model Jadwal {
   lokasi         String?
   sks            Int?
   hari           String
-  waktuMulai     String           @map("waktu_mulai")
-  waktuSelesai   String           @map("waktu_selesai")
+  waktuMulai     DateTime         @map("waktu_mulai") @db.Time
+  waktuSelesai   DateTime         @map("waktu_selesai") @db.Time
 
   user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   tugas          Tugas[]
@@ -55,7 +55,7 @@ model Tugas {
   userId     Int      @map("user_id")
   idJadwal   Int      @map("id_jadwal")
   namaTugas  String   @map("nama_tugas")
-  deadline   DateTime
+  deadline   DateTime @db.Date
   prioritas  String
   jenis      String
   status     String   @default("Belum Dikerjakan")
@@ -68,18 +68,18 @@ model Tugas {
 }
 
 model Ujian {
-  id           Int      @id @default(autoincrement())
-  userId       Int      @map("user_id")
-  idJadwal     Int      @map("id_jadwal")
-  jenisUjian   String   @map("jenis_ujian")
-  tanggal      DateTime
-  waktuMulai   String?  @map("waktu_mulai")
-  waktuSelesai String?  @map("waktu_selesai")
+  id           Int       @id @default(autoincrement())
+  userId       Int       @map("user_id")
+  idJadwal     Int       @map("id_jadwal")
+  jenisUjian   String    @map("jenis_ujian")
+  tanggal      DateTime  @db.Date
+  waktuMulai   DateTime? @map("waktu_mulai") @db.Time
+  waktuSelesai DateTime? @map("waktu_selesai") @db.Time
   ruangan      String?
   catatan      String?
 
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  jadwal       Jadwal   @relation(fields: [idJadwal], references: [id], onDelete: Cascade)
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jadwal       Jadwal    @relation(fields: [idJadwal], references: [id], onDelete: Cascade)
 
   @@map("ujian")
 }
@@ -88,9 +88,9 @@ model KelasPengganti {
   id           Int      @id @default(autoincrement())
   userId       Int      @map("user_id")
   idJadwal     Int      @map("id_jadwal")
-  tanggal      DateTime
-  waktuMulai   String   @map("waktu_mulai")
-  waktuSelesai String   @map("waktu_selesai")
+  tanggal      DateTime @db.Date
+  waktuMulai   DateTime @map("waktu_mulai") @db.Time
+  waktuSelesai DateTime @map("waktu_selesai") @db.Time
   lokasi       String?
   catatan      String?
   status       String   @default("Belum Selesai")

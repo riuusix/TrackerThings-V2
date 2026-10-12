@@ -2,7 +2,7 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { Navbar } from "@/components/Navbar";
-import { formatIndonesianDate } from "@/lib/utils";
+import { formatIndonesianDate, formatTimeFromDate } from "@/lib/utils";
 import { History, Calendar, Clock, MapPin, CheckCircle2 } from "lucide-react";
 
 export default async function HistoryPage() {
@@ -105,7 +105,7 @@ export default async function HistoryPage() {
                   <div className="flex items-center gap-2">
                     <Clock className="w-4 h-4 text-indigo-500 shrink-0" />
                     <span>
-                      {item.waktuMulai} - {item.waktuSelesai}
+                      {formatTimeFromDate(item.waktuMulai)} - {formatTimeFromDate(item.waktuSelesai)}
                     </span>
                   </div>
 

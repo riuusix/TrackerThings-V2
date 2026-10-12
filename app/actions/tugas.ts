@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { parseDateOnly } from "@/lib/utils";
 
 export async function createTugasAction(formData: FormData) {
   const session = await getSession();
@@ -34,7 +35,7 @@ export async function createTugasAction(formData: FormData) {
         userId: session.userId,
         idJadwal,
         namaTugas,
-        deadline: new Date(deadlineStr),
+        deadline: parseDateOnly(deadlineStr),
         prioritas,
         jenis,
         status: "Belum Dikerjakan",
@@ -88,7 +89,7 @@ export async function updateTugasAction(formData: FormData) {
       where: { id: idTugas },
       data: {
         namaTugas,
-        deadline: new Date(deadlineStr),
+        deadline: parseDateOnly(deadlineStr),
         idJadwal,
         prioritas,
         jenis,

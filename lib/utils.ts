@@ -93,3 +93,50 @@ export function sanitizeRedirectPath(path?: string | null, fallback = "/dashboar
     return fallback;
   }
 }
+
+/**
+ * Mengonversi string waktu "HH:mm" atau "HH:mm:ss" menjadi objek Date dummy (1970-01-01T[time]Z)
+ * yang kompatibel dengan kolom PostgreSQL 'time without time zone' (@db.Time di Prisma).
+ */
+export function parseTimeToDate(timeStr?: string | null): Date | null {
+  if (!timeStr || typeof timeStr !== "string") return null;
+  const trimmed = timeStr.trim();
+  if (!trimmed) return null;
+  const parts = trimmed.split(":");
+  const h = (parts[0] || "00").padStart(2, "0");
+  const m = (parts[1] || "00").padStart(2, "0");
+  const s = (parts[2] || "00").padStart(2, "0");
+  return new Date(`1970-01-01T${h}:${m}:${s}Z`);
+}
+
+/**
+ * Mengonversi objek Date dari kolom PostgreSQL 'time without time zone' kembali menjadi string "HH:mm".
+ */
+export function formatTimeFromDate(dateInput?: Date | string | null, fallback = "00:00"): string {
+  if (!dateInput) return fallback;
+  if (typeof dateInput === "string") {
+    // Jika sudah string "HH:mm" atau "HH:mm:ss"
+    if (/^\d{1,2}:\d{2}(:\d{2})?$/.test(dateInput.trim())) {
+      const parts = dateInput.trim().split(":");
+      return `${parts[0].padStart(2, "0")}:${parts[1].padStart(2, "0")}`;
+    }
+  }
+  const d = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
+  if (isNaN(d.getTime())) return fallback;
+  // Gunakan UTC hours dan minutes karena anchor dummy 1970-01-01 memakai UTC
+  const h = String(d.getUTCHours()).padStart(2, "0");
+  const m = String(d.getUTCMinutes()).padStart(2, "0");
+  return `${h}:${m}`;
+}
+
+/**
+ * Mengonversi string tanggal YYYY-MM-DD menjadi objek Date yang valid untuk kolom PostgreSQL 'date' (@db.Date).
+ */
+export function parseDateOnly(dateStr?: string | Date | null): Date {
+  if (!dateStr) return new Date();
+  if (dateStr instanceof Date) return dateStr;
+  const trimmed = String(dateStr).trim();
+  if (!trimmed) return new Date();
+  const d = new Date(trimmed);
+  return isNaN(d.getTime()) ? new Date() : d;
+}

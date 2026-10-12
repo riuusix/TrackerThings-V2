@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { parseTimeToDate } from "@/lib/utils";
 
 export async function createJadwalAction(formData: FormData) {
   const session = await getSession();
@@ -13,11 +14,18 @@ export async function createJadwalAction(formData: FormData) {
   const kategori = (formData.get("kategori") as string)?.trim() || null;
   const lokasi = (formData.get("lokasi") as string)?.trim() || null;
   const hari = (formData.get("hari") as string)?.trim();
-  const waktuMulai = (formData.get("waktu_mulai") as string)?.trim();
-  const waktuSelesai = (formData.get("waktu_selesai") as string)?.trim();
+  const waktuMulaiStr = (formData.get("waktu_mulai") as string)?.trim();
+  const waktuSelesaiStr = (formData.get("waktu_selesai") as string)?.trim();
 
-  if (!namaMatkul || !hari || !waktuMulai || !waktuSelesai) {
+  if (!namaMatkul || !hari || !waktuMulaiStr || !waktuSelesaiStr) {
     return { success: false, error: "Nama mata kuliah, hari, dan jam kuliah wajib diisi." };
+  }
+
+  const waktuMulai = parseTimeToDate(waktuMulaiStr);
+  const waktuSelesai = parseTimeToDate(waktuSelesaiStr);
+
+  if (!waktuMulai || !waktuSelesai) {
+    return { success: false, error: "Format jam kuliah tidak valid." };
   }
 
   try {
@@ -53,11 +61,18 @@ export async function updateJadwalAction(formData: FormData) {
   const kategori = (formData.get("kategori") as string)?.trim() || null;
   const lokasi = (formData.get("lokasi") as string)?.trim() || null;
   const hari = (formData.get("hari") as string)?.trim();
-  const waktuMulai = (formData.get("waktu_mulai") as string)?.trim();
-  const waktuSelesai = (formData.get("waktu_selesai") as string)?.trim();
+  const waktuMulaiStr = (formData.get("waktu_mulai") as string)?.trim();
+  const waktuSelesaiStr = (formData.get("waktu_selesai") as string)?.trim();
 
-  if (!id || !namaMatkul || !hari || !waktuMulai || !waktuSelesai) {
+  if (!id || !namaMatkul || !hari || !waktuMulaiStr || !waktuSelesaiStr) {
     return { success: false, error: "Data jadwal tidak valid." };
+  }
+
+  const waktuMulai = parseTimeToDate(waktuMulaiStr);
+  const waktuSelesai = parseTimeToDate(waktuSelesaiStr);
+
+  if (!waktuMulai || !waktuSelesai) {
+    return { success: false, error: "Format jam kuliah tidak valid." };
   }
 
   try {

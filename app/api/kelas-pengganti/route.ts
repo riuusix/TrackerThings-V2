@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 import { apiSuccess, apiError } from "@/lib/apiResponse";
+import { formatTimeFromDate, parseTimeToDate, parseDateOnly } from "@/lib/utils";
 
 export async function GET(req: NextRequest) {
   const session = await getAuthSession(req);
@@ -20,28 +21,32 @@ export async function GET(req: NextRequest) {
       orderBy: { tanggal: "asc" },
     });
 
-    const formatted = list.map((kp) => ({
-      id: kp.id,
-      user_id: kp.userId,
-      userId: kp.userId,
-      id_jadwal: kp.idJadwal,
-      idJadwal: kp.idJadwal,
-      tanggal: kp.tanggal instanceof Date ? kp.tanggal.toISOString() : kp.tanggal,
-      waktu_mulai: kp.waktuMulai,
-      waktuMulai: kp.waktuMulai,
-      waktu_selesai: kp.waktuSelesai,
-      waktuSelesai: kp.waktuSelesai,
-      lokasi: kp.lokasi,
-      catatan: kp.catatan,
-      status: kp.status,
-      created_at: kp.createdAt instanceof Date ? kp.createdAt.toISOString() : kp.createdAt,
-      createdAt: kp.createdAt instanceof Date ? kp.createdAt.toISOString() : kp.createdAt,
-      jadwal: kp.jadwal ? {
-        nama_matkul: kp.jadwal.namaMatkul,
-        namaMatkul: kp.jadwal.namaMatkul,
-        kategori: kp.jadwal.kategori
-      } : null,
-    }));
+    const formatted = list.map((kp) => {
+      const formattedMulai = formatTimeFromDate(kp.waktuMulai);
+      const formattedSelesai = formatTimeFromDate(kp.waktuSelesai);
+      return {
+        id: kp.id,
+        user_id: kp.userId,
+        userId: kp.userId,
+        id_jadwal: kp.idJadwal,
+        idJadwal: kp.idJadwal,
+        tanggal: kp.tanggal instanceof Date ? kp.tanggal.toISOString() : kp.tanggal,
+        waktu_mulai: formattedMulai,
+        waktuMulai: formattedMulai,
+        waktu_selesai: formattedSelesai,
+        waktuSelesai: formattedSelesai,
+        lokasi: kp.lokasi,
+        catatan: kp.catatan,
+        status: kp.status,
+        created_at: kp.createdAt instanceof Date ? kp.createdAt.toISOString() : kp.createdAt,
+        createdAt: kp.createdAt instanceof Date ? kp.createdAt.toISOString() : kp.createdAt,
+        jadwal: kp.jadwal ? {
+          nama_matkul: kp.jadwal.namaMatkul,
+          namaMatkul: kp.jadwal.namaMatkul,
+          kategori: kp.jadwal.kategori
+        } : null,
+      };
+    });
 
     return NextResponse.json(formatted);
   } catch (error) {
@@ -79,9 +84,12 @@ export async function POST(req: NextRequest) {
       return apiError("Mata kuliah, tanggal, dan rentang waktu wajib diisi.", 400);
     }
 
-    const parsedDate = new Date(tanggalStr);
-    if (isNaN(parsedDate.getTime())) {
-      return apiError("Format tanggal tidak valid.", 400);
+    const parsedDate = parseDateOnly(tanggalStr);
+    const parsedMulai = parseTimeToDate(waktuMulai);
+    const parsedSelesai = parseTimeToDate(waktuSelesai);
+
+    if (!parsedMulai || !parsedSelesai) {
+      return apiError("Format jam tidak valid (gunakan format HH:mm).", 400);
     }
 
     // Verifikasi mata kuliah milik pengguna yang sedang login
@@ -102,8 +110,8 @@ export async function POST(req: NextRequest) {
         userId: session.userId,
         idJadwal: parsedJadwalId,
         tanggal: parsedDate,
-        waktuMulai,
-        waktuSelesai,
+        waktuMulai: parsedMulai,
+        waktuSelesai: parsedSelesai,
         lokasi,
         catatan,
         status,
@@ -115,6 +123,9 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    const formattedMulai = formatTimeFromDate(newKp.waktuMulai);
+    const formattedSelesai = formatTimeFromDate(newKp.waktuSelesai);
+
     const formatted = {
       id: newKp.id,
       user_id: newKp.userId,
@@ -122,10 +133,10 @@ export async function POST(req: NextRequest) {
       id_jadwal: newKp.idJadwal,
       idJadwal: newKp.idJadwal,
       tanggal: newKp.tanggal instanceof Date ? newKp.tanggal.toISOString() : newKp.tanggal,
-      waktu_mulai: newKp.waktuMulai,
-      waktuMulai: newKp.waktuMulai,
-      waktu_selesai: newKp.waktuSelesai,
-      waktuSelesai: newKp.waktuSelesai,
+      waktu_mulai: formattedMulai,
+      waktuMulai: formattedMulai,
+      waktu_selesai: formattedSelesai,
+      waktuSelesai: formattedSelesai,
       lokasi: newKp.lokasi,
       catatan: newKp.catatan,
       status: newKp.status,
