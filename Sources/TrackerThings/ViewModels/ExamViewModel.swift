@@ -91,6 +91,7 @@ public final class ExamViewModel {
                 showToast("Jadwal ujian baru berhasil ditambahkan!", severity: .success)
             }
             await fetchExams()
+            await NotificationService.shared.syncRemindersFromCache()
             isPresentingSheet = false
             editingExam = nil
             isLoading = false
@@ -116,6 +117,7 @@ public final class ExamViewModel {
             _ = try await dataService.deleteUjian(id: id)
             exams.removeAll { $0.id == id }
             NotificationService.shared.cancelReminderForExam(id: id)
+            await NotificationService.shared.syncRemindersFromCache()
             showToast("Jadwal ujian berhasil dihapus.", severity: .success)
         } catch {
             errorMessage = error.localizedDescription

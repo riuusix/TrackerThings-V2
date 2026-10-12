@@ -47,10 +47,16 @@ public struct RootTabView: View {
             }
         }
         .tint(.blue)
+        .onAppear {
+            if let pending = NotificationService.shared.consumePendingDestination() {
+                navigateToDestination(pending)
+            }
+        }
         .onOpenURL { url in
             handleDeepLink(url: url)
         }
         .onReceive(NotificationCenter.default.publisher(for: .openTrackerThingsDestination)) { notification in
+            _ = NotificationService.shared.consumePendingDestination()
             if let dest = notification.userInfo?["destination"] as? String {
                 navigateToDestination(dest)
             }

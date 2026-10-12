@@ -6,16 +6,51 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatIndonesianDate(dateInput: Date | string): string {
-  const date = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
+  if (!dateInput) return "";
+
+  // Tanggal kalender (YYYY-MM-DD) tidak memiliki zona waktu.
+  // Gunakan UTC anchor agar representasi kalender tidak bergeser saat diformat di browser dengan timezone lokal apa pun.
+  let y: number, m: number, d: number;
+  if (typeof dateInput === "string") {
+    const match = dateInput.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      y = parseInt(match[1], 10);
+      m = parseInt(match[2], 10);
+      d = parseInt(match[3], 10);
+    } else {
+      const parsed = new Date(dateInput);
+      if (isNaN(parsed.getTime())) return "";
+      y = parsed.getFullYear();
+      m = parsed.getMonth() + 1;
+      d = parsed.getDate();
+    }
+  } else if (dateInput instanceof Date) {
+    if (isNaN(dateInput.getTime())) return "";
+    y = dateInput.getUTCFullYear();
+    m = dateInput.getUTCMonth() + 1;
+    d = dateInput.getUTCDate();
+  } else {
+    return "";
+  }
+
+  const utcDate = new Date(Date.UTC(y, m - 1, d));
   return new Intl.DateTimeFormat("id-ID", {
+    timeZone: "UTC",
     day: "numeric",
     month: "long",
     year: "numeric",
-  }).format(date);
+  }).format(utcDate);
 }
 
+/**
+ * Memformat timestamp absolut (seperti createdAt / profileUpdatedAt / audit log)
+ * ke format tanggal & waktu lokal pengguna.
+ * Menggunakan zona waktu perangkat/browser lokal pengguna secara dinamis (TIDAK di-hardcode).
+ */
 export function formatIndonesianDateTime(dateInput: Date | string): string {
+  if (!dateInput) return "";
   const date = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
+  if (isNaN(date.getTime())) return "";
   return new Intl.DateTimeFormat("id-ID", {
     day: "numeric",
     month: "long",
@@ -25,13 +60,37 @@ export function formatIndonesianDateTime(dateInput: Date | string): string {
   }).format(date);
 }
 
+/**
+ * Menghitung selisih hari kalender antara hari ini (berdasarkan kalender lokal perangkat pengguna)
+ * dengan tanggal target kalender (YYYY-MM-DD).
+ * Tidak terpengaruh pergeseran jam atau offset UTC.
+ */
 export function getDaysDifference(targetDate: Date | string): number {
   const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  const target = new Date(targetDate);
-  target.setHours(0, 0, 0, 0);
-  const diffTime = target.getTime() - now.getTime();
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  const todayLocal = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  let targetYear: number, targetMonth: number, targetDay: number;
+  if (typeof targetDate === "string") {
+    const match = targetDate.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      targetYear = parseInt(match[1], 10);
+      targetMonth = parseInt(match[2], 10) - 1;
+      targetDay = parseInt(match[3], 10);
+    } else {
+      const d = new Date(targetDate);
+      targetYear = d.getFullYear();
+      targetMonth = d.getMonth();
+      targetDay = d.getDate();
+    }
+  } else {
+    targetYear = targetDate.getUTCFullYear();
+    targetMonth = targetDate.getUTCMonth();
+    targetDay = targetDate.getUTCDate();
+  }
+
+  const targetLocal = new Date(targetYear, targetMonth, targetDay);
+  const diffMs = targetLocal.getTime() - todayLocal.getTime();
+  return Math.round(diffMs / (1000 * 60 * 60 * 24));
 }
 
 export function sanitizeRedirectPath(path?: string | null, fallback = "/dashboard"): string {
@@ -132,13 +191,37 @@ export function formatTimeFromDate(dateInput?: Date | string | null, fallback = 
 }
 
 /**
- * Mengonversi string tanggal YYYY-MM-DD menjadi objek Date yang valid untuk kolom PostgreSQL 'date' (@db.Date).
+ * Mengonversi input tanggal kalender (YYYY-MM-DD, string datetime, atau objek Date)
+ * menjadi objek Date UTC midnight (YYYY-MM-DDT00:00:00.000Z) yang kompatibel dengan
+ * kolom PostgreSQL 'date' (@db.Date di Prisma).
+ *
+ * PENTING: Tanggal kalender (deadline tugas, tanggal ujian, tanggal kelas pengganti)
+ * TIDAK memiliki zona waktu. 2026-10-13 adalah 2026-10-13 di seluruh dunia.
+ * Fungsi ini mengekstrak komponen kalender (YYYY, MM, DD) secara langsung tanpa
+ * mengasumsikan atau meng-hardcode zona waktu tertentu (seperti WIB / Asia/Jakarta).
  */
 export function parseDateOnly(dateStr?: string | Date | null): Date {
   if (!dateStr) return new Date();
-  if (dateStr instanceof Date) return dateStr;
+
+  if (dateStr instanceof Date) {
+    if (isNaN(dateStr.getTime())) return new Date();
+    return new Date(Date.UTC(dateStr.getUTCFullYear(), dateStr.getUTCMonth(), dateStr.getUTCDate()));
+  }
+
   const trimmed = String(dateStr).trim();
   if (!trimmed) return new Date();
+
+  // Ekstrak komponen tahun, bulan, tanggal (YYYY-MM-DD)
+  // Mendukung format kalender murni "YYYY-MM-DD", datetime "YYYY-MM-DDTHH:mm",
+  // serta format ISO dengan offset "YYYY-MM-DDT...".
+  const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    const y = parseInt(match[1], 10);
+    const m = parseInt(match[2], 10);
+    const d = parseInt(match[3], 10);
+    return new Date(Date.UTC(y, m - 1, d));
+  }
+
   const d = new Date(trimmed);
   return isNaN(d.getTime()) ? new Date() : d;
 }

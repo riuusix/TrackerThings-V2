@@ -181,24 +181,28 @@ public final class DashboardViewModel {
             _ = try await dataService.createTugas(newTask)
             await loadDashboardData()
             showToast("Tugas baru berhasil ditambahkan!", severity: .success)
-
-            // Jadwalkan pengingat lokal untuk tugas yang baru disimpan
-            let course = courses.first(where: { $0.id == idJadwal })
-            let createdTask = urgentTasks.first(where: { $0.namaTugas == namaTugas })
-            let reminderId = createdTask?.id ?? Int.random(in: 1000...9999)
-
-            await NotificationService.shared.scheduleReminderForTask(
-                id: reminderId,
-                title: namaTugas,
-                courseName: course?.namaMatkul,
-                deadline: deadline
-            )
-
             return true
         } catch {
             errorMessage = error.localizedDescription
             showToast(error.localizedDescription, severity: .error)
             return false
+        }
+    }
+
+    public func deleteTask(id: Int) async {
+        guard !isOffline else {
+            showToast("Tidak dapat menghapus tugas saat offline.", severity: .warning)
+            return
+        }
+
+        do {
+            _ = try await dataService.deleteTugas(id: id)
+            NotificationService.shared.cancelReminderForTask(id: id)
+            showToast("Tugas berhasil dihapus.", severity: .success)
+            await loadDashboardData()
+        } catch {
+            errorMessage = error.localizedDescription
+            showToast(error.localizedDescription, severity: .error)
         }
     }
 

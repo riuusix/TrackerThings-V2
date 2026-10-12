@@ -81,5 +81,47 @@ public struct TugasItem: Codable, Sendable, Identifiable, Hashable {
         self.createdAt = createdAt
         self.jadwal = jadwal
     }
-}
 
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decode(Int.self, forKey: .id)
+        self.userId = try container.decodeIfPresent(Int.self, forKey: .userId)
+        self.idJadwal = try container.decode(Int.self, forKey: .idJadwal)
+        self.namaTugas = try container.decode(String.self, forKey: .namaTugas)
+
+        // Deadline adalah tanggal kalender: parse via CalendarDateHelper agar tidak bergeser di zona waktu lokal
+        if let str = try? container.decode(String.self, forKey: .deadline) {
+            self.deadline = CalendarDateHelper.parseCalendarDate(str)
+        } else if let date = try? container.decode(Date.self, forKey: .deadline) {
+            self.deadline = date
+        } else {
+            self.deadline = Date()
+        }
+
+        self.prioritas = try container.decode(PrioritasTugas.self, forKey: .prioritas)
+        self.jenis = try container.decode(JenisTugas.self, forKey: .jenis)
+        self.status = try container.decode(StatusTugas.self, forKey: .status)
+        self.progress = try container.decode(Int.self, forKey: .progress)
+        self.createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt)
+        self.jadwal = try container.decodeIfPresent(CourseInfo.self, forKey: .jadwal)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encodeIfPresent(userId, forKey: .userId)
+        try container.encode(idJadwal, forKey: .idJadwal)
+        try container.encode(namaTugas, forKey: .namaTugas)
+
+        // Deadline dikirim sebagai tanggal kalender murni YYYY-MM-DD tanpa konversi UTC instant
+        let dateStr = CalendarDateHelper.formatCalendarDate(deadline)
+        try container.encode(dateStr, forKey: .deadline)
+
+        try container.encode(prioritas, forKey: .prioritas)
+        try container.encode(jenis, forKey: .jenis)
+        try container.encode(status, forKey: .status)
+        try container.encode(progress, forKey: .progress)
+        try container.encodeIfPresent(createdAt, forKey: .createdAt)
+        try container.encodeIfPresent(jadwal, forKey: .jadwal)
+    }
+}

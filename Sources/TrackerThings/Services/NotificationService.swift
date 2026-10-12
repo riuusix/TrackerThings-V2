@@ -1,5 +1,8 @@
 import Foundation
 import UserNotifications
+import os
+
+private let logger = Logger(subsystem: "com.trackerthings.app", category: "Notifications")
 
 /// Model preferensi kategori pengingat TrackerThings
 public struct NotificationPreferences: Codable, Sendable, Equatable {
@@ -43,7 +46,8 @@ public struct NotificationPreferences: Codable, Sendable, Equatable {
 }
 
 /// Delegate internal untuk menangani presentasi notifikasi saat aplikasi berada di latar depan (foreground)
-private final class LocalNotificationPresentationDelegate: NSObject, UNUserNotificationCenterDelegate, Sendable {
+/// serta menangani interaksi pengguna saat banner diketuk.
+private final class LocalNotificationPresentationDelegate: NSObject, UNUserNotificationCenterDelegate, @unchecked Sendable {
     static let shared = LocalNotificationPresentationDelegate()
 
     func userNotificationCenter(
@@ -57,9 +61,11 @@ private final class LocalNotificationPresentationDelegate: NSObject, UNUserNotif
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
-        // Mendukung deep navigation saat banner notifikasi diketuk
         let userInfo = response.notification.request.content.userInfo
         if let destination = userInfo["destination"] as? String {
+            logger.info("Notification tapped with destination: \(destination, privacy: .public)")
+            // Simpan pendingDestination agar dapat dikonsumsi saat cold-start
+            NotificationService.shared.pendingDestination = destination
             await MainActor.run {
                 NotificationCenter.default.post(
                     name: .openTrackerThingsDestination,
@@ -77,9 +83,38 @@ public extension Notification.Name {
 
 /// Layanan manajemen notifikasi lokal UserNotifications TrackerThings.
 /// Menyediakan identifier deterministik, kategori granular, deduplikasi otomatis,
-/// dan pembatalan pintar saat jadwal berubah atau dihapus.
+/// logging diagnostik terstruktur, dan pembatalan pintar saat jadwal berubah atau dihapus.
 public final class NotificationService: Sendable {
     public static let shared = NotificationService()
+
+    private let destinationLock = NSLock()
+    private final class PendingStorage: @unchecked Sendable {
+        var destination: String? = nil
+    }
+    private let storage = PendingStorage()
+
+    /// Menyimpan tujuan navigasi notifikasi terakhir (berguna untuk mengatasi race condition cold-start)
+    public var pendingDestination: String? {
+        get {
+            destinationLock.lock()
+            defer { destinationLock.unlock() }
+            return storage.destination
+        }
+        set {
+            destinationLock.lock()
+            defer { destinationLock.unlock() }
+            storage.destination = newValue
+        }
+    }
+
+    /// Mengambil dan menghapus tujuan navigasi notifikasi pending secara atomik
+    public func consumePendingDestination() -> String? {
+        destinationLock.lock()
+        defer { destinationLock.unlock() }
+        let current = storage.destination
+        storage.destination = nil
+        return current
+    }
 
     private init() {
         UNUserNotificationCenter.current().delegate = LocalNotificationPresentationDelegate.shared
@@ -97,8 +132,10 @@ public final class NotificationService: Sendable {
         do {
             let granted = try await center.requestAuthorization(options: [.alert, .badge, .sound])
             center.delegate = LocalNotificationPresentationDelegate.shared
+            logger.info("Notification authorization request result: \(granted, privacy: .public)")
             return granted
         } catch {
+            logger.error("Notification authorization request error: \(error.localizedDescription, privacy: .public)")
             return false
         }
     }
@@ -128,29 +165,59 @@ public final class NotificationService: Sendable {
     ) async {
         let prefs = getPreferences()
         guard prefs.isTaskReminderEnabled else {
+            logger.info("Task reminder disabled by preferences for task-\(id, privacy: .public)")
             cancelReminderForTask(id: id)
             return
         }
 
         let status = await checkAuthorizationStatus()
-        guard status == .authorized || status == .ephemeral || status == .provisional else { return }
+        guard status == .authorized || status == .ephemeral || status == .provisional else {
+            logger.warning("Notification permission not granted for task-\(id, privacy: .public)")
+            return
+        }
 
         let now = Date()
-        guard deadline > now else {
+        let calendar = Calendar.current
+        let hour = calendar.component(.hour, from: deadline)
+        let minute = calendar.component(.minute, from: deadline)
+
+        // Jika waktu deadline adalah tanggal kalender (jam 00:00:00),
+        // batas akhir tugas adalah akhir hari (23:59:00) pada zona waktu lokal perangkat.
+        let effectiveDeadline: Date
+        if hour == 0 && minute == 0 {
+            effectiveDeadline = calendar.date(bySettingHour: 23, minute: 59, second: 0, of: deadline) ?? deadline
+        } else {
+            effectiveDeadline = deadline
+        }
+
+        // Jika deadline sudah lewat dari waktu saat ini, batalkan pengingat dan jangan jadwalkan apa pun
+        guard effectiveDeadline > now else {
+            logger.info("Task-\(id, privacy: .public) deadline has passed. Cancelling reminder.")
             cancelReminderForTask(id: id)
             return
         }
 
-        // Jadwal H-1 jika sisa waktu > 24 jam; jadwal H-2 jam jika sisa waktu > 2 jam; atau 1 menit jika sangat mepet
-        var reminderDate = deadline.addingTimeInterval(-86400)
-        if reminderDate <= now {
-            reminderDate = deadline.addingTimeInterval(-7200)
-        }
-        if reminderDate <= now {
-            reminderDate = now.addingTimeInterval(60)
-        }
+        let reminderDate: Date
+        let reminderType: String
 
-        guard reminderDate > now else { return }
+        let hMinus1 = effectiveDeadline.addingTimeInterval(-86400) // H-1 (24 jam sebelum deadline)
+        let hMinus2 = effectiveDeadline.addingTimeInterval(-7200)  // H-2 jam sebelum deadline
+
+        if hMinus1 > now {
+            reminderDate = hMinus1
+            reminderType = "H-1"
+        } else if hMinus2 > now {
+            reminderDate = hMinus2
+            reminderType = "H-2h"
+        } else if effectiveDeadline.timeIntervalSince(now) >= 120 {
+            // Fallback hari H: sisa waktu kurang dari 2 jam tetapi masih lebih dari 2 menit
+            reminderDate = now.addingTimeInterval(60)
+            reminderType = "Fallback-Hari-H"
+        } else {
+            // Waktu tersisa kurang dari 2 menit menuju deadline, tidak perlu menjadwalkan notifikasi baru
+            logger.info("Task-\(id, privacy: .public) is less than 2 minutes from deadline. Skipping reminder.")
+            return
+        }
 
         let coursePrefix = courseName.map { "[\($0)] " } ?? ""
         let body = "\(coursePrefix)Tugas \"\(title)\" mendekati tenggat waktu pengumpulan."
@@ -162,7 +229,7 @@ public final class NotificationService: Sendable {
         content.badge = 1
         content.userInfo = ["destination": "tasks", "taskId": id]
 
-        let components = Calendar.current.dateComponents(
+        let components = calendar.dateComponents(
             [.year, .month, .day, .hour, .minute, .second],
             from: reminderDate
         )
@@ -174,7 +241,12 @@ public final class NotificationService: Sendable {
             trigger: trigger
         )
 
-        try? await UNUserNotificationCenter.current().add(request)
+        do {
+            try await UNUserNotificationCenter.current().add(request)
+            logger.info("Scheduled task reminder [\(reminderType, privacy: .public)] for task-\(id, privacy: .public) at \(reminderDate.description, privacy: .public)")
+        } catch {
+            logger.error("Failed to add notification request task-\(id, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     public func cancelReminderForTask(id: Int) {
@@ -192,24 +264,32 @@ public final class NotificationService: Sendable {
     ) async {
         let prefs = getPreferences()
         guard prefs.isClassReminderEnabled else {
+            logger.info("Class reminder disabled by preferences for course-\(id, privacy: .public)")
             cancelReminderForCourse(id: id)
             return
         }
 
         let status = await checkAuthorizationStatus()
-        guard status == .authorized || status == .ephemeral || status == .provisional else { return }
+        guard status == .authorized || status == .ephemeral || status == .provisional else {
+            logger.warning("Notification permission not granted for course-\(id, privacy: .public)")
+            return
+        }
 
         // Parsing waktu "HH:mm"
         let parts = startTime.split(separator: ":")
         guard parts.count == 2,
               let hour = Int(parts[0]),
-              let minute = Int(parts[1]) else { return }
+              let minute = Int(parts[1]) else {
+            logger.warning("Invalid start time '\(startTime, privacy: .public)' for course-\(id, privacy: .public)")
+            return
+        }
 
-        // Konversi nama hari Indonesia ke weekday Calendar (1: Minggu, 2: Senin, dst)
         let weekday = weekdayNumber(from: dayOfWeek)
-        guard weekday >= 1 && weekday <= 7 else { return }
+        guard weekday >= 1 && weekday <= 7 else {
+            logger.warning("Invalid day of week '\(dayOfWeek, privacy: .public)' for course-\(id, privacy: .public)")
+            return
+        }
 
-        // Hitung waktu pengingat dengan pengurangan lead time (misal 15 menit sebelum kuliah)
         var totalMinutes = (hour * 60 + minute) - prefs.classLeadTimeMinutes
         var targetWeekday = weekday
         if totalMinutes < 0 {
@@ -236,7 +316,6 @@ public final class NotificationService: Sendable {
         dateComponents.minute = reminderMinute
         dateComponents.second = 0
 
-        // Trigger berulang setiap minggu pada hari dan jam perkuliahan
         let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
 
         let request = UNNotificationRequest(
@@ -245,7 +324,12 @@ public final class NotificationService: Sendable {
             trigger: trigger
         )
 
-        try? await UNUserNotificationCenter.current().add(request)
+        do {
+            try await UNUserNotificationCenter.current().add(request)
+            logger.info("Scheduled recurring course reminder for course-\(id, privacy: .public) on weekday \(targetWeekday) at \(reminderHour):\(reminderMinute)")
+        } catch {
+            logger.error("Failed to add notification request course-\(id, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     public func cancelReminderForCourse(id: Int) {
@@ -264,25 +348,51 @@ public final class NotificationService: Sendable {
     ) async {
         let prefs = getPreferences()
         guard prefs.isExamReminderEnabled else {
+            logger.info("Exam reminder disabled by preferences for exam-\(id, privacy: .public)")
             cancelReminderForExam(id: id)
             return
         }
 
         let status = await checkAuthorizationStatus()
-        guard status == .authorized || status == .ephemeral || status == .provisional else { return }
+        guard status == .authorized || status == .ephemeral || status == .provisional else {
+            logger.warning("Notification permission not granted for exam-\(id, privacy: .public)")
+            return
+        }
 
         let now = Date()
-        // Buat trigger date H-1 (atau sesuai examLeadTimeHours)
-        var triggerDate = examDate.addingTimeInterval(-Double(prefs.examLeadTimeHours * 3600))
-        if triggerDate <= now {
-            triggerDate = examDate.addingTimeInterval(-7200) // H-2 jam jika H-1 sudah lewat
-        }
-        if triggerDate <= now {
-            triggerDate = now.addingTimeInterval(60) // 1 menit jika hari H
+        let calendar = Calendar.current
+        var effectiveExamDate = examDate
+        if let start = startTime, let (h, m) = parseHourMinute(start) {
+            effectiveExamDate = calendar.date(bySettingHour: h, minute: m, second: 0, of: examDate) ?? examDate
+        } else {
+            effectiveExamDate = calendar.date(bySettingHour: 8, minute: 0, second: 0, of: examDate) ?? examDate
         }
 
-        guard examDate > now, triggerDate > now else {
+        guard effectiveExamDate > now else {
+            logger.info("Exam-\(id, privacy: .public) has already passed. Cancelling reminder.")
             cancelReminderForExam(id: id)
+            return
+        }
+
+        let triggerDate: Date
+        let reminderType: String
+
+        let leadTimeTrigger = effectiveExamDate.addingTimeInterval(-Double(prefs.examLeadTimeHours * 3600))
+        let hMinus2 = effectiveExamDate.addingTimeInterval(-7200)
+
+        if leadTimeTrigger > now {
+            triggerDate = leadTimeTrigger
+            reminderType = "H-1"
+        } else if hMinus2 > now {
+            triggerDate = hMinus2
+            reminderType = "H-2h"
+        } else if effectiveExamDate.timeIntervalSince(now) >= 120 {
+            // Fallback hari H: sisa waktu kurang dari 2 jam menuju ujian tetapi masih lebih dari 2 menit
+            triggerDate = now.addingTimeInterval(60)
+            reminderType = "Fallback-Hari-H"
+        } else {
+            // Ujian dimulai kurang dari 2 menit, tidak perlu menjadwalkan notifikasi baru
+            logger.info("Exam-\(id, privacy: .public) is less than 2 minutes from start. Skipping reminder.")
             return
         }
 
@@ -301,7 +411,7 @@ public final class NotificationService: Sendable {
         content.badge = 1
         content.userInfo = ["destination": "exams", "examId": id]
 
-        let components = Calendar.current.dateComponents(
+        let components = calendar.dateComponents(
             [.year, .month, .day, .hour, .minute, .second],
             from: triggerDate
         )
@@ -313,14 +423,19 @@ public final class NotificationService: Sendable {
             trigger: trigger
         )
 
-        try? await UNUserNotificationCenter.current().add(request)
+        do {
+            try await UNUserNotificationCenter.current().add(request)
+            logger.info("Scheduled exam reminder [\(reminderType, privacy: .public)] for exam-\(id, privacy: .public) at \(triggerDate.description, privacy: .public)")
+        } catch {
+            logger.error("Failed to add notification request exam-\(id, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     public func cancelReminderForExam(id: Int) {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["exam-\(id)"])
     }
 
-    // MARK: - Sinkronisasi Menyeluruh (Deduplikasi Bersih)
+    // MARK: - Sinkronisasi Menyeluruh (Deduplikasi Bersih & Pembersihan Stale)
 
     public func syncAllReminders(
         courses: [JadwalItem],
@@ -328,11 +443,25 @@ public final class NotificationService: Sendable {
         exams: [UjianItem]
     ) async {
         let status = await checkAuthorizationStatus()
-        guard status == .authorized || status == .ephemeral || status == .provisional else { return }
+        guard status == .authorized || status == .ephemeral || status == .provisional else {
+            logger.warning("Skipping syncAllReminders: notifications not authorized")
+            return
+        }
 
         let prefs = getPreferences()
+        let center = UNUserNotificationCenter.current()
+        let pendingRequests = await center.pendingNotificationRequests()
 
         // 1. Jadwal Kuliah
+        let validCourseIds = Set(courses.map { "course-\($0.id)" })
+        let staleCourseIds = pendingRequests
+            .filter { $0.identifier.hasPrefix("course-") && !validCourseIds.contains($0.identifier) }
+            .map { $0.identifier }
+        if !staleCourseIds.isEmpty {
+            center.removePendingNotificationRequests(withIdentifiers: staleCourseIds)
+            logger.info("Cleaned up \(staleCourseIds.count, privacy: .public) stale course reminders")
+        }
+
         if prefs.isClassReminderEnabled {
             for c in courses {
                 await scheduleReminderForCourse(
@@ -343,11 +472,23 @@ public final class NotificationService: Sendable {
                     location: c.lokasi
                 )
             }
+        } else {
+            let allCourseNotifs = pendingRequests.filter { $0.identifier.hasPrefix("course-") }.map { $0.identifier }
+            center.removePendingNotificationRequests(withIdentifiers: allCourseNotifs)
         }
 
         // 2. Deadline Tugas
+        let activeTasks = tasks.filter { $0.status != .selesai }
+        let validTaskIds = Set(activeTasks.map { "task-\($0.id)" })
+        let staleTaskIds = pendingRequests
+            .filter { $0.identifier.hasPrefix("task-") && !validTaskIds.contains($0.identifier) }
+            .map { $0.identifier }
+        if !staleTaskIds.isEmpty {
+            center.removePendingNotificationRequests(withIdentifiers: staleTaskIds)
+            logger.info("Cleaned up \(staleTaskIds.count, privacy: .public) stale task reminders")
+        }
+
         if prefs.isTaskReminderEnabled {
-            let activeTasks = tasks.filter { $0.status != .selesai }
             for t in activeTasks {
                 await scheduleReminderForTask(
                     id: t.id,
@@ -356,12 +497,24 @@ public final class NotificationService: Sendable {
                     deadline: t.deadline
                 )
             }
+        } else {
+            let allTaskNotifs = pendingRequests.filter { $0.identifier.hasPrefix("task-") }.map { $0.identifier }
+            center.removePendingNotificationRequests(withIdentifiers: allTaskNotifs)
         }
 
         // 3. Ujian
+        let now = Date()
+        let upcomingExams = exams.filter { $0.tanggal > now.addingTimeInterval(-86400) }
+        let validExamIds = Set(upcomingExams.map { "exam-\($0.id)" })
+        let staleExamIds = pendingRequests
+            .filter { $0.identifier.hasPrefix("exam-") && !validExamIds.contains($0.identifier) }
+            .map { $0.identifier }
+        if !staleExamIds.isEmpty {
+            center.removePendingNotificationRequests(withIdentifiers: staleExamIds)
+            logger.info("Cleaned up \(staleExamIds.count, privacy: .public) stale exam reminders")
+        }
+
         if prefs.isExamReminderEnabled {
-            let now = Date()
-            let upcomingExams = exams.filter { $0.tanggal > now }
             for e in upcomingExams {
                 await scheduleReminderForExam(
                     id: e.id,
@@ -372,6 +525,57 @@ public final class NotificationService: Sendable {
                     room: e.ruangan
                 )
             }
+        } else {
+            let allExamNotifs = pendingRequests.filter { $0.identifier.hasPrefix("exam-") }.map { $0.identifier }
+            center.removePendingNotificationRequests(withIdentifiers: allExamNotifs)
+        }
+
+        logger.info("syncAllReminders completed successfully")
+    }
+
+    /// Membaca data terbaru dari LocalCacheService lalu menjalankan sinkronisasi notifikasi
+    public func syncRemindersFromCache() async {
+        let courses: [JadwalItem] = LocalCacheService.shared.load(forKey: LocalCacheService.keyJadwal) ?? []
+        let tasks: [TugasItem] = LocalCacheService.shared.load(forKey: LocalCacheService.keyTugas) ?? []
+        let exams: [UjianItem] = LocalCacheService.shared.load(forKey: LocalCacheService.keyUjian) ?? []
+        await syncAllReminders(courses: courses, tasks: tasks, exams: exams)
+    }
+
+    // MARK: - Diagnostik & Pengujian Notifikasi Cepat
+
+    @discardableResult
+    public func scheduleTestNotification(
+        delaySeconds: TimeInterval,
+        category: String,
+        destination: String
+    ) async -> Bool {
+        let status = await checkAuthorizationStatus()
+        guard status == .authorized || status == .ephemeral || status == .provisional else {
+            logger.warning("Cannot schedule test notification: notifications not authorized")
+            return false
+        }
+
+        let content = UNMutableNotificationContent()
+        content.title = "[TEST] Pengingat \(category) TrackerThings"
+        content.body = "Ini adalah notifikasi uji (\(Int(delaySeconds))s). Mengetuk notifikasi ini akan membuka tab \(category)."
+        content.sound = .default
+        content.badge = 1
+        content.userInfo = ["destination": destination, "isTestNotification": true]
+
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: max(1, delaySeconds), repeats: false)
+        let request = UNNotificationRequest(
+            identifier: "test-notification-\(destination)",
+            content: content,
+            trigger: trigger
+        )
+
+        do {
+            try await UNUserNotificationCenter.current().add(request)
+            logger.info("Successfully scheduled test notification for \(destination, privacy: .public) in \(delaySeconds, privacy: .public)s")
+            return true
+        } catch {
+            logger.error("Failed to schedule test notification: \(error.localizedDescription, privacy: .public)")
+            return false
         }
     }
 
@@ -379,6 +583,7 @@ public final class NotificationService: Sendable {
 
     public func cancelAllReminders() {
         UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
+        logger.info("All pending reminders have been cancelled")
     }
 
     private func weekdayNumber(from indonesianDay: String) -> Int {
@@ -392,5 +597,13 @@ public final class NotificationService: Sendable {
         case "sabtu", "saturday": return 7
         default: return 2
         }
+    }
+
+    private func parseHourMinute(_ timeStr: String) -> (Int, Int)? {
+        let parts = timeStr.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: ":")
+        guard parts.count >= 2,
+              let h = Int(parts[0]),
+              let m = Int(parts[1]) else { return nil }
+        return (h, m)
     }
 }

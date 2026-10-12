@@ -130,29 +130,70 @@ public struct SettingsView: View {
                             viewModel.updateNotificationPreferences()
                         }
 
-                        Button {
-                            Task {
-                                let content = UNMutableNotificationContent()
-                                content.title = "Pengingat TrackerThings"
-                                content.body = "Notifikasi lokal aktif! Ikon aplikasi dan suara pengingat berfungsi sempurna."
-                                content.sound = .default
-                                let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)
-                                let request = UNNotificationRequest(
-                                    identifier: "test-notification-\(Int(Date().timeIntervalSince1970))",
-                                    content: content,
-                                    trigger: trigger
-                                )
-                                try? await UNUserNotificationCenter.current().add(request)
-                                testNotificationMessage = "Pengingat dijadwalkan dalam 5 detik. Kunci layar atau minimalkan app untuk melihat banner!"
+                        VStack(spacing: 8) {
+                            Button {
+                                Task {
+                                    let ok = await NotificationService.shared.scheduleTestNotification(
+                                        delaySeconds: 5,
+                                        category: "Tugas",
+                                        destination: "tasks"
+                                    )
+                                    testNotificationMessage = ok
+                                        ? "Notifikasi uji Tugas dijadwalkan (5s). Minimalkan app untuk melihat banner!"
+                                        : "Gagal menjadwalkan. Pastikan izin notifikasi aktif."
+                                }
+                            } label: {
+                                HStack {
+                                    Image(systemName: "checklist")
+                                    Text("Uji Notifikasi Tugas (5s -> Tab Home)")
+                                        .font(.subheadline)
+                                    Spacer()
+                                }
                             }
-                        } label: {
-                            HStack {
-                                Spacer()
-                                Label("Uji Coba Pengingat (5 Detik)", systemImage: "timer")
-                                Spacer()
+                            .buttonStyle(.bordered)
+
+                            Button {
+                                Task {
+                                    let ok = await NotificationService.shared.scheduleTestNotification(
+                                        delaySeconds: 5,
+                                        category: "Kuliah",
+                                        destination: "courses"
+                                    )
+                                    testNotificationMessage = ok
+                                        ? "Notifikasi uji Kuliah dijadwalkan (5s). Minimalkan app untuk melihat banner!"
+                                        : "Gagal menjadwalkan. Pastikan izin notifikasi aktif."
+                                }
+                            } label: {
+                                HStack {
+                                    Image(systemName: "book")
+                                    Text("Uji Notifikasi Kuliah (5s -> Tab Mata Kuliah)")
+                                        .font(.subheadline)
+                                    Spacer()
+                                }
                             }
+                            .buttonStyle(.bordered)
+
+                            Button {
+                                Task {
+                                    let ok = await NotificationService.shared.scheduleTestNotification(
+                                        delaySeconds: 5,
+                                        category: "Ujian",
+                                        destination: "exams"
+                                    )
+                                    testNotificationMessage = ok
+                                        ? "Notifikasi uji Ujian dijadwalkan (5s). Minimalkan app untuk melihat banner!"
+                                        : "Gagal menjadwalkan. Pastikan izin notifikasi aktif."
+                                }
+                            } label: {
+                                HStack {
+                                    Image(systemName: "graduationcap")
+                                    Text("Uji Notifikasi Ujian (5s -> Tab Ujian)")
+                                        .font(.subheadline)
+                                    Spacer()
+                                }
+                            }
+                            .buttonStyle(.bordered)
                         }
-                        .buttonStyle(.bordered)
                     }
 
                     if let message = testNotificationMessage {

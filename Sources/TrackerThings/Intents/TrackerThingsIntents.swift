@@ -28,8 +28,15 @@ public struct GetTodayScheduleIntent: AppIntent {
         let todayDayName = getIndonesianDayName()
         let isOffline = await MainActor.run { !NetworkMonitor.shared.isConnected }
 
-        // Ambil jadwal reguler dari cache
-        let allCourses: [JadwalItem] = LocalCacheService.shared.load(forKey: LocalCacheService.keyJadwal) ?? []
+        // Ambil jadwal reguler dan kelas pengganti dari cache
+        let cachedCourses: [JadwalItem]? = LocalCacheService.shared.load(forKey: LocalCacheService.keyJadwal)
+        let cachedKP: [KelasPenggantiItem]? = LocalCacheService.shared.load(forKey: LocalCacheService.keyKelasPengganti)
+
+        if cachedCourses == nil && cachedKP == nil {
+            return .result(dialog: IntentDialog(stringLiteral: "Data jadwal TrackerThings belum tersimpan di perangkat. Buka aplikasi TrackerThings terlebih dahulu untuk menyinkronkan jadwal kuliah Anda."))
+        }
+
+        let allCourses = cachedCourses ?? []
         let todayCourses = allCourses.filter { course in
             course.hari.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == todayDayName.lowercased()
         }.sorted { ($0.waktuMulai) < ($1.waktuMulai) }
@@ -39,7 +46,7 @@ public struct GetTodayScheduleIntent: AppIntent {
         let startOfToday = calendar.startOfDay(for: Date())
         let endOfToday = calendar.date(byAdding: .day, value: 1, to: startOfToday) ?? Date()
 
-        let allClasses: [KelasPenggantiItem] = LocalCacheService.shared.load(forKey: LocalCacheService.keyKelasPengganti) ?? []
+        let allClasses = cachedKP ?? []
         let todayReplacement = allClasses.filter { item in
             item.tanggal >= startOfToday && item.tanggal < endOfToday && item.status.lowercased() != "selesai"
         }
@@ -85,7 +92,11 @@ public struct GetUrgentTasksIntent: AppIntent {
 
     public func perform() async throws -> some IntentResult & ProvidesDialog {
         let isOffline = await MainActor.run { !NetworkMonitor.shared.isConnected }
-        let tasks: [TugasItem] = LocalCacheService.shared.load(forKey: LocalCacheService.keyTugas) ?? []
+        let cachedTasks: [TugasItem]? = LocalCacheService.shared.load(forKey: LocalCacheService.keyTugas)
+
+        guard let tasks = cachedTasks else {
+            return .result(dialog: IntentDialog(stringLiteral: "Data tugas TrackerThings belum tersimpan di perangkat. Buka aplikasi TrackerThings terlebih dahulu untuk menyinkronkan tugas Anda."))
+        }
 
         let pendingTasks = tasks.filter { $0.status != .selesai }
             .sorted { $0.deadline < $1.deadline }
@@ -138,7 +149,11 @@ public struct GetNextExamIntent: AppIntent {
 
     public func perform() async throws -> some IntentResult & ProvidesDialog {
         let isOffline = await MainActor.run { !NetworkMonitor.shared.isConnected }
-        let exams: [UjianItem] = LocalCacheService.shared.load(forKey: LocalCacheService.keyUjian) ?? []
+        let cachedExams: [UjianItem]? = LocalCacheService.shared.load(forKey: LocalCacheService.keyUjian)
+
+        guard let exams = cachedExams else {
+            return .result(dialog: IntentDialog(stringLiteral: "Data jadwal ujian TrackerThings belum tersimpan di perangkat. Buka aplikasi TrackerThings terlebih dahulu untuk menyinkronkan jadwal ujian Anda."))
+        }
 
         let now = Date()
         let upcomingExams = exams.filter { $0.tanggal >= now.addingTimeInterval(-86400) }

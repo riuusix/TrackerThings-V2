@@ -39,25 +39,30 @@ public final class LocalCacheService: Sendable {
         decoder.dateDecodingStrategy = .custom { d in
             let container = try d.singleValueContainer()
             let dateStr = try container.decode(String.self)
+            let trimmed = dateStr.trimmingCharacters(in: .whitespacesAndNewlines)
 
+            // 1. Tanggal kalender (date-only YYYY-MM-DD atau representasi UTC midnight T00:00:00)
+            if trimmed.count == 10, trimmed.range(of: #"^\d{4}-\d{2}-\d{2}$"#, options: .regularExpression) != nil {
+                return CalendarDateHelper.parseCalendarDate(trimmed)
+            }
+            if (trimmed.contains("T00:00:00") || trimmed.contains(" 00:00:00")),
+               trimmed.range(of: #"^\d{4}-\d{2}-\d{2}"#, options: .regularExpression) != nil {
+                return CalendarDateHelper.parseCalendarDate(trimmed)
+            }
+
+            // 2. Timestamp absolut (ISO 8601 dengan waktu spesifik / fractional seconds)
             let isoFractional = ISO8601DateFormatter()
             isoFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            if let date = isoFractional.date(from: dateStr) { return date }
+            if let date = isoFractional.date(from: trimmed) { return date }
 
             let isoStandard = ISO8601DateFormatter()
             isoStandard.formatOptions = [.withInternetDateTime]
-            if let date = isoStandard.date(from: dateStr) { return date }
-
-            let dfDateOnly = DateFormatter()
-            dfDateOnly.dateFormat = "yyyy-MM-dd"
-            dfDateOnly.locale = Locale(identifier: "en_US_POSIX")
-            dfDateOnly.timeZone = TimeZone(secondsFromGMT: 0)
-            if let date = dfDateOnly.date(from: dateStr) { return date }
+            if let date = isoStandard.date(from: trimmed) { return date }
 
             let dfSimple = DateFormatter()
             dfSimple.dateFormat = "yyyy-MM-dd HH:mm:ss"
             dfSimple.locale = Locale(identifier: "en_US_POSIX")
-            if let date = dfSimple.date(from: dateStr) { return date }
+            if let date = dfSimple.date(from: trimmed) { return date }
 
             throw DecodingError.dataCorruptedError(
                 in: container,
