@@ -30,8 +30,11 @@ const protectedRoutes = [
 const authRoutes = ["/login", "/register", "/recovery"];
 
 export async function middleware(request: NextRequest) {
-  // 1. Refresh Supabase session cookies if present
-  const { response: supabaseResponse } = createSupabaseClient(request);
+  // 1. Refresh Supabase session cookies only if Supabase cookie is present
+  const hasSupabaseCookie = request.cookies.getAll().some((c) => c.name.startsWith("sb-"));
+  const fallbackResponse = hasSupabaseCookie
+    ? createSupabaseClient(request).response
+    : NextResponse.next();
 
   const { pathname } = request.nextUrl;
   const token = request.cookies.get("auth_session")?.value;
@@ -78,7 +81,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
-  return supabaseResponse;
+  return fallbackResponse;
 }
 
 export const config = {

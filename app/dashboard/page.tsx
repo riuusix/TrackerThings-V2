@@ -13,15 +13,64 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  // 1. Fetch user data via Prisma
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
+  // Parallel fetch: Ambil semua data independen secara bersamaan
+  const [userData, regularSchedules, replacementClasses, upcomingExamRaw, allTasks] =
+    await Promise.all([
+      prisma.user.findUnique({
+        where: { id: session.userId },
+        select: { username: true, email: true, fullName: true, role: true },
+      }),
+      prisma.jadwal.findMany({
+        where: { userId: session.userId },
+        orderBy: { waktuMulai: "asc" },
+      }),
+      prisma.kelasPengganti.findMany({
+        where: {
+          userId: session.userId,
+          status: { not: "Selesai" },
+        },
+        include: {
+          jadwal: {
+            select: { namaMatkul: true, kategori: true },
+          },
+        },
+        orderBy: { waktuMulai: "asc" },
+      }),
+      prisma.ujian.findFirst({
+        where: {
+          userId: session.userId,
+          tanggal: { gte: todayStart },
+        },
+        include: {
+          jadwal: {
+            select: { namaMatkul: true },
+          },
+        },
+        orderBy: [
+          { tanggal: "asc" },
+          { waktuMulai: "asc" },
+        ],
+      }),
+      prisma.tugas.findMany({
+        where: {
+          userId: session.userId,
+        },
+        include: {
+          jadwal: {
+            select: { namaMatkul: true },
+          },
+        },
+        orderBy: { deadline: "asc" },
+      }),
+    ]);
+
+  // 1. Process user data
   let username = session.username;
   let userEmail = session.email;
   let role = session.role || "user";
-
-  const userData = await prisma.user.findUnique({
-    where: { id: session.userId },
-    select: { username: true, email: true, fullName: true, role: true },
-  });
 
   if (userData) {
     username = userData.fullName || userData.username || session.username;
@@ -35,13 +84,7 @@ export default async function DashboardPage() {
     role = "admin";
   }
 
-  // 2. Fetch all regular schedules for current user from Prisma
-  const regularSchedules = await prisma.jadwal.findMany({
-    where: { userId: session.userId },
-    orderBy: { waktuMulai: "asc" },
-  });
-
-  // Distinct courses for dropdowns
+  // 2. Distinct courses for dropdowns
   const uniqueCoursesMap = new Map<string, { id: number; namaMatkul: string }>();
   for (const item of regularSchedules) {
     if (!uniqueCoursesMap.has(item.namaMatkul)) {
@@ -50,21 +93,7 @@ export default async function DashboardPage() {
   }
   const courses = Array.from(uniqueCoursesMap.values());
 
-  // 3. Fetch active replacement classes for current user from Prisma
-  const replacementClasses = await prisma.kelasPengganti.findMany({
-    where: {
-      userId: session.userId,
-      status: { not: "Selesai" },
-    },
-    include: {
-      jadwal: {
-        select: { namaMatkul: true, kategori: true },
-      },
-    },
-    orderBy: { waktuMulai: "asc" },
-  });
-
-  // Group schedules by day
+  // 3. Group schedules by day
   const DAYS = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
   const schedulesByDay: Record<string, JadwalGabunganItem[]> = {};
   for (const d of DAYS) {
@@ -111,26 +140,7 @@ export default async function DashboardPage() {
   const currentDayOfWeek = DAY_NAMES[new Date().getDay()];
   const initialDay = DAYS.includes(currentDayOfWeek) ? currentDayOfWeek : "Senin";
 
-  // 4. Fetch upcoming exam for current user from Prisma
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-
-  const upcomingExamRaw = await prisma.ujian.findFirst({
-    where: {
-      userId: session.userId,
-      tanggal: { gte: todayStart },
-    },
-    include: {
-      jadwal: {
-        select: { namaMatkul: true },
-      },
-    },
-    orderBy: [
-      { tanggal: "asc" },
-      { waktuMulai: "asc" },
-    ],
-  });
-
+  // 4. Process upcoming exam
   const upcomingExam = upcomingExamRaw
     ? {
         id: upcomingExamRaw.id,
@@ -147,61 +157,32 @@ export default async function DashboardPage() {
       }
     : null;
 
-  // 5. Fetch urgent tasks for current user from Prisma
-  const rawTasks = await prisma.tugas.findMany({
-    where: {
-      userId: session.userId,
-      status: { not: "Selesai" },
-    },
-    include: {
-      jadwal: {
-        select: { namaMatkul: true },
-      },
-    },
-    orderBy: { deadline: "asc" },
-  });
+  // 5. Partition tasks in-memory (urgent vs completed) — ZERO duplicate database queries
+  const urgentTasks: TugasItem[] = [];
+  const completedTasks: TugasItem[] = [];
 
-  const urgentTasks: TugasItem[] = rawTasks.map((t) => ({
-    id: t.id,
-    userId: t.userId,
-    idJadwal: t.idJadwal,
-    namaTugas: t.namaTugas,
-    deadline: new Date(t.deadline),
-    prioritas: t.prioritas,
-    jenis: t.jenis,
-    status: t.status,
-    progress: t.progress,
-    createdAt: new Date(),
-    jadwal: t.jadwal ? { namaMatkul: t.jadwal.namaMatkul } : undefined,
-  }));
+  for (const t of allTasks) {
+    const item: TugasItem = {
+      id: t.id,
+      userId: t.userId,
+      idJadwal: t.idJadwal,
+      namaTugas: t.namaTugas,
+      deadline: new Date(t.deadline),
+      prioritas: t.prioritas,
+      jenis: t.jenis,
+      status: t.status,
+      progress: t.progress,
+      createdAt: new Date(),
+      jadwal: t.jadwal ? { namaMatkul: t.jadwal.namaMatkul } : undefined,
+    };
+    if (t.status === "Selesai") {
+      completedTasks.push(item);
+    } else {
+      urgentTasks.push(item);
+    }
+  }
 
-  // 6. Fetch completed tasks for current user from Prisma
-  const rawCompletedTasks = await prisma.tugas.findMany({
-    where: {
-      userId: session.userId,
-      status: "Selesai",
-    },
-    include: {
-      jadwal: {
-        select: { namaMatkul: true },
-      },
-    },
-    orderBy: { deadline: "desc" },
-  });
-
-  const completedTasks: TugasItem[] = rawCompletedTasks.map((t) => ({
-    id: t.id,
-    userId: t.userId,
-    idJadwal: t.idJadwal,
-    namaTugas: t.namaTugas,
-    deadline: new Date(t.deadline),
-    prioritas: t.prioritas,
-    jenis: t.jenis,
-    status: t.status,
-    progress: t.progress,
-    createdAt: new Date(),
-    jadwal: t.jadwal ? { namaMatkul: t.jadwal.namaMatkul } : undefined,
-  }));
+  completedTasks.sort((a, b) => b.deadline.getTime() - a.deadline.getTime());
 
   // 7. Calculate urgent notifications
   const notifications: NotificationItem[] = [];

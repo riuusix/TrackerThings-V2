@@ -20,8 +20,9 @@ export function apiResponse<T = any>(options: {
   data?: T;
   error?: string;
   extra?: Record<string, any>;
+  headers?: HeadersInit;
 }) {
-  const { success, message, code, data, error, extra = {} } = options;
+  const { success, message, code, data, error, extra = {}, headers } = options;
 
   const payload: StandardApiResponse<T> = {
     success,
@@ -38,7 +39,7 @@ export function apiResponse<T = any>(options: {
     payload.error = error || message;
   }
 
-  return NextResponse.json(payload, { status: code });
+  return NextResponse.json(payload, { status: code, headers });
 }
 
 /**
@@ -48,7 +49,8 @@ export function apiSuccess<T = any>(
   message = "Berhasil",
   data?: T,
   code = 200,
-  extra?: Record<string, any>
+  extra?: Record<string, any>,
+  headers?: HeadersInit
 ) {
   return apiResponse<T>({
     success: true,
@@ -56,6 +58,7 @@ export function apiSuccess<T = any>(
     code,
     data,
     extra,
+    headers,
   });
 }
 
@@ -66,7 +69,8 @@ export function apiError(
   message = "Terjadi kesalahan",
   code = 400,
   error?: string,
-  extra?: Record<string, any>
+  extra?: Record<string, any>,
+  headers?: HeadersInit
 ) {
   return apiResponse({
     success: false,
@@ -74,6 +78,7 @@ export function apiError(
     code,
     error: error || message,
     extra,
+    headers,
   });
 }
 

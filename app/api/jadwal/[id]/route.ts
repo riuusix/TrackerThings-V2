@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
+import { apiSuccess, apiError } from "@/lib/apiResponse";
 import { parseTimeToDate } from "@/lib/utils";
 
 export async function PUT(
@@ -9,18 +10,18 @@ export async function PUT(
 ) {
   const session = await getAuthSession(req);
   if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return apiError("Sesi login telah berakhir. Silakan masuk kembali.", 401);
   }
 
   const jadwalId = parseInt(params.id, 10);
   if (isNaN(jadwalId) || jadwalId <= 0) {
-    return NextResponse.json({ error: "ID jadwal tidak valid" }, { status: 400 });
+    return apiError("ID jadwal tidak valid.", 400);
   }
 
   try {
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== "object") {
-      return NextResponse.json({ error: "Payload tidak valid" }, { status: 400 });
+      return apiError("Payload permintaan tidak valid.", 400);
     }
 
     const namaMatkul = typeof body.nama_matkul === "string" ? body.nama_matkul.trim() : (typeof body.namaMatkul === "string" ? body.namaMatkul.trim() : "");
@@ -34,11 +35,11 @@ export async function PUT(
     });
 
     if (!existing) {
-      return NextResponse.json({ error: "Jadwal tidak ditemukan" }, { status: 404 });
+      return apiError("Jadwal tidak ditemukan.", 404);
     }
 
     if (existing.userId !== session.userId) {
-      return NextResponse.json({ error: "Akses ditolak: Anda tidak memiliki izin untuk mengubah jadwal ini" }, { status: 403 });
+      return apiError("Akses ditolak: Anda tidak memiliki izin untuk mengubah jadwal ini.", 403);
     }
 
     const updateData: any = {};
@@ -46,12 +47,12 @@ export async function PUT(
     if (hari) updateData.hari = hari;
     if (waktuMulai) {
       const parsed = parseTimeToDate(waktuMulai);
-      if (!parsed) return NextResponse.json({ error: "Format waktu_mulai tidak valid (gunakan HH:mm)" }, { status: 400 });
+      if (!parsed) return apiError("Format waktu_mulai tidak valid (gunakan format HH:mm).", 400);
       updateData.waktuMulai = parsed;
     }
     if (waktuSelesai) {
       const parsed = parseTimeToDate(waktuSelesai);
-      if (!parsed) return NextResponse.json({ error: "Format waktu_selesai tidak valid (gunakan HH:mm)" }, { status: 400 });
+      if (!parsed) return apiError("Format waktu_selesai tidak valid (gunakan format HH:mm).", 400);
       updateData.waktuSelesai = parsed;
     }
     if (body.dosen !== undefined) updateData.dosen = body.dosen;
@@ -63,10 +64,10 @@ export async function PUT(
       data: updateData,
     });
 
-    return NextResponse.json({ success: true, message: "Jadwal berhasil diperbarui" });
+    return apiSuccess("Jadwal perkuliahan berhasil diperbarui!", null, 200);
   } catch (error) {
     console.error("PUT /api/jadwal/[id] exception:", error);
-    return NextResponse.json({ error: "Gagal memperbarui jadwal" }, { status: 500 });
+    return apiError("Gagal memperbarui jadwal perkuliahan.", 500);
   }
 }
 
@@ -76,12 +77,12 @@ export async function DELETE(
 ) {
   const session = await getAuthSession(req);
   if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return apiError("Sesi login telah berakhir. Silakan masuk kembali.", 401);
   }
 
   const jadwalId = parseInt(params.id, 10);
   if (isNaN(jadwalId) || jadwalId <= 0) {
-    return NextResponse.json({ error: "ID jadwal tidak valid" }, { status: 400 });
+    return apiError("ID jadwal tidak valid.", 400);
   }
 
   try {
@@ -91,21 +92,21 @@ export async function DELETE(
     });
 
     if (!existing) {
-      return NextResponse.json({ error: "Jadwal tidak ditemukan" }, { status: 404 });
+      return apiError("Jadwal tidak ditemukan.", 404);
     }
 
     if (existing.userId !== session.userId) {
-      return NextResponse.json({ error: "Akses ditolak: Anda tidak memiliki izin untuk menghapus jadwal ini" }, { status: 403 });
+      return apiError("Akses ditolak: Anda tidak memiliki izin untuk menghapus jadwal ini.", 403);
     }
 
     await prisma.jadwal.delete({
       where: { id: jadwalId },
     });
 
-    return NextResponse.json({ success: true, message: "Jadwal berhasil dihapus" });
+    return apiSuccess("Jadwal perkuliahan berhasil dihapus!", null, 200);
   } catch (error) {
     console.error("DELETE /api/jadwal/[id] exception:", error);
-    return NextResponse.json({ error: "Gagal menghapus jadwal" }, { status: 500 });
+    return apiError("Gagal menghapus jadwal perkuliahan.", 500);
   }
 }
 

@@ -18,6 +18,8 @@ import {
   CheckCircle2,
   AlertCircle,
 } from "lucide-react";
+import { useToast } from "@/components/ToastProvider";
+import { classifyApiError } from "@/lib/feedback";
 
 interface SettingsClientProps {
   user: UserProfile;
@@ -31,39 +33,59 @@ export function SettingsClient({ user }: SettingsClientProps) {
   const [secPending, startSecTransition] = useTransition();
   const [secError, setSecError] = useState<string | null>(null);
   const [secSuccess, setSecSuccess] = useState<string | null>(null);
+  const { showSuccess, showError } = useToast();
 
   const handlePasswordSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (pwdPending) return;
     setPwdError(null);
     setPwdSuccess(null);
     const form = e.currentTarget;
     const formData = new FormData(form);
 
     startPwdTransition(async () => {
-      const res = await updatePasswordAction(formData);
-      if (res.success) {
-        setPwdSuccess("Kata sandi berhasil diperbarui!");
-        form.reset();
-      } else {
-        setPwdError(res.error || "Gagal mengubah kata sandi.");
+      try {
+        const res = await updatePasswordAction(formData);
+        if (res.success) {
+          setPwdSuccess("Kata sandi berhasil diperbarui!");
+          showSuccess("Kata sandi berhasil diperbarui!");
+          form.reset();
+        } else {
+          const friendly = classifyApiError(res.error, "Gagal mengubah kata sandi.");
+          setPwdError(friendly);
+          showError(friendly);
+        }
+      } catch (err) {
+        const friendly = classifyApiError(err, "Gagal mengubah kata sandi.");
+        setPwdError(friendly);
+        showError(friendly);
       }
     });
   };
 
   const handleSecuritySubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (secPending) return;
     setSecError(null);
     setSecSuccess(null);
     const form = e.currentTarget;
     const formData = new FormData(form);
 
     startSecTransition(async () => {
-      const res = await updateSecurityPromptAction(formData);
-      if (res.success) {
-        setSecSuccess("Pertanyaan keamanan berhasil disimpan!");
-        form.reset();
-      } else {
-        setSecError(res.error || "Gagal memperbarui pertanyaan keamanan.");
+      try {
+        const res = await updateSecurityPromptAction(formData);
+        if (res.success) {
+          setSecSuccess("Pertanyaan pemulihan berhasil diperbarui!");
+          showSuccess("Pertanyaan pemulihan berhasil diperbarui!");
+        } else {
+          const friendly = classifyApiError(res.error, "Gagal memperbarui pertanyaan pemulihan.");
+          setSecError(friendly);
+          showError(friendly);
+        }
+      } catch (err) {
+        const friendly = classifyApiError(err, "Gagal memperbarui pertanyaan pemulihan.");
+        setSecError(friendly);
+        showError(friendly);
       }
     });
   };

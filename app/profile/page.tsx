@@ -10,9 +10,14 @@ export default async function ProfilePage() {
     redirect("/login");
   }
 
-  const rawUser = await prisma.user.findUnique({
-    where: { id: session.userId },
-  });
+  const [rawUser, coursesCount, tasksCount, completedCount] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: session.userId },
+    }),
+    prisma.jadwal.count({ where: { userId: session.userId } }),
+    prisma.tugas.count({ where: { userId: session.userId } }),
+    prisma.tugas.count({ where: { userId: session.userId, status: "Selesai" } }),
+  ]);
 
   const user: UserProfile = {
     id: session.userId,
@@ -26,12 +31,6 @@ export default async function ProfilePage() {
     profileUpdatedAt: rawUser?.profileUpdatedAt ? new Date(rawUser.profileUpdatedAt) : null,
     passwordChangedAt: rawUser?.passwordChangedAt ? new Date(rawUser.passwordChangedAt) : null,
   };
-
-  const [coursesCount, tasksCount, completedCount] = await Promise.all([
-    prisma.jadwal.count({ where: { userId: session.userId } }),
-    prisma.tugas.count({ where: { userId: session.userId } }),
-    prisma.tugas.count({ where: { userId: session.userId, status: "Selesai" } }),
-  ]);
 
   return (
     <ProfileClient

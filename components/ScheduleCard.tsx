@@ -1,9 +1,11 @@
 "use client";
 
 import { useTransition } from "react";
-import { Clock, MapPin, UserCheck, Sparkles, CheckCircle2 } from "lucide-react";
+import { Clock, MapPin, UserCheck, Sparkles, CheckCircle2, Loader2 } from "lucide-react";
 import { JadwalGabunganItem } from "@/types";
 import { selesaiKelasPenggantiAction } from "@/app/actions/kelasPengganti";
+import { useToast } from "./ToastProvider";
+import { classifyApiError } from "@/lib/feedback";
 
 interface ScheduleCardProps {
   item: JadwalGabunganItem;
@@ -11,11 +13,21 @@ interface ScheduleCardProps {
 
 export function ScheduleCard({ item }: ScheduleCardProps) {
   const [isPending, startTransition] = useTransition();
+  const { showSuccess, showError } = useToast();
 
   const handleSelesai = () => {
     if (!confirm("Selesaikan kelas pengganti ini dan pindahkan ke riwayat?")) return;
     startTransition(async () => {
-      await selesaiKelasPenggantiAction(item.id);
+      try {
+        const res = await selesaiKelasPenggantiAction(item.id);
+        if (res.success) {
+          showSuccess("Kelas pengganti berhasil ditandai selesai.");
+        } else {
+          showError(classifyApiError(res.error, "Gagal menyelesaikan kelas pengganti."));
+        }
+      } catch (err) {
+        showError(classifyApiError(err, "Gagal memproses penyelesaian kelas pengganti."));
+      }
     });
   };
 

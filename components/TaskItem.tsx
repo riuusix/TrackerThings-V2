@@ -12,6 +12,8 @@ import {
   Loader2,
   Sparkles,
 } from "lucide-react";
+import { useToast } from "./ToastProvider";
+import { classifyApiError } from "@/lib/feedback";
 
 interface TaskItemProps {
   task: TugasItem;
@@ -22,6 +24,7 @@ export function TaskItem({ task, onEdit }: TaskItemProps) {
   const [progress, setProgress] = useState<number>(task.progress);
   const [isPending, startTransition] = useTransition();
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const { showSuccess, showError } = useToast();
 
   const daysLeft = getDaysDifference(task.deadline);
   const isUrgent = daysLeft <= 1 && task.status !== "Selesai";
@@ -30,21 +33,49 @@ export function TaskItem({ task, onEdit }: TaskItemProps) {
   const handleProgressChange = (newVal: number) => {
     setProgress(newVal);
     startTransition(async () => {
-      await updateTugasProgressAction(task.id, newVal);
+      try {
+        const res = await updateTugasProgressAction(task.id, newVal);
+        if (!res.success) {
+          showError(classifyApiError(res.error, "Gagal memperbarui progress tugas."));
+        }
+      } catch (err) {
+        showError(classifyApiError(err, "Gagal memperbarui progress tugas."));
+      }
     });
   };
 
   const handleMarkComplete = () => {
     setProgress(100);
     startTransition(async () => {
-      await updateTugasProgressAction(task.id, 100);
+      try {
+        const res = await updateTugasProgressAction(task.id, 100);
+        if (res.success) {
+          showSuccess(`Tugas "${task.namaTugas}" selesai!`);
+        } else {
+          showError(classifyApiError(res.error, "Gagal menyelesaikan tugas."));
+        }
+      } catch (err) {
+        showError(classifyApiError(err, "Gagal menyelesaikan tugas."));
+      }
     });
   };
 
   const handleDelete = async () => {
+    if (isDeleting) return;
     if (!confirm(`Hapus tugas "${task.namaTugas}"?`)) return;
     setIsDeleting(true);
-    await deleteTugasAction(task.id);
+    try {
+      const res = await deleteTugasAction(task.id);
+      if (res.success) {
+        showSuccess(`Tugas "${task.namaTugas}" berhasil dihapus.`);
+      } else {
+        showError(classifyApiError(res.error, "Gagal menghapus tugas."));
+        setIsDeleting(false);
+      }
+    } catch (err) {
+      showError(classifyApiError(err, "Gagal memproses penghapusan tugas."));
+      setIsDeleting(false);
+    }
   };
 
   const getPriorityBadge = (p: string) => {

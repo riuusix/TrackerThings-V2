@@ -7,7 +7,7 @@ import { formatTimeFromDate, parseTimeToDate, parseDateOnly } from "@/lib/utils"
 export async function GET(req: NextRequest) {
   const session = await getAuthSession(req);
   if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return apiError("Sesi login telah berakhir. Silakan masuk kembali.", 401);
   }
 
   try {
@@ -48,10 +48,10 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    return NextResponse.json(formatted);
+    return apiSuccess("Daftar kelas pengganti berhasil dimuat.", formatted, 200, { kelas_pengganti: formatted });
   } catch (error) {
     console.error("GET /api/kelas-pengganti exception:", error);
-    return NextResponse.json({ error: "Failed to fetch kelas pengganti" }, { status: 500 });
+    return apiError("Gagal memuat daftar kelas pengganti.", 500);
   }
 }
 

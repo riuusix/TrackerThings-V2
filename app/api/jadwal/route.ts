@@ -1,12 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
+import { apiSuccess, apiError } from "@/lib/apiResponse";
 import { formatTimeFromDate, parseTimeToDate } from "@/lib/utils";
 
 export async function GET(req: NextRequest) {
   const session = await getAuthSession(req);
   if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return apiError("Sesi login telah berakhir. Silakan masuk kembali.", 401);
   }
 
   try {
@@ -39,27 +40,29 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    return NextResponse.json(formatted, {
-      headers: {
-        "x-app-version": "2.0.1-native-time",
-      },
-    });
+    return apiSuccess(
+      "Daftar jadwal perkuliahan berhasil dimuat.",
+      formatted,
+      200,
+      { jadwal: formatted },
+      { "x-app-version": "2.0.1-native-time" }
+    );
   } catch (error) {
     console.error("GET /api/jadwal exception:", error);
-    return NextResponse.json({ error: "Failed to fetch jadwal" }, { status: 500 });
+    return apiError("Gagal memuat jadwal perkuliahan.", 500);
   }
 }
 
 export async function POST(req: NextRequest) {
   const session = await getAuthSession(req);
   if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return apiError("Sesi login telah berakhir. Silakan masuk kembali.", 401);
   }
 
   try {
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== "object") {
-      return NextResponse.json({ error: "Payload tidak valid" }, { status: 400 });
+      return apiError("Payload permintaan tidak valid.", 400);
     }
 
     const namaMatkul = typeof body.nama_matkul === "string" ? body.nama_matkul.trim() : (typeof body.namaMatkul === "string" ? body.namaMatkul.trim() : "");
@@ -71,14 +74,14 @@ export async function POST(req: NextRequest) {
     const lokasi = typeof body.lokasi === "string" ? body.lokasi.trim() : null;
 
     if (!namaMatkul || !hari || !waktuMulaiStr || !waktuSelesaiStr) {
-      return NextResponse.json({ error: "Nama matkul, hari, waktu mulai, dan waktu selesai wajib diisi" }, { status: 400 });
+      return apiError("Nama matkul, hari, waktu mulai, dan waktu selesai wajib diisi.", 400);
     }
 
     const waktuMulai = parseTimeToDate(waktuMulaiStr);
     const waktuSelesai = parseTimeToDate(waktuSelesaiStr);
 
     if (!waktuMulai || !waktuSelesai) {
-      return NextResponse.json({ error: "Format jam kuliah tidak valid (gunakan format HH:mm)" }, { status: 400 });
+      return apiError("Format jam kuliah tidak valid (gunakan format HH:mm).", 400);
     }
 
     const newJadwal = await prisma.jadwal.create({
@@ -115,14 +118,10 @@ export async function POST(req: NextRequest) {
       createdAt: new Date().toISOString(),
     };
 
-    return NextResponse.json({ success: true, jadwal: formatted }, { status: 201 });
+    return apiSuccess("Jadwal perkuliahan berhasil dibuat!", formatted, 201, { jadwal: formatted });
   } catch (error: any) {
     console.error("POST /api/jadwal exception:", error);
-    return NextResponse.json({ 
-      error: "Gagal membuat jadwal",
-      message: error?.message || "Unknown error",
-      code: error?.code
-    }, { status: 500 });
+    return apiError("Gagal membuat jadwal perkuliahan.", 500);
   }
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Navbar } from "@/components/Navbar";
 import { Modal } from "@/components/Modal";
 import { UjianItem } from "@/types";
@@ -22,6 +23,8 @@ import {
   BookOpen,
   FileText,
 } from "lucide-react";
+import { useToast } from "@/components/ToastProvider";
+import { classifyApiError } from "@/lib/feedback";
 
 interface UjianClientProps {
   username: string;
@@ -38,11 +41,17 @@ export function UjianClient({
   initialExams,
   courses,
 }: UjianClientProps) {
+  const router = useRouter();
   const [exams, setExams] = useState(initialExams);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [examToEdit, setExamToEdit] = useState<(UjianItem & { jadwal?: { namaMatkul: string } }) | null>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const { showSuccess, showError } = useToast();
+
+  useEffect(() => {
+    setExams(initialExams);
+  }, [initialExams]);
 
   const handleOpenAdd = () => {
     setExamToEdit(null);
@@ -58,33 +67,55 @@ export function UjianClient({
 
   const handleDelete = async (exam: UjianItem) => {
     if (!confirm("Hapus jadwal ujian ini?")) return;
-    const res = await deleteUjianAction(exam.id);
-    if (res.success) {
-      setExams(exams.filter((e) => e.id !== exam.id));
-    } else {
-      alert(res.error || "Gagal menghapus jadwal ujian.");
+    try {
+      const res = await deleteUjianAction(exam.id);
+      if (res.success) {
+        setExams(exams.filter((e) => e.id !== exam.id));
+        showSuccess("Jadwal ujian berhasil dihapus.");
+        router.refresh();
+      } else {
+        const friendly = classifyApiError(res.error, "Gagal menghapus jadwal ujian.");
+        showError(friendly);
+      }
+    } catch (err) {
+      const friendly = classifyApiError(err, "Gagal memproses penghapusan ujian.");
+      showError(friendly);
     }
   };
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (isPending) return;
     setError(null);
     const formData = new FormData(e.currentTarget);
 
     startTransition(async () => {
-      let res;
-      if (examToEdit) {
-        formData.set("id", examToEdit.id.toString());
-        res = await updateUjianAction(formData);
-      } else {
-        res = await createUjianAction(formData);
-      }
+      try {
+        let res;
+        if (examToEdit) {
+          formData.set("id", examToEdit.id.toString());
+          res = await updateUjianAction(formData);
+        } else {
+          res = await createUjianAction(formData);
+        }
 
-      if (res.success) {
-        setIsModalOpen(false);
-        window.location.reload();
-      } else {
-        setError(res.error || "Gagal menyimpan jadwal ujian.");
+        if (res.success) {
+          showSuccess(
+            examToEdit
+              ? "Jadwal ujian berhasil diperbarui!"
+              : "Jadwal ujian baru berhasil ditambahkan!"
+          );
+          setIsModalOpen(false);
+          router.refresh();
+        } else {
+          const friendly = classifyApiError(res.error, "Gagal menyimpan jadwal ujian.");
+          setError(friendly);
+          showError(friendly);
+        }
+      } catch (err) {
+        const friendly = classifyApiError(err, "Gagal memproses jadwal ujian.");
+        setError(friendly);
+        showError(friendly);
       }
     });
   };

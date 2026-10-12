@@ -9,11 +9,25 @@ export default async function AdminUsersPage() {
     redirect("/login");
   }
 
-  // Verify Admin Role
-  const currentUserData = await prisma.user.findUnique({
-    where: { id: session.userId },
-    select: { username: true, email: true, role: true },
-  });
+  // Verify Admin Role and fetch users concurrently
+  const [currentUserData, rawUsers] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { username: true, email: true, role: true },
+    }),
+    prisma.user.findMany({
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        fullName: true,
+        phoneNumber: true,
+        role: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
 
   const userRole =
     currentUserData?.role ||
@@ -23,20 +37,6 @@ export default async function AdminUsersPage() {
   if (userRole.toLowerCase() !== "admin") {
     redirect("/dashboard");
   }
-
-  // Fetch all users
-  const rawUsers = await prisma.user.findMany({
-    select: {
-      id: true,
-      username: true,
-      email: true,
-      fullName: true,
-      phoneNumber: true,
-      role: true,
-      createdAt: true,
-    },
-    orderBy: { createdAt: "desc" },
-  });
 
   const users = rawUsers.map((u) => ({
     id: u.id,

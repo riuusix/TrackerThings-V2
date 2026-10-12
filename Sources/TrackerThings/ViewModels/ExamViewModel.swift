@@ -10,6 +10,11 @@ public final class ExamViewModel {
     public var errorMessage: String?
     public var isPresentingSheet: Bool = false
     public var editingExam: UjianItem?
+    public var toast: FeedbackToastData?
+
+    public func showToast(_ message: String, severity: FeedbackSeverity = .info) {
+        self.toast = FeedbackToastData(message: message, severity: severity)
+    }
 
     private let dataService: TrackerDataServiceProtocol
 
@@ -59,8 +64,10 @@ public final class ExamViewModel {
         do {
             if editingExam != nil {
                 _ = try await dataService.updateUjian(item)
+                showToast("Jadwal ujian berhasil diperbarui!", severity: .success)
             } else {
                 _ = try await dataService.createUjian(item)
+                showToast("Jadwal ujian baru berhasil ditambahkan!", severity: .success)
             }
             await fetchExams()
             isPresentingSheet = false
@@ -69,6 +76,7 @@ public final class ExamViewModel {
             return true
         } catch {
             errorMessage = error.localizedDescription
+            showToast(error.localizedDescription, severity: .error)
             isLoading = false
             return false
         }
@@ -78,8 +86,10 @@ public final class ExamViewModel {
         do {
             _ = try await dataService.deleteUjian(id: id)
             exams.removeAll { $0.id == id }
+            showToast("Jadwal ujian berhasil dihapus.", severity: .success)
         } catch {
             errorMessage = error.localizedDescription
+            showToast(error.localizedDescription, severity: .error)
         }
     }
 }

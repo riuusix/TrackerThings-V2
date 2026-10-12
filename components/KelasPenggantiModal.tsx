@@ -4,6 +4,8 @@ import { useState, useTransition } from "react";
 import { Modal } from "./Modal";
 import { createKelasPenggantiAction } from "@/app/actions/kelasPengganti";
 import { Loader2 } from "lucide-react";
+import { useToast } from "./ToastProvider";
+import { classifyApiError } from "@/lib/feedback";
 
 interface KelasPenggantiModalProps {
   isOpen: boolean;
@@ -18,18 +20,29 @@ export function KelasPenggantiModal({
 }: KelasPenggantiModalProps) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const { showSuccess, showError } = useToast();
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (isPending) return;
     setError(null);
     const formData = new FormData(e.currentTarget);
 
     startTransition(async () => {
-      const res = await createKelasPenggantiAction(formData);
-      if (res.success) {
-        onClose();
-      } else {
-        setError(res.error || "Gagal menambahkan kelas pengganti.");
+      try {
+        const res = await createKelasPenggantiAction(formData);
+        if (res.success) {
+          showSuccess("Kelas pengganti berhasil dijadwalkan!");
+          onClose();
+        } else {
+          const friendly = classifyApiError(res.error, "Gagal menambahkan kelas pengganti.");
+          setError(friendly);
+          showError(friendly);
+        }
+      } catch (err) {
+        const friendly = classifyApiError(err, "Gagal memproses kelas pengganti.");
+        setError(friendly);
+        showError(friendly);
       }
     });
   };

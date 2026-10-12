@@ -89,7 +89,7 @@ public struct FeedbackToastBanner: View {
     }
 }
 
-/// View modifier for presenting toast banners at the top of a screen
+/// View modifier for presenting toast banners at the top of a screen with safe area awareness
 public struct FeedbackToastModifier: ViewModifier {
     @Binding var toast: FeedbackToastData?
 
@@ -98,18 +98,24 @@ public struct FeedbackToastModifier: ViewModifier {
             .overlay(alignment: .top) {
                 if let toastData = toast {
                     FeedbackToastBanner(data: toastData) {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
                             toast = nil
                         }
                     }
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                    .padding(.top, 8)
+                    .transition(
+                        .asymmetric(
+                            insertion: .move(edge: .top).combined(with: .opacity),
+                            removal: .opacity.combined(with: .move(edge: .top))
+                        )
+                    )
+                    .safeAreaPadding(.top)
+                    .padding(.top, 4)
                     .onAppear {
                         let duration = toastData.severity == .error ? 5.0 : 3.5
                         Task {
                             try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
                             if toast?.id == toastData.id {
-                                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
                                     toast = nil
                                 }
                             }

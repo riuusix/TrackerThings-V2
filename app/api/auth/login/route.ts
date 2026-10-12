@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
           phoneNumber: true,
           profilePictureUrl: true,
           securityPrompt: true,
+          role: true,
           createdAt: true,
           profileUpdatedAt: true,
           passwordChangedAt: true,
@@ -54,7 +55,7 @@ export async function POST(req: NextRequest) {
       return apiError("Username atau password salah.", 401);
     }
 
-    const role = "user";
+    const role = user.role || "user";
 
     // Generate JWT token untuk klien native iOS (dan web jika diperlukan)
     const token = await signSessionToken({

@@ -7,7 +7,7 @@ import { formatTimeFromDate, parseTimeToDate, parseDateOnly } from "@/lib/utils"
 export async function GET(req: NextRequest) {
   const session = await getAuthSession(req);
   if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return apiError("Sesi login telah berakhir. Silakan masuk kembali.", 401);
   }
 
   try {
@@ -45,10 +45,10 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    return NextResponse.json(formatted);
+    return apiSuccess("Daftar jadwal ujian berhasil dimuat.", formatted, 200, { exams: formatted, ujian: formatted });
   } catch (error) {
     console.error("GET /api/ujian exception:", error);
-    return NextResponse.json({ error: "Failed to fetch exams" }, { status: 500 });
+    return apiError("Gagal memuat daftar jadwal ujian.", 500);
   }
 }
 

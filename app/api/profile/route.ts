@@ -1,11 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
+import { apiSuccess, apiError } from "@/lib/apiResponse";
+
+export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   const session = await getAuthSession(req);
   if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return apiError("Sesi login telah berakhir. Silakan masuk kembali.", 401);
   }
 
   try {
@@ -27,63 +30,125 @@ export async function GET(req: NextRequest) {
     });
 
     if (!user) {
-      return NextResponse.json({ error: "User profile tidak ditemukan" }, { status: 404 });
+      return apiError("User profile tidak ditemukan.", 404);
     }
 
     const role = user.role || "user";
 
-    return NextResponse.json({
+    const safeProfile = {
       id: user.id,
       username: user.username,
       email: user.email,
       role,
-      fullName: user.fullName,
-      phoneNumber: user.phoneNumber,
-      profilePictureUrl: user.profilePictureUrl,
-      securityPrompt: user.securityPrompt,
-      createdAt: user.createdAt,
-      profileUpdatedAt: user.profileUpdatedAt,
-      passwordChangedAt: user.passwordChangedAt,
-    });
+      fullName: user.fullName || null,
+      full_name: user.fullName || null,
+      phoneNumber: user.phoneNumber || null,
+      phone_number: user.phoneNumber || null,
+      profilePictureUrl: user.profilePictureUrl || null,
+      profile_picture_url: user.profilePictureUrl || null,
+      securityPrompt: user.securityPrompt || null,
+      security_prompt: user.securityPrompt || null,
+      createdAt: user.createdAt ? user.createdAt.toISOString() : null,
+      created_at: user.createdAt ? user.createdAt.toISOString() : null,
+      profileUpdatedAt: user.profileUpdatedAt ? user.profileUpdatedAt.toISOString() : null,
+      profile_updated_at: user.profileUpdatedAt ? user.profileUpdatedAt.toISOString() : null,
+      passwordChangedAt: user.passwordChangedAt ? user.passwordChangedAt.toISOString() : null,
+      password_changed_at: user.passwordChangedAt ? user.passwordChangedAt.toISOString() : null,
+    };
+
+    return apiSuccess("Profil berhasil dimuat.", safeProfile, 200, { user: safeProfile, ...safeProfile });
   } catch (error) {
     console.error("GET /api/profile exception:", error);
-    return NextResponse.json({ error: "Gagal mengambil profil" }, { status: 500 });
+    return apiError("Gagal mengambil profil.", 500);
   }
 }
 
 export async function PUT(req: NextRequest) {
   const session = await getAuthSession(req);
   if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return apiError("Sesi login telah berakhir. Silakan masuk kembali.", 401);
   }
 
   try {
     const body = await req.json().catch(() => null);
     if (!body || typeof body !== "object") {
-      return NextResponse.json({ error: "Payload tidak valid" }, { status: 400 });
+      return apiError("Payload permintaan tidak valid.", 400);
     }
 
-    const updateData: any = {
+    const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : null;
+    const fullName = typeof body.full_name === "string"
+      ? body.full_name.trim()
+      : (typeof body.fullName === "string" ? body.fullName.trim() : null);
+    const phoneNumber = typeof body.phone_number === "string"
+      ? body.phone_number.trim()
+      : (typeof body.phoneNumber === "string" ? body.phoneNumber.trim() : null);
+    const profilePictureUrl = typeof body.profile_picture_url === "string"
+      ? body.profile_picture_url.trim()
+      : (typeof body.profilePictureUrl === "string" ? body.profilePictureUrl.trim() : null);
+
+    if (email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return apiError("Format email tidak valid.", 400);
+      }
+
+      const existingEmail = await prisma.user.findFirst({
+        where: {
+          email: { equals: email, mode: "insensitive" },
+          id: { not: session.userId },
+        },
+        select: { id: true },
+      });
+
+      if (existingEmail) {
+        return apiError("Email sudah digunakan oleh akun lain.", 409);
+      }
+    }
+
+    const updateData: Record<string, any> = {
       profileUpdatedAt: new Date(),
     };
 
-    if (body.email) updateData.email = body.email.trim().toLowerCase();
-    if (body.full_name !== undefined) updateData.fullName = body.full_name;
-    if (body.fullName !== undefined) updateData.fullName = body.fullName;
-    if (body.phone_number !== undefined) updateData.phoneNumber = body.phone_number;
-    if (body.phoneNumber !== undefined) updateData.phoneNumber = body.phoneNumber;
-    if (body.profile_picture_url !== undefined) updateData.profilePictureUrl = body.profile_picture_url;
-    if (body.profilePictureUrl !== undefined) updateData.profilePictureUrl = body.profilePictureUrl;
+    if (email) updateData.email = email;
+    if (fullName !== null) updateData.fullName = fullName;
+    if (phoneNumber !== null) updateData.phoneNumber = phoneNumber;
+    if (profilePictureUrl !== null) updateData.profilePictureUrl = profilePictureUrl;
 
-    await prisma.user.update({
+    const updatedUser = await prisma.user.update({
       where: { id: session.userId },
       data: updateData,
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        role: true,
+        fullName: true,
+        phoneNumber: true,
+        profilePictureUrl: true,
+        profileUpdatedAt: true,
+      },
     });
 
-    return NextResponse.json({ success: true, message: "Profil berhasil diperbarui" });
+    const role = updatedUser.role || "user";
+    const safeUser = {
+      id: updatedUser.id,
+      username: updatedUser.username,
+      email: updatedUser.email,
+      role,
+      fullName: updatedUser.fullName || null,
+      full_name: updatedUser.fullName || null,
+      phoneNumber: updatedUser.phoneNumber || null,
+      phone_number: updatedUser.phoneNumber || null,
+      profilePictureUrl: updatedUser.profilePictureUrl || null,
+      profile_picture_url: updatedUser.profilePictureUrl || null,
+      profileUpdatedAt: updatedUser.profileUpdatedAt ? updatedUser.profileUpdatedAt.toISOString() : null,
+      profile_updated_at: updatedUser.profileUpdatedAt ? updatedUser.profileUpdatedAt.toISOString() : null,
+    };
+
+    return apiSuccess("Profil berhasil diperbarui!", safeUser, 200, { user: safeUser, ...safeUser });
   } catch (error) {
     console.error("PUT /api/profile exception:", error);
-    return NextResponse.json({ error: "Gagal memperbarui profil" }, { status: 500 });
+    return apiError("Gagal memperbarui profil.", 500);
   }
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Navbar } from "@/components/Navbar";
 import { Modal } from "@/components/Modal";
 import { UserProfile } from "@/types";
@@ -18,6 +19,8 @@ import {
   Loader2,
   TrendingUp,
 } from "lucide-react";
+import { useToast } from "@/components/ToastProvider";
+import { classifyApiError } from "@/lib/feedback";
 
 interface ProfileClientProps {
   user: UserProfile;
@@ -29,9 +32,11 @@ interface ProfileClientProps {
 }
 
 export function ProfileClient({ user, stats }: ProfileClientProps) {
+  const router = useRouter();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const { showSuccess, showError } = useToast();
 
   const completionRate =
     stats.totalTasks > 0
@@ -40,16 +45,26 @@ export function ProfileClient({ user, stats }: ProfileClientProps) {
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (isPending) return;
     setError(null);
     const formData = new FormData(e.currentTarget);
 
     startTransition(async () => {
-      const res = await updateProfileAction(formData);
-      if (res.success) {
-        setIsEditModalOpen(false);
-        window.location.reload();
-      } else {
-        setError(res.error || "Gagal memperbarui profil.");
+      try {
+        const res = await updateProfileAction(formData);
+        if (res.success) {
+          setIsEditModalOpen(false);
+          showSuccess("Profil pengguna berhasil diperbarui!");
+          router.refresh();
+        } else {
+          const friendly = classifyApiError(res.error, "Gagal memperbarui profil.");
+          setError(friendly);
+          showError(friendly);
+        }
+      } catch (err) {
+        const friendly = classifyApiError(err, "Gagal memproses pembaruan profil.");
+        setError(friendly);
+        showError(friendly);
       }
     });
   };

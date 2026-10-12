@@ -127,6 +127,7 @@ public struct ExamListView: View {
             .task {
                 await viewModel.fetchExams()
             }
+            .feedbackToast(toast: $viewModel.toast)
         }
     }
 }

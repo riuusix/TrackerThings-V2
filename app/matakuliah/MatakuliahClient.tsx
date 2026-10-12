@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Navbar } from "@/components/Navbar";
 import { Modal } from "@/components/Modal";
 import { JadwalItem } from "@/types";
@@ -22,6 +23,9 @@ import {
   Sparkles,
 } from "lucide-react";
 
+import { useToast } from "@/components/ToastProvider";
+import { classifyApiError } from "@/lib/feedback";
+
 interface MatakuliahClientProps {
   username: string;
   userEmail: string;
@@ -36,12 +40,18 @@ export function MatakuliahClient({
   userEmail,
   initialCourses,
 }: MatakuliahClientProps) {
+  const router = useRouter();
   const [courses, setCourses] = useState<JadwalItem[]>(initialCourses);
   const [searchTerm, setSearchTerm] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [courseToEdit, setCourseToEdit] = useState<JadwalItem | null>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const { showSuccess, showError } = useToast();
+
+  useEffect(() => {
+    setCourses(initialCourses);
+  }, [initialCourses]);
 
   const filteredCourses = courses.filter((c) => {
     const term = searchTerm.toLowerCase();
@@ -66,34 +76,55 @@ export function MatakuliahClient({
 
   const handleDelete = async (course: JadwalItem) => {
     if (!confirm(`Hapus mata kuliah "${course.namaMatkul}" beserta jadwalnya?`)) return;
-    const res = await deleteJadwalAction(course.id);
-    if (res.success) {
-      setCourses(courses.filter((c) => c.id !== course.id));
-    } else {
-      alert(res.error || "Gagal menghapus mata kuliah.");
+    try {
+      const res = await deleteJadwalAction(course.id);
+      if (res.success) {
+        setCourses(courses.filter((c) => c.id !== course.id));
+        showSuccess(`Mata kuliah "${course.namaMatkul}" berhasil dihapus.`);
+        router.refresh();
+      } else {
+        const friendly = classifyApiError(res.error, "Gagal menghapus mata kuliah.");
+        showError(friendly);
+      }
+    } catch (err) {
+      const friendly = classifyApiError(err, "Gagal memproses penghapusan mata kuliah.");
+      showError(friendly);
     }
   };
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (isPending) return;
     setError(null);
     const formData = new FormData(e.currentTarget);
 
     startTransition(async () => {
-      let res;
-      if (courseToEdit) {
-        formData.set("id", courseToEdit.id.toString());
-        res = await updateJadwalAction(formData);
-      } else {
-        res = await createJadwalAction(formData);
-      }
+      try {
+        let res;
+        if (courseToEdit) {
+          formData.set("id", courseToEdit.id.toString());
+          res = await updateJadwalAction(formData);
+        } else {
+          res = await createJadwalAction(formData);
+        }
 
-      if (res.success) {
-        setIsModalOpen(false);
-        // Refresh page to sync list
-        window.location.reload();
-      } else {
-        setError(res.error || "Gagal menyimpan mata kuliah.");
+        if (res.success) {
+          showSuccess(
+            courseToEdit
+              ? "Mata kuliah berhasil diperbarui!"
+              : "Mata kuliah baru berhasil ditambahkan!"
+          );
+          setIsModalOpen(false);
+          router.refresh();
+        } else {
+          const friendly = classifyApiError(res.error, "Gagal menyimpan mata kuliah.");
+          setError(friendly);
+          showError(friendly);
+        }
+      } catch (err) {
+        const friendly = classifyApiError(err, "Gagal memproses mata kuliah.");
+        setError(friendly);
+        showError(friendly);
       }
     });
   };

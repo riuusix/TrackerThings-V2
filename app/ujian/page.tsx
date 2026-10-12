@@ -10,11 +10,25 @@ export default async function UjianPage() {
     redirect("/login");
   }
 
-  const rawCourses = await prisma.jadwal.findMany({
-    where: { userId: session.userId },
-    select: { id: true, namaMatkul: true },
-    orderBy: { namaMatkul: "asc" },
-  });
+  const [rawCourses, rawExams] = await Promise.all([
+    prisma.jadwal.findMany({
+      where: { userId: session.userId },
+      select: { id: true, namaMatkul: true },
+      orderBy: { namaMatkul: "asc" },
+    }),
+    prisma.ujian.findMany({
+      where: { userId: session.userId },
+      include: {
+        jadwal: {
+          select: { namaMatkul: true },
+        },
+      },
+      orderBy: [
+        { tanggal: "asc" },
+        { waktuMulai: "asc" },
+      ],
+    }),
+  ]);
 
   const uniqueCoursesMap = new Map<string, { id: number; namaMatkul: string }>();
   for (const c of rawCourses) {
@@ -23,19 +37,6 @@ export default async function UjianPage() {
     }
   }
   const courses = Array.from(uniqueCoursesMap.values());
-
-  const rawExams = await prisma.ujian.findMany({
-    where: { userId: session.userId },
-    include: {
-      jadwal: {
-        select: { namaMatkul: true },
-      },
-    },
-    orderBy: [
-      { tanggal: "asc" },
-      { waktuMulai: "asc" },
-    ],
-  });
 
   const exams = rawExams.map((u) => ({
     id: u.id,

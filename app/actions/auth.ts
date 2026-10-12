@@ -30,6 +30,7 @@ export async function loginAction(formData: FormData): Promise<ActionResult> {
           username: true,
           email: true,
           password: true,
+          role: true,
         },
       });
     } catch (dbError) {
@@ -55,7 +56,7 @@ export async function loginAction(formData: FormData): Promise<ActionResult> {
       id: user.id,
       username: user.username,
       email: user.email,
-      role: "user",
+      role: user.role || "user",
     });
 
     console.info(`[Auth][${reqId}][SUCCESS] Authentication succeeded`);

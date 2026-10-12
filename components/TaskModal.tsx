@@ -5,6 +5,8 @@ import { Modal } from "./Modal";
 import { TugasItem } from "@/types";
 import { createTugasAction, updateTugasAction } from "@/app/actions/tugas";
 import { Loader2 } from "lucide-react";
+import { useToast } from "./ToastProvider";
+import { classifyApiError } from "@/lib/feedback";
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -16,6 +18,7 @@ interface TaskModalProps {
 export function TaskModal({ isOpen, onClose, taskToEdit, courses }: TaskModalProps) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const { showSuccess, showError } = useToast();
 
   const formatForInput = (d?: Date | string) => {
     if (!d) return "";
@@ -25,22 +28,32 @@ export function TaskModal({ isOpen, onClose, taskToEdit, courses }: TaskModalPro
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (isPending) return;
     setError(null);
     const formData = new FormData(e.currentTarget);
 
     startTransition(async () => {
-      let res;
-      if (taskToEdit) {
-        formData.set("id_tugas", taskToEdit.id.toString());
-        res = await updateTugasAction(formData);
-      } else {
-        res = await createTugasAction(formData);
-      }
+      try {
+        let res;
+        if (taskToEdit) {
+          formData.set("id_tugas", taskToEdit.id.toString());
+          res = await updateTugasAction(formData);
+        } else {
+          res = await createTugasAction(formData);
+        }
 
-      if (res.success) {
-        onClose();
-      } else {
-        setError(res.error || "Gagal menyimpan tugas.");
+        if (res.success) {
+          showSuccess(taskToEdit ? "Tugas berhasil diperbarui!" : "Tugas baru berhasil ditambahkan!");
+          onClose();
+        } else {
+          const friendly = classifyApiError(res.error, "Gagal menyimpan tugas.");
+          setError(friendly);
+          showError(friendly);
+        }
+      } catch (err) {
+        const friendly = classifyApiError(err, "Gagal memproses data tugas.");
+        setError(friendly);
+        showError(friendly);
       }
     });
   };
