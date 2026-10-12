@@ -106,15 +106,12 @@ public final class DashboardViewModel {
             // Build notifications for tasks due soon
             generateNotifications()
 
-            // Sinkronkan pengingat lokal sistem untuk tugas-tugas aktif
-            for task in urgentTasks where task.deadline > now {
-                await NotificationService.shared.scheduleReminderForTask(
-                    id: task.id,
-                    title: task.namaTugas,
-                    courseName: task.jadwal?.namaMatkul,
-                    deadline: task.deadline
-                )
-            }
+            // Sinkronkan seluruh pengingat lokal sistem (kuliah, tugas, ujian) secara deterministik
+            await NotificationService.shared.syncAllReminders(
+                courses: loadedCourses,
+                tasks: loadedTasks,
+                exams: loadedExams
+            )
 
             isLoading = false
         } catch {

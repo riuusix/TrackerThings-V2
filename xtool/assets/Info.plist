@@ -103,5 +103,18 @@
 	</array>
 	<key>ServerBaseURL</key>
 	<string>https://trackerthings.vercel.app/api</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.trackerthings.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>trackerthings</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

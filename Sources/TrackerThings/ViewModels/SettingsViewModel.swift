@@ -39,6 +39,13 @@ public final class SettingsViewModel {
     public var successMessage: String? = nil
     public var activeAlert: SettingsAlert? = nil
 
+    // MARK: - Notification Preferences
+    public var notificationPreferences: NotificationPreferences = NotificationPreferences.load()
+
+    public func updateNotificationPreferences() {
+        notificationPreferences.save()
+    }
+
     public enum ServerConnectionStatus: Equatable, Sendable {
         case checking
         case connected

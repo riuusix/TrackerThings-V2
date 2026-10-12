@@ -76,7 +76,7 @@ public struct ScheduleCardView: View {
                         } else {
                             Label("Selesai", systemImage: "checkmark.circle.fill")
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(isOffline ? .secondary : .green)
+                                .foregroundStyle(isOffline ? Color.secondary : Color.green)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
                                 .background(isOffline ? Color.secondary.opacity(0.12) : Color.green.opacity(0.12))

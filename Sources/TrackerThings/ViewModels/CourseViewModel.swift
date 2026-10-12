@@ -123,6 +123,7 @@ public final class CourseViewModel {
         do {
             _ = try await dataService.deleteJadwal(id: id)
             courses.removeAll { $0.id == id }
+            NotificationService.shared.cancelReminderForCourse(id: id)
             showToast("Mata kuliah berhasil dihapus.", severity: .success)
         } catch {
             errorMessage = error.localizedDescription

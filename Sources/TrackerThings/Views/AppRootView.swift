@@ -25,6 +25,9 @@ public struct AppRootView: View {
         }
         .animation(.easeInOut(duration: 0.3), value: authViewModel.isRestoringSession)
         .animation(.easeInOut(duration: 0.3), value: authViewModel.isAuthenticated)
+        .onReceive(NotificationCenter.default.publisher(for: .sessionDidExpire)) { _ in
+            authViewModel.handleSessionExpired()
+        }
         .task {
             await authViewModel.restoreSession()
             if authViewModel.isAuthenticated {

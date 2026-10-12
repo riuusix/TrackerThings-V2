@@ -108,15 +108,42 @@ public struct SettingsView: View {
                         .buttonStyle(.borderedProminent)
                         .tint(.blue)
                     } else {
+                        // Kategori Pengingat Granular
+                        Toggle(isOn: $viewModel.notificationPreferences.isClassReminderEnabled) {
+                            Label("Pengingat Jadwal Kuliah", systemImage: "clock.badge")
+                        }
+                        .onChange(of: viewModel.notificationPreferences.isClassReminderEnabled) { _, _ in
+                            viewModel.updateNotificationPreferences()
+                        }
+
+                        Toggle(isOn: $viewModel.notificationPreferences.isTaskReminderEnabled) {
+                            Label("Pengingat Deadline Tugas", systemImage: "checklist")
+                        }
+                        .onChange(of: viewModel.notificationPreferences.isTaskReminderEnabled) { _, _ in
+                            viewModel.updateNotificationPreferences()
+                        }
+
+                        Toggle(isOn: $viewModel.notificationPreferences.isExamReminderEnabled) {
+                            Label("Pengingat Jadwal Ujian", systemImage: "graduationcap")
+                        }
+                        .onChange(of: viewModel.notificationPreferences.isExamReminderEnabled) { _, _ in
+                            viewModel.updateNotificationPreferences()
+                        }
+
                         Button {
                             Task {
                                 let testDate = Date().addingTimeInterval(5)
-                                await NotificationService.shared.scheduleTaskReminder(
-                                    id: "test-notification-\(Int(Date().timeIntervalSince1970))",
-                                    title: "Pengingat TrackerThings",
-                                    body: "Notifikasi lokal berhasil aktif! Ikon dan suara pengingat berfungsi sempurna.",
-                                    triggerDate: testDate
+                                let content = UNMutableNotificationContent()
+                                content.title = "Pengingat TrackerThings"
+                                content.body = "Notifikasi lokal aktif! Ikon aplikasi dan suara pengingat berfungsi sempurna."
+                                content.sound = .default
+                                let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 5, repeats: false)
+                                let request = UNNotificationRequest(
+                                    identifier: "test-notification-\(Int(Date().timeIntervalSince1970))",
+                                    content: content,
+                                    trigger: trigger
                                 )
+                                try? await UNUserNotificationCenter.current().add(request)
                                 testNotificationMessage = "Pengingat dijadwalkan dalam 5 detik. Kunci layar atau minimalkan app untuk melihat banner!"
                             }
                         } label: {
@@ -141,7 +168,7 @@ public struct SettingsView: View {
                 } header: {
                     Text("Notifikasi & Pengingat")
                 } footer: {
-                    Text("Pengingat otomatis akan muncul sebelum deadline tugas atau jadwal kuliah dimulai.")
+                    Text("Pilih kategori pengingat yang ingin Anda terima. Pengingat berulang secara otomatis mengikuti jadwal dan deadline Anda.")
                 }
 
                 // MARK: - Jaringan & Layanan Backend

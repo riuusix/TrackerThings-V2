@@ -12,31 +12,15 @@ public final class AuthViewModel {
     public var successMessage: String?
 
     private let authService: AuthServiceProtocol
-    private var sessionExpireObserver: NSObjectProtocol?
-
     public init(authService: AuthServiceProtocol = AuthService()) {
         self.authService = authService
-
-        self.sessionExpireObserver = NotificationCenter.default.addObserver(
-            forName: .sessionDidExpire,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            guard let self = self else { return }
-            Task { @MainActor in
-                // Cegah loop eksekusi ganda jika beberapa request 401 tiba bersamaan
-                guard self.isAuthenticated else { return }
-                self.currentUser = nil
-                self.isAuthenticated = false
-                self.errorMessage = "Sesi login telah berakhir. Silakan masuk kembali."
-            }
-        }
     }
 
-    deinit {
-        if let observer = sessionExpireObserver {
-            NotificationCenter.default.removeObserver(observer)
-        }
+    public func handleSessionExpired() {
+        guard isAuthenticated else { return }
+        currentUser = nil
+        isAuthenticated = false
+        errorMessage = "Sesi login telah berakhir. Silakan masuk kembali."
     }
 
     public func restoreSession() async {

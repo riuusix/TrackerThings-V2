@@ -6,16 +6,20 @@ import Foundation
 public final class LocalCacheService: Sendable {
     public static let shared = LocalCacheService()
 
-    private let fileManager = FileManager.default
+    private let lock = NSLock()
+    private var fileManager: FileManager {
+        FileManager.default
+    }
     private let cacheDirectoryURL: URL
 
     private init() {
-        let urls = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)
-        let appSupport = urls.first ?? fileManager.temporaryDirectory
+        let fm = FileManager.default
+        let urls = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)
+        let appSupport = urls.first ?? fm.temporaryDirectory
         let cacheFolder = appSupport.appendingPathComponent("TrackerThingsCache", isDirectory: true)
 
-        if !fileManager.fileExists(atPath: cacheFolder.path) {
-            try? fileManager.createDirectory(at: cacheFolder, withIntermediateDirectories: true)
+        if !fm.fileExists(atPath: cacheFolder.path) {
+            try? fm.createDirectory(at: cacheFolder, withIntermediateDirectories: true)
         }
         self.cacheDirectoryURL = cacheFolder
     }
@@ -69,6 +73,8 @@ public final class LocalCacheService: Sendable {
         let url = fileURL(for: key)
         do {
             let encoded = try jsonEncoder.encode(data)
+            lock.lock()
+            defer { lock.unlock() }
             try encoded.write(to: url, options: [.atomic])
             // Simpan timestamp kapan cache disimpan
             UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "cache_timestamp_\(key)")
@@ -79,9 +85,21 @@ public final class LocalCacheService: Sendable {
 
     public func load<T: Decodable & Sendable>(forKey key: String) -> T? {
         let url = fileURL(for: key)
-        guard fileManager.fileExists(atPath: url.path) else { return nil }
+        lock.lock()
+        guard fileManager.fileExists(atPath: url.path) else {
+            lock.unlock()
+            return nil
+        }
+        let data: Data
         do {
-            let data = try Data(contentsOf: url)
+            data = try Data(contentsOf: url)
+            lock.unlock()
+        } catch {
+            lock.unlock()
+            return nil
+        }
+
+        do {
             return try jsonDecoder.decode(T.self, from: data)
         } catch {
             return nil
@@ -90,17 +108,23 @@ public final class LocalCacheService: Sendable {
 
     public func remove(forKey key: String) {
         let url = fileURL(for: key)
+        lock.lock()
+        defer { lock.unlock() }
         try? fileManager.removeItem(at: url)
         UserDefaults.standard.removeObject(forKey: "cache_timestamp_\(key)")
     }
 
     public func getCacheDate(forKey key: String) -> Date? {
+        lock.lock()
+        defer { lock.unlock() }
         let timestamp = UserDefaults.standard.double(forKey: "cache_timestamp_\(key)")
         guard timestamp > 0 else { return nil }
         return Date(timeIntervalSince1970: timestamp)
     }
 
     public func clearAllCache() {
+        lock.lock()
+        defer { lock.unlock() }
         try? fileManager.removeItem(at: cacheDirectoryURL)
         try? fileManager.createDirectory(at: cacheDirectoryURL, withIntermediateDirectories: true)
     }

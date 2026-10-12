@@ -89,7 +89,7 @@ public struct TaskCardView: View {
                             } else {
                                 Image(systemName: "checkmark.circle.fill")
                                     .font(.body)
-                                    .foregroundStyle(isOffline ? .secondary : .green)
+                                    .foregroundStyle(isOffline ? Color.secondary : Color.green)
                             }
                         }
                         .disabled(isMarkingComplete || isOffline)

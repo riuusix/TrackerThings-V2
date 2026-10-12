@@ -115,6 +115,7 @@ public final class ExamViewModel {
         do {
             _ = try await dataService.deleteUjian(id: id)
             exams.removeAll { $0.id == id }
+            NotificationService.shared.cancelReminderForExam(id: id)
             showToast("Jadwal ujian berhasil dihapus.", severity: .success)
         } catch {
             errorMessage = error.localizedDescription
