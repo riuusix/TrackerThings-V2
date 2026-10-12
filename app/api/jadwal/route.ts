@@ -39,7 +39,11 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    return NextResponse.json(formatted);
+    return NextResponse.json(formatted, {
+      headers: {
+        "x-app-version": "2.0.1-native-time",
+      },
+    });
   } catch (error) {
     console.error("GET /api/jadwal exception:", error);
     return NextResponse.json({ error: "Failed to fetch jadwal" }, { status: 500 });
@@ -114,7 +118,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, jadwal: formatted }, { status: 201 });
   } catch (error: any) {
     console.error("POST /api/jadwal exception:", error);
-    return NextResponse.json({ error: "Gagal membuat jadwal" }, { status: 500 });
+    return NextResponse.json({ 
+      error: "Gagal membuat jadwal",
+      message: error?.message || "Unknown error",
+      code: error?.code
+    }, { status: 500 });
   }
 }
 

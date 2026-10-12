@@ -102,11 +102,13 @@ export function parseTimeToDate(timeStr?: string | null): Date | null {
   if (!timeStr || typeof timeStr !== "string") return null;
   const trimmed = timeStr.trim();
   if (!trimmed) return null;
-  const parts = trimmed.split(":");
-  const h = (parts[0] || "00").padStart(2, "0");
-  const m = (parts[1] || "00").padStart(2, "0");
-  const s = (parts[2] || "00").padStart(2, "0");
-  return new Date(`1970-01-01T${h}:${m}:${s}Z`);
+  const match = trimmed.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (!match) return null;
+  const h = match[1].padStart(2, "0");
+  const m = match[2];
+  const s = match[3] || "00";
+  const d = new Date(`1970-01-01T${h}:${m}:${s}Z`);
+  return isNaN(d.getTime()) ? null : d;
 }
 
 /**
