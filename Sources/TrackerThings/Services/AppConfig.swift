@@ -17,18 +17,16 @@ public final class AppConfig {
 
     /// Mengambil default Server Base URL secara nonisolated dan thread-safe (Swift 6 compliant).
     /// Prioritas:
-    /// 1. `Info.plist` key `ServerBaseURL` (jika disematkan secara eksplisit dan valid)
-    /// 2. Mode `#if DEBUG`: fallback `http://localhost:3000/api` untuk kenyamanan simulator lokal
-    /// 3. Mode Release / Production: selalu default ke `https://trackerthings.vercel.app/api`
+    /// - Mode Release / Production: selalu terkunci ke `productionServerURL` (`https://trackerthings.vercel.app/api`)
+    /// - Mode `#if DEBUG`: fallback `http://localhost:3000/api` atau `Info.plist` key `ServerBaseURL` untuk simulasi lokal
     nonisolated public static func resolveDefaultServerURL() -> String {
+        #if DEBUG
         if let plistURL = Bundle.main.object(forInfoDictionaryKey: "ServerBaseURL") as? String {
             let trimmed = plistURL.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmed.isEmpty && !trimmed.contains("YOUR_") && !trimmed.contains("example.com") {
                 return normalizeURLString(trimmed)
             }
         }
-
-        #if DEBUG
         return developmentServerURL
         #else
         return productionServerURL
@@ -63,22 +61,31 @@ public final class AppConfig {
         return str
     }
 
-    /// Mengambil konfigurasi URL aktif dari UserDefaults atau default server secara nonisolated.
+    /// Mengambil konfigurasi URL aktif secara nonisolated.
+    /// Di production, selalu mengembalikan official cloud server.
+    /// Di DEBUG, mengizinkan override UserDefaults jika ada.
     nonisolated public static func resolveActiveServerURL() -> URL {
+        #if DEBUG
         if let savedURLStr = UserDefaults.standard.string(forKey: serverURLKey),
            !savedURLStr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
            let savedURL = URL(string: normalizeURLString(savedURLStr)) {
             return savedURL
         }
+        #endif
         return URL(string: resolveDefaultServerURL()) ?? URL(string: productionServerURL)!
     }
 
     public var serverURLString: String {
         get {
+            #if DEBUG
             let saved = UserDefaults.standard.string(forKey: Self.serverURLKey)
             return (saved?.isEmpty == false) ? saved! : Self.defaultServerURL
+            #else
+            return Self.productionServerURL
+            #endif
         }
         set {
+            #if DEBUG
             let normalized = Self.normalizeURLString(newValue)
             UserDefaults.standard.set(normalized, forKey: Self.serverURLKey)
             if let validURL = URL(string: normalized) {
@@ -86,11 +93,16 @@ public final class AppConfig {
                     await NetworkService.shared.setBaseURL(validURL)
                 }
             }
+            #endif
         }
     }
 
     public var isUsingCustomURL: Bool {
+        #if DEBUG
         UserDefaults.standard.string(forKey: Self.serverURLKey) != nil
+        #else
+        false
+        #endif
     }
 
     private init() {
@@ -106,6 +118,7 @@ public final class AppConfig {
     }
 
     public func resetToDefault() {
+        #if DEBUG
         UserDefaults.standard.removeObject(forKey: Self.serverURLKey)
         let defURL = Self.defaultServerURL
         if let validURL = URL(string: defURL) {
@@ -113,5 +126,6 @@ public final class AppConfig {
                 await NetworkService.shared.setBaseURL(validURL)
             }
         }
+        #endif
     }
 }

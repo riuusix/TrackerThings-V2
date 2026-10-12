@@ -1,3 +1,4 @@
+#if DEBUG
 import SwiftUI
 
 /// Modal sheet untuk mengatur Base URL server API, berguna untuk development dengan iPhone fisik di jaringan lokal.
@@ -68,4 +69,5 @@ public struct ServerSettingsSheet: View {
         .presentationDetents([.medium])
     }
 }
+#endif
 

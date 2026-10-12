@@ -6,7 +6,9 @@ public struct LoginView: View {
     @State private var password: String = ""
     @State private var isPasswordVisible: Bool = false
     @State private var isPresentingRegister: Bool = false
+    #if DEBUG
     @State private var isPresentingServerSettings: Bool = false
+    #endif
     @FocusState private var focusedField: Field?
 
     private enum Field {
@@ -23,29 +25,9 @@ public struct LoginView: View {
     public var body: some View {
         ScrollView {
             VStack(spacing: 28) {
-                // Header & Brand Logo
-                VStack(spacing: 12) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .fill(LinearGradient(colors: [.blue, .indigo], startPoint: .topLeading, endPoint: .bottomTrailing))
-                            .frame(width: 76, height: 76)
-                            .shadow(color: .blue.opacity(0.3), radius: 10, y: 5)
-
-                        Image(systemName: "checkmark.seal.fill")
-                            .font(.system(size: 38, weight: .semibold))
-                            .foregroundStyle(.white)
-                    }
-                    .padding(.top, 24)
-
-                    Text("TrackerThings")
-                        .font(.system(size: 28, weight: .bold, design: .rounded))
-                        .foregroundStyle(.primary)
-
-                    Text("Masuk untuk mengelola jadwal dan tugas Anda")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                }
+                // Canonical TrackerThings Brand Header
+                BrandHeaderView(subtitle: "Masuk untuk mengelola jadwal dan tugas Anda", logoSize: 76)
+                    .padding(.top, 16)
 
                 // Error Message Banner
                 if let errorMessage = authViewModel.errorMessage {
@@ -162,18 +144,20 @@ public struct LoginView: View {
 
                 Spacer(minLength: 20)
 
-                // Tombol Pengaturan Server URL (Untuk iPhone Fisik / Development)
+                #if DEBUG
+                // Tombol Pengaturan Server URL (Hanya di mode Debug)
                 Button {
                     isPresentingServerSettings = true
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "server.rack")
-                        Text("Pengaturan Server API")
+                        Text("Pengaturan Server API (Debug)")
                     }
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 }
                 .padding(.bottom, 16)
+                #endif
             }
             .padding(.horizontal, 24)
         }
@@ -181,9 +165,11 @@ public struct LoginView: View {
         .sheet(isPresented: $isPresentingRegister) {
             RegisterView()
         }
+        #if DEBUG
         .sheet(isPresented: $isPresentingServerSettings) {
             ServerSettingsSheet()
         }
+        #endif
     }
 
     private func handleLogin() {

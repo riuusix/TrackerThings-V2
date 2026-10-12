@@ -38,18 +38,33 @@ public struct RegisterView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
-                    // Header Description
-                    VStack(spacing: 6) {
-                        Text("Buat Akun Baru")
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
-                            .foregroundStyle(.primary)
+                    // Header Description with Canonical Brand
+                    VStack(spacing: 8) {
+                        BrandLogoView(size: 56)
+                            .padding(.top, 6)
 
-                        Text("Isi data berikut untuk mulai menggunakan TrackerThings")
+                        HStack(spacing: 0) {
+                            Text("Tracker")
+                                .font(.system(size: 22, weight: .bold, design: .rounded))
+                                .foregroundStyle(.primary)
+
+                            Text("Things")
+                                .font(.system(size: 22, weight: .bold, design: .rounded))
+                                .foregroundStyle(
+                                    LinearGradient(
+                                        colors: [.blue, Color(red: 0.05, green: 0.72, blue: 0.88)],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                        }
+
+                        Text("Buat akun baru untuk mulai menggunakan TrackerThings")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
                     }
-                    .padding(.top, 10)
+                    .padding(.top, 8)
 
                     // Error Banner
                     if let errorMessage = localValidationMessage ?? authViewModel.errorMessage {

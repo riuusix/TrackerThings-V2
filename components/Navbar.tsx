@@ -82,8 +82,12 @@ export function Navbar({
               href="/dashboard"
               className="flex items-center gap-2.5 font-extrabold text-xl sm:text-2xl tracking-tight group"
             >
-              <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-600/25 transition-transform group-hover:scale-105">
-                <GraduationCap className="w-5 h-5" />
+              <div className="w-10 h-10 rounded-xl overflow-hidden shadow-md shadow-blue-600/25 transition-transform group-hover:scale-105 bg-blue-700 flex items-center justify-center">
+                <img
+                  src="/icon.png"
+                  alt="TrackerThings Logo"
+                  className="w-full h-full object-cover"
+                />
               </div>
               <span className="text-slate-900 dark:text-white">
                 Tracker

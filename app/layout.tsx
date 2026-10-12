@@ -15,7 +15,13 @@ export const metadata: Metadata = {
   description:
     "Aplikasi modern manajemen jadwal kuliah, tugas mahasiswa, ujian semester, dan kelas pengganti dengan antarmuka elegan.",
   icons: {
-    icon: "/favicon.ico",
+    icon: [
+      { url: "/favicon.ico", sizes: "32x32" },
+      { url: "/icon.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-icon.png", sizes: "180x180", type: "image/png" },
+    ],
   },
 };
 

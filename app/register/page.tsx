@@ -51,14 +51,21 @@ export default function RegisterPage() {
       <div className="w-full max-w-md">
         {/* Brand Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex w-14 h-14 rounded-2xl bg-gradient-to-tr from-indigo-600 to-violet-500 items-center justify-center text-white shadow-xl shadow-indigo-500/30 mb-3">
-            <GraduationCap className="w-8 h-8" />
+          <div className="inline-flex w-16 h-16 rounded-2xl overflow-hidden shadow-xl shadow-blue-600/25 mb-3 transition-transform hover:scale-105 bg-blue-700 flex items-center justify-center">
+            <img
+              src="/icon.png"
+              alt="TrackerThings Logo"
+              className="w-full h-full object-cover"
+            />
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-            Buat Akun Baru
+            Tracker
+            <span className="bg-gradient-to-r from-blue-600 to-cyan-500 text-transparent bg-clip-text">
+              Things
+            </span>
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Mulai kelola perkuliahan, tugas, dan jadwal ujian Anda
+            Buat akun baru untuk mulai mengelola jadwal dan tugas Anda
           </p>
         </div>
 
@@ -89,7 +96,7 @@ export default function RegisterPage() {
                   type="text"
                   name="full_name"
                   placeholder="Nama Lengkap Anda"
-                  className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-white text-sm"
+                  className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white text-sm"
                 />
               </div>
             </div>
@@ -105,7 +112,7 @@ export default function RegisterPage() {
                   name="username"
                   required
                   placeholder="Username unik"
-                  className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-white text-sm"
+                  className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white text-sm"
                 />
               </div>
             </div>
@@ -121,7 +128,7 @@ export default function RegisterPage() {
                   name="email"
                   required
                   placeholder="mahasiswa@univ.ac.id"
-                  className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-white text-sm"
+                  className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white text-sm"
                 />
               </div>
             </div>
@@ -136,7 +143,7 @@ export default function RegisterPage() {
                   type="tel"
                   name="phone_number"
                   placeholder="081234567890"
-                  className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-white text-sm"
+                  className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white text-sm"
                 />
               </div>
             </div>
@@ -152,7 +159,7 @@ export default function RegisterPage() {
                   name="password"
                   required
                   placeholder="Minimal 6 karakter"
-                  className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-white text-sm"
+                  className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white text-sm"
                 />
               </div>
             </div>
@@ -160,7 +167,7 @@ export default function RegisterPage() {
             <button
               type="submit"
               disabled={isPending}
-              className="w-full py-3.5 px-4 rounded-xl font-semibold text-white bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] shadow-lg shadow-indigo-500/25 transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-50"
+              className="w-full py-3.5 px-4 rounded-xl font-semibold text-white bg-blue-600 hover:bg-blue-700 active:scale-[0.98] shadow-lg shadow-blue-500/25 transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-50"
             >
               {isPending ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
@@ -178,7 +185,7 @@ export default function RegisterPage() {
               Sudah punya akun?{" "}
               <Link
                 href="/login"
-                className="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
+                className="font-semibold text-blue-600 dark:text-blue-400 hover:underline"
               >
                 Masuk di sini
               </Link>

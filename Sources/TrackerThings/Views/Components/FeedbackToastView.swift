@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Semantic feedback severity matching web vocabulary
 public enum FeedbackSeverity: Sendable, Equatable {
@@ -7,7 +8,7 @@ public enum FeedbackSeverity: Sendable, Equatable {
     case warning
     case error
 
-    var iconName: String {
+    public var iconName: String {
         switch self {
         case .info: return "info.circle.fill"
         case .success: return "checkmark.circle.fill"
@@ -16,12 +17,21 @@ public enum FeedbackSeverity: Sendable, Equatable {
         }
     }
 
-    var tintColor: Color {
+    public var tintColor: Color {
         switch self {
         case .info: return .blue
         case .success: return .green
         case .warning: return .orange
         case .error: return .red
+        }
+    }
+
+    public var localizedName: String {
+        switch self {
+        case .info: return "Informasi"
+        case .success: return "Berhasil"
+        case .warning: return "Peringatan"
+        case .error: return "Terjadi Kesalahan"
         }
     }
 }
@@ -38,8 +48,9 @@ public struct FeedbackToastData: Identifiable, Sendable, Equatable {
     }
 }
 
-/// Native iOS Toast Banner View with fluid spring animation and accessibility
+/// Native iOS Toast Banner View with fluid spring animation, Dynamic Island awareness, and VoiceOver support
 public struct FeedbackToastBanner: View {
+    @Environment(\.colorScheme) private var colorScheme
     let data: FeedbackToastData
     let onDismiss: () -> Void
 
@@ -71,51 +82,72 @@ public struct FeedbackToastBanner: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Tutup notifikasi")
+            .accessibilityHint("Ketuk dua kali untuk menutup pesan ini")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
+        .frame(maxWidth: 520)
         .background {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(.regularMaterial)
-                .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 4)
+                .shadow(
+                    color: Color.black.opacity(colorScheme == .dark ? 0.35 : 0.08),
+                    radius: 12,
+                    x: 0,
+                    y: 5
+                )
         }
         .overlay {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(data.severity.tintColor.opacity(0.2), lineWidth: 1)
+                .stroke(data.severity.tintColor.opacity(0.25), lineWidth: 1)
         }
         .padding(.horizontal, 16)
         .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(data.severity.localizedName): \(data.message)")
         .accessibilityAddTraits(.isStaticText)
+        .onAppear {
+            UIAccessibility.post(
+                notification: .announcement,
+                argument: "\(data.severity.localizedName): \(data.message)"
+            )
+        }
     }
 }
 
 /// View modifier for presenting toast banners at the top of a screen with safe area awareness
 public struct FeedbackToastModifier: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var toast: FeedbackToastData?
 
     public func body(content: Content) -> some View {
         content
             .overlay(alignment: .top) {
                 if let toastData = toast {
+                    let dismissalAnim: Animation = reduceMotion
+                        ? .easeInOut(duration: 0.22)
+                        : .spring(response: 0.38, dampingFraction: 0.82)
+
                     FeedbackToastBanner(data: toastData) {
-                        withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
+                        withAnimation(dismissalAnim) {
                             toast = nil
                         }
                     }
                     .transition(
-                        .asymmetric(
-                            insertion: .move(edge: .top).combined(with: .opacity),
-                            removal: .opacity.combined(with: .move(edge: .top))
-                        )
+                        reduceMotion
+                            ? .opacity
+                            : .asymmetric(
+                                insertion: .move(edge: .top).combined(with: .opacity),
+                                removal: .opacity.combined(with: .move(edge: .top))
+                            )
                     )
                     .safeAreaPadding(.top)
-                    .padding(.top, 4)
+                    .padding(.top, 8)
                     .onAppear {
                         let duration = toastData.severity == .error ? 5.0 : 3.5
                         Task {
                             try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
                             if toast?.id == toastData.id {
-                                withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
+                                withAnimation(dismissalAnim) {
                                     toast = nil
                                 }
                             }
@@ -131,4 +163,3 @@ public extension View {
         modifier(FeedbackToastModifier(toast: toast))
     }
 }
-

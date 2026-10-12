@@ -4,7 +4,9 @@ import SwiftUI
 public struct SettingsView: View {
     @Environment(AuthViewModel.self) private var authViewModel
     @State private var viewModel = SettingsViewModel()
+    #if DEBUG
     @State private var isShowingServerSettings: Bool = false
+    #endif
     @State private var isShowingLogoutConfirmation: Bool = false
     @State private var notificationStatusText: String = "Memeriksa..."
     @State private var isNotificationAuthorized: Bool = false
@@ -304,13 +306,14 @@ public struct SettingsView: View {
                     Text("Pengingat otomatis akan muncul sebelum deadline tugas atau jadwal kuliah dimulai.")
                 }
 
-                // MARK: - Jaringan & Pengembang
+                // MARK: - Jaringan & Layanan Backend
                 Section {
+                    #if DEBUG
                     Button {
                         isShowingServerSettings = true
                     } label: {
                         HStack {
-                            Label("Konfigurasi Server API", systemImage: "server.rack")
+                            Label("Konfigurasi Server API (Debug)", systemImage: "server.rack")
                                 .foregroundStyle(.primary)
                             Spacer()
                             Image(systemName: "chevron.right")
@@ -318,11 +321,65 @@ public struct SettingsView: View {
                                 .foregroundStyle(.tertiary)
                         }
                     }
+                    #else
+                    HStack {
+                        Label("Server Resmi", systemImage: "cloud.fill")
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        Text("TrackerThings Cloud")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    HStack {
+                        Label("Status Layanan", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                        Spacer()
+                        Text("Aktif & Terhubung")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    #endif
                 } header: {
-                    Text("Pengembang & Jaringan")
+                    Text("Layanan & Server")
                 } footer: {
+                    #if DEBUG
                     Text("Base URL aktif: \(AppConfig.shared.serverURLString)")
                         .font(.caption2)
+                    #else
+                    Text("Aplikasi terhubung ke backend resmi https://trackerthings.vercel.app/api")
+                        .font(.caption2)
+                    #endif
+                }
+
+                // MARK: - Tentang Aplikasi
+                Section {
+                    HStack(spacing: 12) {
+                        BrandLogoView(size: 40, cornerRadius: 10, showShadow: false)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(spacing: 0) {
+                                Text("Tracker")
+                                    .font(.headline)
+                                    .foregroundStyle(.primary)
+                                Text("Things")
+                                    .font(.headline)
+                                    .foregroundStyle(
+                                        LinearGradient(
+                                            colors: [.blue, Color(red: 0.05, green: 0.72, blue: 0.88)],
+                                            startPoint: .leading,
+                                            endPoint: .trailing
+                                        )
+                                    )
+                            }
+
+                            Text("Versi 1.0.0 (Build Release)")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 2)
+                } header: {
+                    Text("Tentang Aplikasi")
                 }
 
                 // MARK: - Keluar dari Akun
@@ -347,9 +404,11 @@ public struct SettingsView: View {
                     await updateNotificationStatus()
                 }
             }
+            #if DEBUG
             .sheet(isPresented: $isShowingServerSettings) {
                 ServerSettingsSheet()
             }
+            #endif
             .confirmationDialog(
                 "Konfirmasi Keluar",
                 isPresented: $isShowingLogoutConfirmation,
