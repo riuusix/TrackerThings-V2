@@ -150,7 +150,7 @@ public struct TaskCardView: View {
                     Spacer()
                     Text("\(Int(localProgress))%")
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(isOffline ? .secondary : .blue)
+                        .foregroundStyle(isOffline ? Color.secondary : Color.blue)
                 }
 
                 Slider(value: $localProgress, in: 0...100, step: 5) {

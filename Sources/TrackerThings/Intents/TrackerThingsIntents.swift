@@ -18,15 +18,15 @@ private func getIndonesianDayName(from date: Date = Date()) -> String {
 
 // MARK: - 1. Intent: Jadwal Hari Ini
 public struct GetTodayScheduleIntent: AppIntent {
-    public static var title: LocalizedStringResource = "Lihat Jadwal Kuliah Hari Ini"
-    public static var description = IntentDescription("Menampilkan jadwal kuliah reguler dan kelas pengganti untuk hari ini dari TrackerThings.")
-    public static var openAppWhenRun: Bool = false
+    public static let title: LocalizedStringResource = "Lihat Jadwal Kuliah Hari Ini"
+    public static let description = IntentDescription("Menampilkan jadwal kuliah reguler dan kelas pengganti untuk hari ini dari TrackerThings.")
+    public static let openAppWhenRun: Bool = false
 
     public init() {}
 
     public func perform() async throws -> some IntentResult & ProvidesDialog {
         let todayDayName = getIndonesianDayName()
-        let isOffline = NetworkMonitor.shared.isDisconnected
+        let isOffline = await MainActor.run { !NetworkMonitor.shared.isConnected }
 
         // Ambil jadwal reguler dari cache
         let allCourses: [JadwalItem] = LocalCacheService.shared.load(forKey: LocalCacheService.keyJadwal) ?? []
@@ -77,14 +77,14 @@ public struct GetTodayScheduleIntent: AppIntent {
 
 // MARK: - 2. Intent: Tugas Terdekat
 public struct GetUrgentTasksIntent: AppIntent {
-    public static var title: LocalizedStringResource = "Lihat Tugas Terdekat"
-    public static var description = IntentDescription("Menampilkan tugas kuliah yang belum selesai dengan deadline terdekat dari TrackerThings.")
-    public static var openAppWhenRun: Bool = false
+    public static let title: LocalizedStringResource = "Lihat Tugas Terdekat"
+    public static let description = IntentDescription("Menampilkan tugas kuliah yang belum selesai dengan deadline terdekat dari TrackerThings.")
+    public static let openAppWhenRun: Bool = false
 
     public init() {}
 
     public func perform() async throws -> some IntentResult & ProvidesDialog {
-        let isOffline = NetworkMonitor.shared.isDisconnected
+        let isOffline = await MainActor.run { !NetworkMonitor.shared.isConnected }
         let tasks: [TugasItem] = LocalCacheService.shared.load(forKey: LocalCacheService.keyTugas) ?? []
 
         let pendingTasks = tasks.filter { $0.status != .selesai }
@@ -106,7 +106,12 @@ public struct GetUrgentTasksIntent: AppIntent {
 
         var lines: [String] = ["Tugas yang perlu diselesaikan:"]
         for task in topTasks {
-            let courseName = task.jadwal?.namaMatkul.map { " (\($0))" } ?? ""
+            let courseName: String
+            if let matkul = task.jadwal?.namaMatkul, !matkul.isEmpty {
+                courseName = " (\(matkul))"
+            } else {
+                courseName = ""
+            }
             let deadlineStr = df.string(from: task.deadline)
             lines.append("• \(task.namaTugas)\(courseName) - Deadline: \(deadlineStr)")
         }
@@ -125,14 +130,14 @@ public struct GetUrgentTasksIntent: AppIntent {
 
 // MARK: - 3. Intent: Ujian Berikutnya
 public struct GetNextExamIntent: AppIntent {
-    public static var title: LocalizedStringResource = "Lihat Ujian Berikutnya"
-    public static var description = IntentDescription("Menampilkan jadwal ujian mendatang dari TrackerThings.")
-    public static var openAppWhenRun: Bool = false
+    public static let title: LocalizedStringResource = "Lihat Ujian Berikutnya"
+    public static let description = IntentDescription("Menampilkan jadwal ujian mendatang dari TrackerThings.")
+    public static let openAppWhenRun: Bool = false
 
     public init() {}
 
     public func perform() async throws -> some IntentResult & ProvidesDialog {
-        let isOffline = NetworkMonitor.shared.isDisconnected
+        let isOffline = await MainActor.run { !NetworkMonitor.shared.isConnected }
         let exams: [UjianItem] = LocalCacheService.shared.load(forKey: LocalCacheService.keyUjian) ?? []
 
         let now = Date()
@@ -182,8 +187,8 @@ public enum TrackerThingsTabParam: String, AppEnum {
     case exams = "exams"
     case settings = "settings"
 
-    public static var typeDisplayRepresentation: TypeDisplayRepresentation = "Menu TrackerThings"
-    public static var caseDisplayRepresentations: [TrackerThingsTabParam: DisplayRepresentation] = [
+    public static let typeDisplayRepresentation: TypeDisplayRepresentation = "Menu TrackerThings"
+    public static let caseDisplayRepresentations: [TrackerThingsTabParam: DisplayRepresentation] = [
         .home: DisplayRepresentation(title: "Home / Beranda"),
         .courses: DisplayRepresentation(title: "Mata Kuliah"),
         .exams: DisplayRepresentation(title: "Ujian"),
@@ -192,9 +197,9 @@ public enum TrackerThingsTabParam: String, AppEnum {
 }
 
 public struct OpenTrackerThingsTabIntent: AppIntent, OpenIntent {
-    public static var title: LocalizedStringResource = "Buka Menu TrackerThings"
-    public static var description = IntentDescription("Membuka menu tertentu di TrackerThings.")
-    public static var openAppWhenRun: Bool = true
+    public static let title: LocalizedStringResource = "Buka Menu TrackerThings"
+    public static let description = IntentDescription("Membuka menu tertentu di TrackerThings.")
+    public static let openAppWhenRun: Bool = true
 
     @Parameter(title: "Menu")
     public var target: TrackerThingsTabParam
@@ -255,4 +260,3 @@ public struct TrackerThingsShortcuts: AppShortcutsProvider {
         )
     }
 }
-

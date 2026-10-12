@@ -132,7 +132,6 @@ public struct SettingsView: View {
 
                         Button {
                             Task {
-                                let testDate = Date().addingTimeInterval(5)
                                 let content = UNMutableNotificationContent()
                                 content.title = "Pengingat TrackerThings"
                                 content.body = "Notifikasi lokal aktif! Ikon aplikasi dan suara pengingat berfungsi sempurna."
