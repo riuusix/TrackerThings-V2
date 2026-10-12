@@ -21,6 +21,7 @@ public final class SettingsViewModel {
     // MARK: - Form Inputs
     public var fullName: String = ""
     public var phoneNumber: String = ""
+    public var profilePictureUrl: String = ""
 
     public var currentPassword: String = ""
     public var newPassword: String = ""
@@ -48,6 +49,7 @@ public final class SettingsViewModel {
         if let user = user {
             self.fullName = user.fullName ?? ""
             self.phoneNumber = user.phoneNumber ?? ""
+            self.profilePictureUrl = user.profilePictureUrl ?? ""
         }
     }
 
@@ -101,9 +103,14 @@ public final class SettingsViewModel {
         successMessage = nil
 
         do {
+            let cleanName = fullName.trimmingCharacters(in: .whitespacesAndNewlines)
+            let cleanPhone = phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+            let cleanPic = profilePictureUrl.trimmingCharacters(in: .whitespacesAndNewlines)
+
             let updated = try await authService.updateUserSettings(
-                fullName: fullName.trimmingCharacters(in: .whitespacesAndNewlines),
-                phoneNumber: phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+                fullName: cleanName,
+                phoneNumber: cleanPhone.isEmpty ? nil : cleanPhone,
+                profilePictureUrl: cleanPic.isEmpty ? nil : cleanPic
             )
             isLoadingProfile = false
             let successMsg = "Profil berhasil diperbarui!"

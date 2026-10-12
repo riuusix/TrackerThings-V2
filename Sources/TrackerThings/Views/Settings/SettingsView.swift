@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// Tampilan native SwiftUI untuk pengaturan profil pengguna dan keamanan akun.
+/// Tampilan native SwiftUI untuk pengaturan aplikasi TrackerThings V2.
+/// Mengorganisasikan akun, keamanan, notifikasi, layanan backend, dan logout secara terstruktur sesuai Apple HIG.
 public struct SettingsView: View {
     @Environment(AuthViewModel.self) private var authViewModel
     @State private var viewModel = SettingsViewModel()
@@ -17,231 +18,68 @@ public struct SettingsView: View {
     public var body: some View {
         NavigationStack {
             Form {
-                // MARK: - Kartu Informasi Akun
+                // MARK: - Akun & Profil (Tappable Summary & Security Rows)
                 Section {
-                    HStack(spacing: 16) {
-                        ZStack {
-                            Circle()
-                                .fill(LinearGradient(colors: [.blue, .indigo], startPoint: .topLeading, endPoint: .bottomTrailing))
-                                .frame(width: 58, height: 58)
-                                .shadow(color: .blue.opacity(0.3), radius: 6, y: 3)
+                    NavigationLink {
+                        EditProfileView(viewModel: viewModel)
+                    } label: {
+                        HStack(spacing: 14) {
+                            UserAvatarView(
+                                url: authViewModel.currentUser?.profilePictureUrl,
+                                initials: String((authViewModel.currentUser?.fullName ?? authViewModel.currentUser?.username ?? "U").prefix(1)).uppercased(),
+                                size: 56
+                            )
 
-                            Text((authViewModel.currentUser?.username.prefix(1) ?? "U").uppercased())
-                                .font(.title2.weight(.bold))
-                                .foregroundStyle(.white)
-                        }
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack(spacing: 6) {
+                                    Text(authViewModel.currentUser?.fullName ?? authViewModel.currentUser?.username ?? "Pengguna")
+                                        .font(.headline)
+                                        .foregroundStyle(.primary)
 
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack(spacing: 8) {
-                                Text(authViewModel.currentUser?.fullName ?? authViewModel.currentUser?.username ?? "Pengguna")
-                                    .font(.headline)
-                                    .foregroundStyle(.primary)
-
-                                if let role = authViewModel.currentUser?.role, !role.isEmpty {
-                                    Text(role.uppercased())
-                                        .font(.caption2.weight(.bold))
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 2)
-                                        .background(role.lowercased() == "admin" ? Color.purple.opacity(0.15) : Color.blue.opacity(0.15))
-                                        .foregroundStyle(role.lowercased() == "admin" ? Color.purple : Color.blue)
-                                        .clipShape(Capsule())
+                                    if let role = authViewModel.currentUser?.role, !role.isEmpty {
+                                        Text(role.uppercased())
+                                            .font(.caption2.weight(.bold))
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(role.lowercased() == "admin" ? Color.purple.opacity(0.15) : Color.blue.opacity(0.15))
+                                            .foregroundStyle(role.lowercased() == "admin" ? Color.purple : Color.blue)
+                                            .clipShape(Capsule())
+                                    }
                                 }
-                            }
 
-                            Text("@\(authViewModel.currentUser?.username ?? "user") • \(authViewModel.currentUser?.email ?? "-")")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .padding(.vertical, 6)
-                } header: {
-                    Text("Akun Terdaftar")
-                }
-
-                // MARK: - Banner Notifikasi Toast/Alert Inline
-                if let errorMsg = viewModel.errorMessage {
-                    Section {
-                        HStack(spacing: 10) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundStyle(.red)
-                            Text(errorMsg)
-                                .font(.subheadline)
-                                .foregroundStyle(.red)
-                            Spacer()
-                            Button {
-                                viewModel.clearMessages()
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
+                                Text("@\(authViewModel.currentUser?.username ?? "user")")
+                                    .font(.subheadline)
                                     .foregroundStyle(.secondary)
+
+                                Text(authViewModel.currentUser?.email ?? "-")
+                                    .font(.caption)
+                                    .foregroundStyle(.tertiary)
                             }
                         }
-                    }
-                }
-
-                if let successMsg = viewModel.successMessage {
-                    Section {
-                        HStack(spacing: 10) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
-                            Text(successMsg)
-                                .font(.subheadline)
-                                .foregroundStyle(.green)
-                            Spacer()
-                            Button {
-                                viewModel.clearMessages()
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                }
-
-                // MARK: - Form Edit Profil
-                Section {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Nama Lengkap")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        TextField("Nama Lengkap Anda", text: $viewModel.fullName)
-                            .textContentType(.name)
-                            .autocorrectionDisabled()
+                        .padding(.vertical, 4)
                     }
 
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Nomor Telepon (Opsional)")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        TextField("Contoh: 081234567890", text: $viewModel.phoneNumber)
-                            .keyboardType(.phonePad)
-                            .textContentType(.telephoneNumber)
-                    }
-
-                    Button {
-                        guard !viewModel.isLoadingProfile else { return }
-                        Task {
-                            if let updatedUser = await viewModel.saveProfile() {
-                                authViewModel.currentUser = updatedUser
-                            }
-                        }
+                    NavigationLink {
+                        AccountSecurityView(viewModel: viewModel)
                     } label: {
-                        HStack {
-                            Spacer()
-                            if viewModel.isLoadingProfile {
-                                ProgressView()
-                                    .tint(.white)
-                                    .padding(.trailing, 6)
+                        Label {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Keamanan Akun")
+                                    .font(.body)
+                                    .foregroundStyle(.primary)
+                                Text("Ubah kata sandi & proteksi akun")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
                             }
-                            Text(viewModel.isLoadingProfile ? "Menyimpan..." : "Simpan Profil")
-                                .fontWeight(.semibold)
-                            Spacer()
+                        } icon: {
+                            Image(systemName: "lock.shield.fill")
+                                .foregroundStyle(.indigo)
                         }
                     }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(!viewModel.isNameValid || viewModel.isLoadingProfile)
                 } header: {
-                    Text("Biodata & Tampilan")
+                    Text("Akun")
                 } footer: {
-                    Text("Nama lengkap akan ditampilkan pada dashboard utama dan kartu tugas.")
-                }
-
-                // MARK: - Form Ganti Kata Sandi
-                Section {
-                    // Password Lama
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Kata Sandi Lama")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        HStack {
-                            if viewModel.isCurrentPasswordVisible {
-                                TextField("Kata sandi saat ini", text: $viewModel.currentPassword)
-                            } else {
-                                SecureField("Kata sandi saat ini", text: $viewModel.currentPassword)
-                            }
-                            Button {
-                                viewModel.isCurrentPasswordVisible.toggle()
-                            } label: {
-                                Image(systemName: viewModel.isCurrentPasswordVisible ? "eye.slash" : "eye")
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-
-                    // Password Baru
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Kata Sandi Baru")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        HStack {
-                            if viewModel.isNewPasswordVisible {
-                                TextField("Minimal 6 karakter", text: $viewModel.newPassword)
-                            } else {
-                                SecureField("Minimal 6 karakter", text: $viewModel.newPassword)
-                            }
-                            Button {
-                                viewModel.isNewPasswordVisible.toggle()
-                            } label: {
-                                Image(systemName: viewModel.isNewPasswordVisible ? "eye.slash" : "eye")
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-
-                    // Konfirmasi Password Baru
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Konfirmasi Kata Sandi Baru")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        HStack {
-                            if viewModel.isConfirmPasswordVisible {
-                                TextField("Ulangi kata sandi baru", text: $viewModel.confirmPassword)
-                            } else {
-                                SecureField("Ulangi kata sandi baru", text: $viewModel.confirmPassword)
-                            }
-                            Button {
-                                viewModel.isConfirmPasswordVisible.toggle()
-                            } label: {
-                                Image(systemName: viewModel.isConfirmPasswordVisible ? "eye.slash" : "eye")
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-
-                    // Petunjuk Validasi Inline
-                    if let hint = viewModel.passwordValidationMessage {
-                        HStack(spacing: 6) {
-                            Image(systemName: "info.circle")
-                            Text(hint)
-                        }
-                        .font(.caption2)
-                        .foregroundStyle(.orange)
-                    }
-
-                    Button {
-                        guard !viewModel.isLoadingPassword else { return }
-                        Task {
-                            _ = await viewModel.savePassword()
-                        }
-                    } label: {
-                        HStack {
-                            Spacer()
-                            if viewModel.isLoadingPassword {
-                                ProgressView()
-                                    .tint(.white)
-                                    .padding(.trailing, 6)
-                            }
-                            Text(viewModel.isLoadingPassword ? "Memproses..." : "Perbarui Kata Sandi")
-                                .fontWeight(.semibold)
-                            Spacer()
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.indigo)
-                    .disabled(!viewModel.isPasswordFormValid || viewModel.isLoadingPassword)
-                } header: {
-                    Text("Keamanan & Kata Sandi")
-                } footer: {
-                    Text("Gunakan kombinasi minimal 6 karakter demi keamanan akun Anda.")
+                    Text("Ketuk profil untuk memperbarui biodata atau nomor kontak Anda.")
                 }
 
                 // MARK: - Notifikasi & Pengingat
@@ -277,7 +115,7 @@ public struct SettingsView: View {
                                 let testDate = Date().addingTimeInterval(5)
                                 await NotificationService.shared.scheduleTaskReminder(
                                     id: "test-notification-\(Int(Date().timeIntervalSince1970))",
-                                    title: "Pengingat TrackerThings-V2",
+                                    title: "Pengingat TrackerThings",
                                     body: "Notifikasi lokal berhasil aktif! Ikon dan suara pengingat berfungsi sempurna.",
                                     triggerDate: testDate
                                 )
@@ -449,4 +287,3 @@ public struct SettingsView: View {
         }
     }
 }
-

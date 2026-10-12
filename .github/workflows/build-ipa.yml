@@ -36,7 +36,7 @@ jobs:
         run: |
           xtool dev build --ipa --configuration release
 
-      - name: Locate IPA
+      - name: Locate and Package App Icons into IPA
         run: |
           IPA_PATH="$(find . -type f -name '*.ipa' \
             -not -path './.git/*' -print -quit)"
@@ -45,9 +45,49 @@ jobs:
             echo "::error::Build finished without producing an IPA."
             exit 1
           fi
+          echo "Found initial IPA: $IPA_PATH"
 
+          REPO_ROOT="$(pwd)"
+
+          # 1. Compile Assets.car with actool if available
+          mkdir -p compiled_assets
+          if xcrun actool xtool/TrackerThings.app/AppIcon.appiconset \
+            --compile compiled_assets \
+            --platform iphoneos \
+            --minimum-deployment-target 18.0 \
+            --app-icon AppIcon \
+            --output-partial-info-plist actool-partial.plist; then
+            echo "actool compiled Assets.car successfully."
+          else
+            echo "actool compilation skipped or produced notices."
+          fi
+
+          # 2. Extract IPA and inject all icon PNGs and compiled Assets.car
+          mkdir -p ipa_extracted
+          unzip -q "$IPA_PATH" -d ipa_extracted
+
+          APP_DIR="$(find ipa_extracted/Payload -maxdepth 1 -type d -name '*.app' -print -quit)"
+          if [ -z "$APP_DIR" ]; then
+            echo "::error::Could not find .app directory in Payload"
+            exit 1
+          fi
+          echo "Injecting icon assets into $APP_DIR"
+
+          cp -v xtool/TrackerThings.app/AppIcon*.png "$APP_DIR/" || true
+          cp -v xtool/TrackerThings.app/iTunesArtwork* "$APP_DIR/" || true
+          if [ -f compiled_assets/Assets.car ]; then
+            cp -v compiled_assets/Assets.car "$APP_DIR/"
+          fi
+          cp -v xtool/TrackerThings.app/Info.plist "$APP_DIR/"
+
+          # 3. Repackage into dist/TrackerThings.ipa
           mkdir -p dist
-          cp "$IPA_PATH" dist/TrackerThings.ipa
+          rm -f dist/TrackerThings.ipa
+          (cd ipa_extracted && zip -qr "$REPO_ROOT/dist/TrackerThings.ipa" Payload)
+          rm -rf ipa_extracted compiled_assets
+
+          echo "Verifying contents of dist/TrackerThings.ipa:"
+          unzip -l dist/TrackerThings.ipa | grep -E "AppIcon|Assets.car|Info.plist"
           ls -lh dist/TrackerThings.ipa
 
       - name: Upload IPA artifact

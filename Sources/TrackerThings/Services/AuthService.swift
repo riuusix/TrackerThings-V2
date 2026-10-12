@@ -21,8 +21,14 @@ public protocol AuthServiceProtocol: Sendable {
     func getProfile() async throws -> UserProfile
     func updateProfile(fullName: String?, email: String, phoneNumber: String?, profilePictureUrl: String?) async throws -> BaseResponse
     func updatePassword(currentPassword: String, newPassword: String) async throws -> BaseResponse
-    func updateUserSettings(fullName: String?, phoneNumber: String?) async throws -> UserProfile
+    func updateUserSettings(fullName: String?, phoneNumber: String?, profilePictureUrl: String?) async throws -> UserProfile
     func changeUserPassword(currentPassword: String, newPassword: String, confirmPassword: String) async throws -> BaseResponse
+}
+
+public extension AuthServiceProtocol {
+    func updateUserSettings(fullName: String?, phoneNumber: String?) async throws -> UserProfile {
+        try await updateUserSettings(fullName: fullName, phoneNumber: phoneNumber, profilePictureUrl: nil)
+    }
 }
 
 public actor AuthService: AuthServiceProtocol {
@@ -149,10 +155,11 @@ public actor AuthService: AuthServiceProtocol {
         return try await network.request(endpoint: "auth/security-prompt", method: "POST", body: data)
     }
 
-    public func updateUserSettings(fullName: String?, phoneNumber: String?) async throws -> UserProfile {
+    public func updateUserSettings(fullName: String?, phoneNumber: String?, profilePictureUrl: String? = nil) async throws -> UserProfile {
         var payload: [String: Any] = [:]
         if let fullName = fullName { payload["full_name"] = fullName }
         if let phoneNumber = phoneNumber { payload["phone_number"] = phoneNumber }
+        if let profilePictureUrl = profilePictureUrl { payload["profile_picture_url"] = profilePictureUrl }
         let data = try JSONSerialization.data(withJSONObject: payload)
         return try await network.request(endpoint: "user/profile", method: "PUT", body: data)
     }
