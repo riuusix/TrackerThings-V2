@@ -2,6 +2,7 @@ import SwiftUI
 
 public struct TaskCardView: View {
     public let task: TugasItem
+    public var isOffline: Bool = false
     public var onProgressChanged: ((Int) -> Void)?
     public var onEdit: (() -> Void)?
     public var onMarkCompleted: (() -> Void)?
@@ -11,11 +12,13 @@ public struct TaskCardView: View {
 
     public init(
         task: TugasItem,
+        isOffline: Bool = false,
         onProgressChanged: ((Int) -> Void)? = nil,
         onEdit: (() -> Void)? = nil,
         onMarkCompleted: (() -> Void)? = nil
     ) {
         self.task = task
+        self.isOffline = isOffline
         self.onProgressChanged = onProgressChanged
         self.onEdit = onEdit
         self.onMarkCompleted = onMarkCompleted
@@ -75,7 +78,7 @@ public struct TaskCardView: View {
                 HStack(spacing: 8) {
                     if task.status != .selesai, let onMarkCompleted = onMarkCompleted {
                         Button {
-                            guard !isMarkingComplete else { return }
+                            guard !isMarkingComplete, !isOffline else { return }
                             isMarkingComplete = true
                             onMarkCompleted()
                         } label: {
@@ -86,10 +89,10 @@ public struct TaskCardView: View {
                             } else {
                                 Image(systemName: "checkmark.circle.fill")
                                     .font(.body)
-                                    .foregroundStyle(.green)
+                                    .foregroundStyle(isOffline ? .secondary : .green)
                             }
                         }
-                        .disabled(isMarkingComplete)
+                        .disabled(isMarkingComplete || isOffline)
                     }
 
                     if let onEdit = onEdit {
@@ -98,7 +101,7 @@ public struct TaskCardView: View {
                                 .font(.body)
                                 .foregroundStyle(.secondary)
                         }
-                        .disabled(isMarkingComplete)
+                        .disabled(isMarkingComplete || isOffline)
                     }
                 }
             }
@@ -147,17 +150,18 @@ public struct TaskCardView: View {
                     Spacer()
                     Text("\(Int(localProgress))%")
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(isOffline ? .secondary : .blue)
                 }
 
                 Slider(value: $localProgress, in: 0...100, step: 5) {
                     Text("Progress")
                 } onEditingChanged: { isEditing in
-                    if !isEditing {
+                    if !isEditing && !isOffline {
                         onProgressChanged?(Int(localProgress))
                     }
                 }
-                .tint(.blue)
+                .tint(isOffline ? .secondary : .blue)
+                .disabled(isOffline)
             }
         }
         .padding(16)

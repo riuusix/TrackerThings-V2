@@ -10,6 +10,7 @@ public final class ExamViewModel {
     public var errorMessage: String?
     public var isPresentingSheet: Bool = false
     public var editingExam: UjianItem?
+    public var deletingId: Int? = nil
     public var toast: FeedbackToastData?
 
     public func showToast(_ message: String, severity: FeedbackSeverity = .info) {
@@ -38,6 +39,21 @@ public final class ExamViewModel {
         }
     }
 
+    public var isOffline: Bool {
+        !NetworkMonitor.shared.isConnected
+    }
+
+    public var lastCacheDateText: String? {
+        if let date = LocalCacheService.shared.getCacheDate(forKey: LocalCacheService.keyUjian) {
+            let df = DateFormatter()
+            df.locale = Locale(identifier: "id_ID")
+            df.dateStyle = .short
+            df.timeStyle = .short
+            return "Sinkronisasi terakhir: \(df.string(from: date))"
+        }
+        return nil
+    }
+
     public func saveExam(
         idJadwal: Int,
         jenisUjian: String,
@@ -47,6 +63,11 @@ public final class ExamViewModel {
         ruangan: String?,
         catatan: String?
     ) async -> Bool {
+        guard !isOffline else {
+            showToast("Tidak dapat menyimpan jadwal ujian saat offline. Hubungkan ke internet untuk menyinkronkan dengan server.", severity: .warning)
+            return false
+        }
+
         isLoading = true
         errorMessage = nil
 
@@ -83,6 +104,14 @@ public final class ExamViewModel {
     }
 
     public func deleteExam(id: Int) async {
+        guard !isOffline else {
+            showToast("Tidak dapat menghapus jadwal ujian saat offline.", severity: .warning)
+            return
+        }
+        guard deletingId == nil else { return }
+        deletingId = id
+        defer { deletingId = nil }
+
         do {
             _ = try await dataService.deleteUjian(id: id)
             exams.removeAll { $0.id == id }

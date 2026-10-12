@@ -100,13 +100,11 @@ public struct EditProfileView: View {
             // MARK: - Tombol Simpan Profil
             Section {
                 Button {
-                    guard !viewModel.isLoadingProfile else { return }
+                    guard !viewModel.isLoadingProfile, !viewModel.isOffline else { return }
                     Task {
                         if let updatedUser = await viewModel.saveProfile() {
                             authViewModel.currentUser = updatedUser
                             toast = FeedbackToastData(message: "Profil berhasil diperbarui!", severity: .success)
-                            try? await Task.sleep(nanoseconds: 600_000_000)
-                            dismiss()
                         } else if let errorMsg = viewModel.errorMessage {
                             toast = FeedbackToastData(message: errorMsg, severity: .error)
                         }
@@ -125,7 +123,12 @@ public struct EditProfileView: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(!viewModel.isNameValid || viewModel.isLoadingProfile)
+                .disabled(!viewModel.isNameValid || viewModel.isLoadingProfile || viewModel.isOffline)
+            } footer: {
+                if viewModel.isOffline {
+                    Text("Perangkat sedang offline. Sambungkan ke internet untuk memperbarui profil.")
+                        .foregroundStyle(.orange)
+                }
             }
         }
         .navigationTitle("Edit Profil")

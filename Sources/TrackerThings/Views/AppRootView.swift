@@ -9,26 +9,22 @@ public struct AppRootView: View {
     public var body: some View {
         Group {
             if authViewModel.isRestoringSession {
-                ZStack {
-                    Color(uiColor: .systemGroupedBackground).ignoresSafeArea()
-                    VStack(spacing: 16) {
-                        ProgressView()
-                            .scaleEffect(1.2)
-                        Text("Memeriksa sesi...")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                }
+                SplashScreenView()
+                    .transition(.opacity)
             } else if authViewModel.isAuthenticated {
                 RootTabView()
                     .environment(authViewModel)
+                    .transition(.opacity)
             } else {
                 NavigationStack {
                     LoginView()
                 }
                 .environment(authViewModel)
+                .transition(.opacity)
             }
         }
+        .animation(.easeInOut(duration: 0.3), value: authViewModel.isRestoringSession)
+        .animation(.easeInOut(duration: 0.3), value: authViewModel.isAuthenticated)
         .task {
             await authViewModel.restoreSession()
             if authViewModel.isAuthenticated {

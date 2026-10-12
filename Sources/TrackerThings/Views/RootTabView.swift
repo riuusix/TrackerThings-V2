@@ -14,7 +14,7 @@ public struct RootTabView: View {
         TabView {
             DashboardView(viewModel: dashboardViewModel)
                 .tabItem {
-                    Label("Dashboard", systemImage: "square.grid.2x2.fill")
+                    Label("Home", systemImage: "house.fill")
                 }
 
             CourseListView(viewModel: courseViewModel)

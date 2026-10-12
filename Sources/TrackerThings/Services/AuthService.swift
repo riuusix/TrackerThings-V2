@@ -55,6 +55,7 @@ public actor AuthService: AuthServiceProtocol {
         if let token = resp.token {
             await network.setAuthToken(token)
             KeychainHelper.shared.saveToken(token)
+            LocalCacheService.shared.save(user, forKey: LocalCacheService.keyUserProfile)
         }
 
         return user
@@ -65,9 +66,10 @@ public actor AuthService: AuthServiceProtocol {
             return nil
         }
 
-        // Periksa apakah token kedaluwarsa
+        // Periksa apakah token kedaluwarsa secara lokal
         if JWTTokenHelper.isExpired(token: token) {
             KeychainHelper.shared.deleteToken()
+            LocalCacheService.shared.remove(forKey: LocalCacheService.keyUserProfile)
             await network.setAuthToken(nil)
             return nil
         }
@@ -77,27 +79,83 @@ public actor AuthService: AuthServiceProtocol {
         // Coba sinkronisasi profil terbaru dari server (termasuk verifikasi role admin teraktual)
         do {
             let serverProfile: UserProfile = try await network.request(endpoint: "user/profile", method: "GET")
+            // Simpan salinan profil resmi server ke cache lokal
+            LocalCacheService.shared.save(serverProfile, forKey: LocalCacheService.keyUserProfile)
             return serverProfile
-        } catch {
-            // Fallback ke decoding JWT payload lokal jika jaringan belum tersedia
-            if let payload = JWTTokenHelper.decode(token: token),
-               let userId = payload.userId,
-               let username = payload.username,
-               let email = payload.email {
-                return UserProfile(
-                    id: userId,
-                    username: username,
-                    email: email,
-                    role: payload.role
-                )
+        } catch let err as AppError {
+            // Jika ada AppError (respons HTTP dari server atau decoding payload server):
+            // HTTP 401: Token ditolak/kedaluwarsa di server -> hapus sesi dan return nil
+            switch err {
+            case .unauthorized:
+                KeychainHelper.shared.deleteToken()
+                LocalCacheService.shared.remove(forKey: LocalCacheService.keyUserProfile)
+                await network.setAuthToken(nil)
+                return nil
+            case .serverError(let code, _) where code == 401:
+                KeychainHelper.shared.deleteToken()
+                LocalCacheService.shared.remove(forKey: LocalCacheService.keyUserProfile)
+                await network.setAuthToken(nil)
+                return nil
+            default:
+                // Error server lain (403, 404, 500, decodingError, dll): request mencapai server namun gagal.
+                // Jika server 5xx atau error selain 401, pertahankan profil lokal yang sah sebelumnya jika ada
+                if let cached = LocalCacheService.shared.load(forKey: LocalCacheService.keyUserProfile) as UserProfile? {
+                    return cached
+                }
+                return nil
             }
-        }
+        } catch let urlErr as URLError {
+            // Fallback HANYA untuk kegagalan transport/offline nyata saat perangkat tidak terhubung,
+            // dan HANYA jika token belum kedaluwarsa secara lokal.
+            let isOfflineOrTransportFailure: Bool
+            switch urlErr.code {
+            case .notConnectedToInternet,
+                 .networkConnectionLost,
+                 .timedOut,
+                 .cannotConnectToHost,
+                 .cannotFindHost,
+                 .dnsLookupFailed,
+                 .internationalRoamingOff,
+                 .callIsActive,
+                 .dataNotAllowed:
+                isOfflineOrTransportFailure = true
+            default:
+                isOfflineOrTransportFailure = false
+            }
 
-        return nil
+            if isOfflineOrTransportFailure, !JWTTokenHelper.isExpired(token: token) {
+                // 1. Prioritaskan data profil lengkap yang tersimpan di cache
+                if let cachedProfile: UserProfile = LocalCacheService.shared.load(forKey: LocalCacheService.keyUserProfile) {
+                    return cachedProfile
+                }
+
+                // 2. Fallback sekunder: decode JWT token payload lokal
+                if let payload = JWTTokenHelper.decode(token: token),
+                   let userId = payload.userId,
+                   let username = payload.username,
+                   let email = payload.email {
+                    return UserProfile(
+                        id: userId,
+                        username: username,
+                        email: email,
+                        role: payload.role
+                    )
+                }
+            }
+            return nil
+        } catch {
+            // Error non-transport lainnya: periksa apakah ada cached profile sah jika token belum expired
+            if !JWTTokenHelper.isExpired(token: token),
+               let cached: UserProfile = LocalCacheService.shared.load(forKey: LocalCacheService.keyUserProfile) {
+                return cached
+            }
+            return nil
+        }
     }
 
     public func logout() async {
         KeychainHelper.shared.deleteToken()
+        LocalCacheService.shared.clearAllCache()
         await network.setAuthToken(nil)
     }
 

@@ -41,6 +41,17 @@ public struct DashboardView: View {
                     }
                     .padding(.horizontal)
 
+                    // Offline Status Banner
+                    if viewModel.isOffline {
+                        OfflineBannerView(
+                            lastUpdatedText: viewModel.lastCacheDateText
+                        ) {
+                            Task {
+                                await viewModel.loadDashboardData()
+                            }
+                        }
+                    }
+
                     // Day Selector Segment
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
@@ -80,7 +91,11 @@ public struct DashboardView: View {
                         }
                         .padding(.horizontal)
 
-                        if viewModel.schedulesForSelectedDay.isEmpty {
+                        if viewModel.isLoading && viewModel.courses.isEmpty {
+                            ProgressView("Memuat jadwal...")
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 24)
+                        } else if viewModel.schedulesForSelectedDay.isEmpty {
                             ContentUnavailableView(
                                 "Tidak Ada Kuliah",
                                 systemImage: "sparkles",
@@ -90,10 +105,8 @@ public struct DashboardView: View {
                         } else {
                             LazyVStack(spacing: 12) {
                                 ForEach(viewModel.schedulesForSelectedDay) { schedule in
-                                    ScheduleCardView(item: schedule) {
-                                        Task {
-                                            await viewModel.markReplacementCompleted(item: schedule)
-                                        }
+                                    ScheduleCardView(item: schedule, isOffline: viewModel.isOffline) {
+                                        await viewModel.markReplacementCompleted(item: schedule)
                                     }
                                 }
                             }
@@ -163,7 +176,11 @@ public struct DashboardView: View {
                         }
                         .padding(.horizontal)
 
-                        if viewModel.urgentTasks.isEmpty {
+                        if viewModel.isLoading && viewModel.urgentTasks.isEmpty && viewModel.courses.isEmpty {
+                            ProgressView("Memuat tugas...")
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 24)
+                        } else if viewModel.urgentTasks.isEmpty {
                             ContentUnavailableView(
                                 "Semua Tugas Selesai",
                                 systemImage: "checkmark.circle",
@@ -173,7 +190,7 @@ public struct DashboardView: View {
                         } else {
                             LazyVStack(spacing: 12) {
                                 ForEach(viewModel.urgentTasks) { task in
-                                    TaskCardView(task: task) { newProg in
+                                    TaskCardView(task: task, isOffline: viewModel.isOffline) { newProg in
                                         Task {
                                             await viewModel.updateTaskProgress(task: task, progress: newProg)
                                         }
@@ -186,7 +203,7 @@ public struct DashboardView: View {
                 }
                 .padding(.vertical)
             }
-            .navigationTitle("Dashboard")
+            .navigationTitle("Home")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -216,6 +233,9 @@ public struct DashboardView: View {
             }
             .sheet(isPresented: $isPresentingAddTask) {
                 TaskFormSheet(viewModel: viewModel)
+            }
+            .sheet(isPresented: $isPresentingAddReplacement) {
+                KelasPenggantiFormSheet(viewModel: viewModel)
             }
             .feedbackToast(toast: $viewModel.toast)
         }

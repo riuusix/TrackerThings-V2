@@ -123,7 +123,27 @@ public final class DashboardViewModel {
         }
     }
 
+    public var isOffline: Bool {
+        !NetworkMonitor.shared.isConnected
+    }
+
+    public var lastCacheDateText: String? {
+        if let date = LocalCacheService.shared.getCacheDate(forKey: LocalCacheService.keyJadwal) {
+            let df = DateFormatter()
+            df.locale = Locale(identifier: "id_ID")
+            df.dateStyle = .short
+            df.timeStyle = .short
+            return "Sinkronisasi terakhir: \(df.string(from: date))"
+        }
+        return nil
+    }
+
     public func updateTaskProgress(task: TugasItem, progress: Int) async {
+        guard !isOffline else {
+            showToast("Tidak dapat memperbarui progress saat offline.", severity: .warning)
+            return
+        }
+
         do {
             _ = try await dataService.updateTugasProgress(id: task.id, progress: progress)
             if progress >= 100 {
@@ -144,6 +164,11 @@ public final class DashboardViewModel {
         prioritas: TugasItem.PrioritasTugas,
         jenis: TugasItem.JenisTugas
     ) async -> Bool {
+        guard !isOffline else {
+            showToast("Tidak dapat menambah tugas saat offline. Hubungkan ke internet untuk menyimpan ke server.", severity: .warning)
+            return false
+        }
+
         let newTask = TugasItem(
             id: 0,
             idJadwal: idJadwal,
@@ -180,8 +205,49 @@ public final class DashboardViewModel {
         }
     }
 
+    public func saveKelasPengganti(
+        idJadwal: Int,
+        tanggal: Date,
+        waktuMulai: String,
+        waktuSelesai: String,
+        lokasi: String?,
+        catatan: String?
+    ) async -> Bool {
+        guard !isOffline else {
+            showToast("Tidak dapat menambah kelas pengganti saat offline.", severity: .warning)
+            return false
+        }
+
+        let newKP = KelasPenggantiItem(
+            id: 0,
+            idJadwal: idJadwal,
+            tanggal: tanggal,
+            waktuMulai: waktuMulai,
+            waktuSelesai: waktuSelesai,
+            lokasi: lokasi,
+            catatan: catatan,
+            status: "Belum Selesai"
+        )
+
+        do {
+            _ = try await dataService.createKelasPengganti(newKP)
+            await loadDashboardData()
+            showToast("Kelas pengganti berhasil ditambahkan!", severity: .success)
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            showToast(error.localizedDescription, severity: .error)
+            return false
+        }
+    }
+
     public func markReplacementCompleted(item: JadwalGabunganItem) async {
         guard item.tipe == .pengganti else { return }
+        guard !isOffline else {
+            showToast("Tidak dapat mengubah status saat offline.", severity: .warning)
+            return
+        }
+
         do {
             _ = try await dataService.selesaiKelasPengganti(id: item.id)
             showToast("Kelas pengganti berhasil diselesaikan!", severity: .success)

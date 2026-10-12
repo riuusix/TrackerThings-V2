@@ -2,6 +2,7 @@ import SwiftUI
 
 public struct ExamListView: View {
     @Bindable var viewModel: ExamViewModel
+    @State private var examPendingDeletion: UjianItem? = nil
 
     public init(viewModel: ExamViewModel) {
         self.viewModel = viewModel
@@ -17,6 +18,20 @@ public struct ExamListView: View {
     public var body: some View {
         NavigationStack {
             List {
+                if viewModel.isOffline {
+                    Section {
+                        OfflineBannerView(
+                            lastUpdatedText: viewModel.lastCacheDateText
+                        ) {
+                            Task {
+                                await viewModel.fetchExams()
+                            }
+                        }
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                    }
+                }
+
                 if viewModel.exams.isEmpty {
                     ContentUnavailableView(
                         "Belum Ada Ujian",
@@ -86,9 +101,7 @@ public struct ExamListView: View {
                         .padding(.vertical, 4)
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button(role: .destructive) {
-                                Task {
-                                    await viewModel.deleteExam(id: exam.id)
-                                }
+                                examPendingDeletion = exam
                             } label: {
                                 Label("Hapus", systemImage: "trash")
                             }
@@ -121,6 +134,27 @@ public struct ExamListView: View {
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
             }
+            .confirmationDialog(
+                "Hapus Jadwal Ujian?",
+                isPresented: Binding(
+                    get: { examPendingDeletion != nil },
+                    set: { if !$0 { examPendingDeletion = nil } }
+                ),
+                titleVisibility: .visible,
+                presenting: examPendingDeletion
+            ) { exam in
+                Button("Hapus Ujian", role: .destructive) {
+                    Task {
+                        await viewModel.deleteExam(id: exam.id)
+                    }
+                }
+                Button("Batal", role: .cancel) {
+                    examPendingDeletion = nil
+                }
+            } message: { exam in
+                let courseName = exam.jadwal?.namaMatkul ?? "Mata Kuliah"
+                Text("Jadwal \(exam.jenisUjian) untuk \(courseName) akan dihapus secara permanen.")
+            }
             .refreshable {
                 await viewModel.fetchExams()
             }
@@ -143,7 +177,7 @@ public struct ExamFormSheet: View {
     @State private var waktuSelesai: String = "10:00"
     @State private var ruangan: String = ""
     @State private var catatan: String = ""
-    @State private var isSubmitting: Bool = false
+    @State private var buttonState: SubmitButtonState = .idle
 
     private let jenisOptions = ["UTS", "UAS", "Kuis", "Responsi", "Praktikum"]
 
@@ -190,19 +224,27 @@ public struct ExamFormSheet: View {
                     TextField("Bab materi, ketentuan bawa kalkulator, dsb.", text: $catatan, axis: .vertical)
                         .lineLimit(3...5)
                 }
+
+                if viewModel.isOffline {
+                    Section {
+                        Text("Kamu sedang offline. Hubungkan ke internet untuk menyimpan jadwal ujian ke server.")
+                            .font(.footnote)
+                            .foregroundStyle(.orange)
+                    }
+                }
             }
             .navigationTitle(viewModel.editingExam == nil ? "Tambah Ujian" : "Edit Ujian")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Batal") { dismiss() }
-                        .disabled(isSubmitting)
+                        .disabled(buttonState.isProcessing)
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
-                        guard !isSubmitting else { return }
-                        isSubmitting = true
+                        guard !buttonState.isProcessing, !viewModel.isOffline else { return }
+                        buttonState = .loading("Menyimpan...")
                         Task {
                             let ok = await viewModel.saveExam(
                                 idJadwal: idJadwal,
@@ -213,21 +255,18 @@ public struct ExamFormSheet: View {
                                 ruangan: ruangan.isEmpty ? nil : ruangan,
                                 catatan: catatan.isEmpty ? nil : catatan
                             )
-                            isSubmitting = false
-                            if ok { dismiss() }
+                            if ok {
+                                buttonState = .success("Tersimpan")
+                                try? await Task.sleep(nanoseconds: 500_000_000)
+                                dismiss()
+                            } else {
+                                buttonState = .idle
+                            }
                         }
                     } label: {
-                        if isSubmitting {
-                            HStack(spacing: 6) {
-                                ProgressView()
-                                    .controlSize(.small)
-                                Text("Menyimpan...")
-                            }
-                        } else {
-                            Text("Simpan")
-                        }
+                        SubmitButtonLabel(state: buttonState, idleTitle: "Simpan")
                     }
-                    .disabled(idJadwal <= 0 || isSubmitting)
+                    .disabled(viewModel.isOffline || idJadwal <= 0 || buttonState.isProcessing)
                 }
             }
             .onAppear {

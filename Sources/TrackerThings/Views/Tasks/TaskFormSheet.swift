@@ -9,7 +9,7 @@ public struct TaskFormSheet: View {
     @State private var deadline: Date = Calendar.current.date(byAdding: .day, value: 3, to: Date()) ?? Date()
     @State private var prioritas: TugasItem.PrioritasTugas = .sedang
     @State private var jenis: TugasItem.JenisTugas = .individu
-    @State private var isSubmitting: Bool = false
+    @State private var buttonState: SubmitButtonState = .idle
 
     public init(viewModel: DashboardViewModel) {
         self.viewModel = viewModel
@@ -51,6 +51,14 @@ public struct TaskFormSheet: View {
                 Section("Tenggat Waktu") {
                     DatePicker("Deadline", selection: $deadline, displayedComponents: [.date, .hourAndMinute])
                 }
+
+                if viewModel.isOffline {
+                    Section {
+                        Text("Kamu sedang offline. Hubungkan ke internet untuk menambahkan tugas baru ke server.")
+                            .font(.footnote)
+                            .foregroundStyle(.orange)
+                    }
+                }
             }
             .navigationTitle("Tambah Tugas")
             .navigationBarTitleDisplayMode(.inline)
@@ -59,13 +67,13 @@ public struct TaskFormSheet: View {
                     Button("Batal") {
                         dismiss()
                     }
-                    .disabled(isSubmitting)
+                    .disabled(buttonState.isProcessing)
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
-                        guard !isSubmitting else { return }
-                        isSubmitting = true
+                        guard !buttonState.isProcessing, !viewModel.isOffline else { return }
+                        buttonState = .loading("Menyimpan...")
                         Task {
                             let ok = await viewModel.saveTask(
                                 namaTugas: namaTugas.trimmingCharacters(in: .whitespaces),
@@ -74,23 +82,18 @@ public struct TaskFormSheet: View {
                                 prioritas: prioritas,
                                 jenis: jenis
                             )
-                            isSubmitting = false
                             if ok {
+                                buttonState = .success("Tersimpan")
+                                try? await Task.sleep(nanoseconds: 500_000_000)
                                 dismiss()
+                            } else {
+                                buttonState = .idle
                             }
                         }
                     } label: {
-                        if isSubmitting {
-                            HStack(spacing: 6) {
-                                ProgressView()
-                                    .controlSize(.small)
-                                Text("Menyimpan...")
-                            }
-                        } else {
-                            Text("Simpan")
-                        }
+                        SubmitButtonLabel(state: buttonState, idleTitle: "Simpan")
                     }
-                    .disabled(namaTugas.trimmingCharacters(in: .whitespaces).isEmpty || idJadwal <= 0 || isSubmitting)
+                    .disabled(viewModel.isOffline || namaTugas.trimmingCharacters(in: .whitespaces).isEmpty || idJadwal <= 0 || buttonState.isProcessing)
                 }
             }
             .onAppear {

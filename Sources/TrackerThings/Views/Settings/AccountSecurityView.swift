@@ -127,13 +127,11 @@ public struct AccountSecurityView: View {
 
                 // Tombol Submit
                 Button {
-                    guard !viewModel.isLoadingPassword else { return }
+                    guard !viewModel.isLoadingPassword, !viewModel.isOffline else { return }
                     Task {
                         let success = await viewModel.savePassword()
                         if success {
                             toast = FeedbackToastData(message: viewModel.successMessage ?? "Kata sandi berhasil diperbarui!", severity: .success)
-                            try? await Task.sleep(nanoseconds: 800_000_000)
-                            dismiss()
                         } else if let errorMsg = viewModel.errorMessage {
                             toast = FeedbackToastData(message: errorMsg, severity: .error)
                         }
@@ -153,11 +151,16 @@ public struct AccountSecurityView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.indigo)
-                .disabled(!viewModel.isPasswordFormValid || viewModel.isLoadingPassword)
+                .disabled(!viewModel.isPasswordFormValid || viewModel.isLoadingPassword || viewModel.isOffline)
             } header: {
                 Text("Ubah Kata Sandi")
             } footer: {
-                Text("Gunakan kombinasi minimal 6 karakter. Pastikan kata sandi baru berbeda dari kata sandi saat ini.")
+                if viewModel.isOffline {
+                    Text("Perangkat sedang offline. Hubungkan ke internet untuk memperbarui kata sandi.")
+                        .foregroundStyle(.orange)
+                } else {
+                    Text("Gunakan kombinasi minimal 6 karakter. Pastikan kata sandi baru berbeda dari kata sandi saat ini.")
+                }
             }
 
             // MARK: - Catatan Pemulihan Akun & Layanan

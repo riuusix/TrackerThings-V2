@@ -39,10 +39,34 @@ public final class SettingsViewModel {
     public var successMessage: String? = nil
     public var activeAlert: SettingsAlert? = nil
 
+    public enum ServerConnectionStatus: Equatable, Sendable {
+        case checking
+        case connected
+        case unreachable(String)
+    }
+
+    public var connectionStatus: ServerConnectionStatus = .checking
+
     private let authService: AuthServiceProtocol
 
     public init(authService: AuthServiceProtocol = AuthService()) {
         self.authService = authService
+    }
+
+    public func checkServerConnection() async {
+        connectionStatus = .checking
+        do {
+            _ = try await authService.getProfile()
+            connectionStatus = .connected
+        } catch {
+            if case AppError.unauthorized = error {
+                connectionStatus = .connected
+            } else if case AppError.serverError = error {
+                connectionStatus = .connected
+            } else {
+                connectionStatus = .unreachable("Tidak dapat terhubung ke server")
+            }
+        }
     }
 
     public func loadUserData(from user: UserProfile?) {
@@ -89,8 +113,19 @@ public final class SettingsViewModel {
 
     // MARK: - API Actions
 
+    public var isOffline: Bool {
+        !NetworkMonitor.shared.isConnected
+    }
+
     /// Memperbarui informasi profil pengguna (Nama Lengkap & Nomor HP)
     public func saveProfile() async -> UserProfile? {
+        guard !isOffline else {
+            let msg = "Tidak dapat memperbarui profil saat offline. Hubungkan ke internet terlebih dahulu."
+            self.errorMessage = msg
+            self.activeAlert = .error(msg)
+            return nil
+        }
+
         guard isNameValid else {
             let msg = "Nama lengkap tidak boleh kosong."
             self.errorMessage = msg
@@ -134,6 +169,13 @@ public final class SettingsViewModel {
 
     /// Memperbarui kata sandi pengguna
     public func savePassword() async -> Bool {
+        guard !isOffline else {
+            let msg = "Tidak dapat mengubah kata sandi saat offline. Hubungkan ke internet terlebih dahulu."
+            self.errorMessage = msg
+            self.activeAlert = .error(msg)
+            return false
+        }
+
         if let validationErr = passwordValidationMessage {
             self.errorMessage = validationErr
             self.activeAlert = .error(validationErr)

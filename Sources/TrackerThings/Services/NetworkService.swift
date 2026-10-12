@@ -1,5 +1,9 @@
 import Foundation
 
+public extension Notification.Name {
+    static let sessionDidExpire = Notification.Name("TrackerThings.sessionDidExpire")
+}
+
 private struct DataEnvelope<D: Decodable>: Decodable {
     let data: D
 }
@@ -192,6 +196,9 @@ public actor NetworkService: NetworkServiceProtocol {
             if !endpoint.contains("auth/login") {
                 KeychainHelper.shared.deleteToken()
                 self.authToken = nil
+                Task { @MainActor in
+                    NotificationCenter.default.post(name: .sessionDidExpire, object: nil)
+                }
             }
 
             if let parsedMessage = extractErrorMessage(from: data) {

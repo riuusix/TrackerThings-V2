@@ -2,12 +2,18 @@ import SwiftUI
 
 public struct ScheduleCardView: View {
     public let item: JadwalGabunganItem
-    public var onMarkComplete: (() -> Void)?
+    public var isOffline: Bool = false
+    public var onMarkComplete: (() async -> Void)?
 
     @State private var isProcessing: Bool = false
 
-    public init(item: JadwalGabunganItem, onMarkComplete: (() -> Void)? = nil) {
+    public init(
+        item: JadwalGabunganItem,
+        isOffline: Bool = false,
+        onMarkComplete: (() async -> Void)? = nil
+    ) {
         self.item = item
+        self.isOffline = isOffline
         self.onMarkComplete = onMarkComplete
     }
 
@@ -47,9 +53,12 @@ public struct ScheduleCardView: View {
 
                 if item.tipe == .pengganti, let onMarkComplete = onMarkComplete {
                     Button {
-                        guard !isProcessing else { return }
+                        guard !isProcessing, !isOffline else { return }
                         isProcessing = true
-                        onMarkComplete()
+                        Task {
+                            defer { isProcessing = false }
+                            await onMarkComplete()
+                        }
                     } label: {
                         if isProcessing {
                             HStack(spacing: 4) {
@@ -67,15 +76,15 @@ public struct ScheduleCardView: View {
                         } else {
                             Label("Selesai", systemImage: "checkmark.circle.fill")
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(.green)
+                                .foregroundStyle(isOffline ? .secondary : .green)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
-                                .background(Color.green.opacity(0.12))
+                                .background(isOffline ? Color.secondary.opacity(0.12) : Color.green.opacity(0.12))
                                 .clipShape(Capsule())
                         }
                     }
                     .buttonStyle(.plain)
-                    .disabled(isProcessing)
+                    .disabled(isProcessing || isOffline)
                 }
             }
 

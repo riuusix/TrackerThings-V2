@@ -12,24 +12,66 @@ public final class AuthViewModel {
     public var successMessage: String?
 
     private let authService: AuthServiceProtocol
+    private var sessionExpireObserver: NSObjectProtocol?
 
     public init(authService: AuthServiceProtocol = AuthService()) {
         self.authService = authService
+
+        self.sessionExpireObserver = NotificationCenter.default.addObserver(
+            forName: .sessionDidExpire,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self = self else { return }
+            Task { @MainActor in
+                // Cegah loop eksekusi ganda jika beberapa request 401 tiba bersamaan
+                guard self.isAuthenticated else { return }
+                self.currentUser = nil
+                self.isAuthenticated = false
+                self.errorMessage = "Sesi login telah berakhir. Silakan masuk kembali."
+            }
+        }
+    }
+
+    deinit {
+        if let observer = sessionExpireObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
     }
 
     public func restoreSession() async {
         isRestoringSession = true
         defer { isRestoringSession = false }
 
+        // Jika Keychain memiliki token yang belum expired, kita bisa memulihkan sesi lokal terlebih dahulu
+        if let token = KeychainHelper.shared.getToken(),
+           !token.isEmpty,
+           !JWTTokenHelper.isExpired(token: token),
+           let cachedUser: UserProfile = LocalCacheService.shared.load(forKey: LocalCacheService.keyUserProfile) {
+            self.currentUser = cachedUser
+            self.isAuthenticated = true
+        }
+
         do {
             if let user = try await authService.restoreSession() {
                 currentUser = user
                 isAuthenticated = true
             } else {
-                currentUser = nil
-                isAuthenticated = false
+                // Hanya batalkan autentikasi jika token benar-benar tidak ada atau telah expired/dihapus
+                if KeychainHelper.shared.getToken() == nil {
+                    currentUser = nil
+                    isAuthenticated = false
+                }
             }
         } catch {
+            // Jangan membuang sesi jika ini hanya gangguan jaringan dan token masih ada di Keychain
+            if let token = KeychainHelper.shared.getToken(), !JWTTokenHelper.isExpired(token: token) {
+                if let cachedUser: UserProfile = LocalCacheService.shared.load(forKey: LocalCacheService.keyUserProfile) {
+                    self.currentUser = cachedUser
+                    self.isAuthenticated = true
+                    return
+                }
+            }
             currentUser = nil
             isAuthenticated = false
         }
@@ -42,6 +84,12 @@ public final class AuthViewModel {
             return
         }
 
+        // Cek konektivitas jaringan sebelum login pertama kali
+        if !NetworkMonitor.shared.isConnected {
+            errorMessage = "Koneksi internet tidak tersedia. Login pertama kali memerlukan koneksi server aktif."
+            return
+        }
+
         isLoading = true
         errorMessage = nil
 
@@ -50,9 +98,17 @@ public final class AuthViewModel {
             currentUser = user
             isAuthenticated = true
             isLoading = false
-        } catch {
-            errorMessage = error.localizedDescription
+        } catch let err as AppError {
             isLoading = false
+            switch err {
+            case .networkConnection, .invalidURL:
+                errorMessage = "Gagal terhubung ke server. Periksa koneksi internet Anda lalu coba lagi."
+            default:
+                errorMessage = err.errorDescription ?? "Login gagal. Periksa username dan password Anda."
+            }
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
         }
     }
 

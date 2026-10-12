@@ -2,6 +2,7 @@ import SwiftUI
 
 public struct CourseListView: View {
     @Bindable var viewModel: CourseViewModel
+    @State private var coursePendingDeletion: JadwalItem? = nil
 
     public init(viewModel: CourseViewModel) {
         self.viewModel = viewModel
@@ -10,6 +11,20 @@ public struct CourseListView: View {
     public var body: some View {
         NavigationStack {
             List {
+                if viewModel.isOffline {
+                    Section {
+                        OfflineBannerView(
+                            lastUpdatedText: viewModel.lastCacheDateText
+                        ) {
+                            Task {
+                                await viewModel.fetchCourses()
+                            }
+                        }
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                    }
+                }
+
                 ForEach(viewModel.filteredCourses) { course in
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
@@ -58,9 +73,7 @@ public struct CourseListView: View {
                     .padding(.vertical, 4)
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         Button(role: .destructive) {
-                            Task {
-                                await viewModel.deleteCourse(id: course.id)
-                            }
+                            coursePendingDeletion = course
                         } label: {
                             Label("Hapus", systemImage: "trash")
                         }
@@ -93,6 +106,26 @@ public struct CourseListView: View {
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
             }
+            .confirmationDialog(
+                "Hapus Mata Kuliah?",
+                isPresented: Binding(
+                    get: { coursePendingDeletion != nil },
+                    set: { if !$0 { coursePendingDeletion = nil } }
+                ),
+                titleVisibility: .visible,
+                presenting: coursePendingDeletion
+            ) { course in
+                Button("Hapus \(course.namaMatkul)", role: .destructive) {
+                    Task {
+                        await viewModel.deleteCourse(id: course.id)
+                    }
+                }
+                Button("Batal", role: .cancel) {
+                    coursePendingDeletion = nil
+                }
+            } message: { course in
+                Text("Mata kuliah \"\(course.namaMatkul)\" beserta seluruh data terkait akan dihapus secara permanen.")
+            }
             .refreshable {
                 await viewModel.fetchCourses()
             }
@@ -115,7 +148,7 @@ public struct CourseFormSheet: View {
     @State private var waktuMulai: String = "08:00"
     @State private var waktuSelesai: String = "09:40"
     @State private var lokasi: String = ""
-    @State private var isSubmitting: Bool = false
+    @State private var buttonState: SubmitButtonState = .idle
 
     private let hariOptions = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]
     private let kategoriOptions = ["Wajib", "Pilihan", "Praktikum", "Umum"]
@@ -156,6 +189,14 @@ public struct CourseFormSheet: View {
                             .multilineTextAlignment(.trailing)
                     }
                 }
+
+                if viewModel.isOffline {
+                    Section {
+                        Text("Kamu sedang offline. Hubungkan ke internet untuk menyimpan perubahan mata kuliah ke server.")
+                            .font(.footnote)
+                            .foregroundStyle(.orange)
+                    }
+                }
             }
             .navigationTitle(viewModel.editingCourse == nil ? "Tambah Kuliah" : "Edit Kuliah")
             .navigationBarTitleDisplayMode(.inline)
@@ -164,13 +205,13 @@ public struct CourseFormSheet: View {
                     Button("Batal") {
                         dismiss()
                     }
-                    .disabled(isSubmitting)
+                    .disabled(buttonState.isProcessing)
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
-                        guard !isSubmitting else { return }
-                        isSubmitting = true
+                        guard !buttonState.isProcessing, !viewModel.isOffline else { return }
+                        buttonState = .loading("Menyimpan...")
                         Task {
                             let ok = await viewModel.saveCourse(
                                 namaMatkul: namaMatkul,
@@ -181,21 +222,18 @@ public struct CourseFormSheet: View {
                                 waktuMulai: waktuMulai,
                                 waktuSelesai: waktuSelesai
                             )
-                            isSubmitting = false
-                            if ok { dismiss() }
+                            if ok {
+                                buttonState = .success("Tersimpan")
+                                try? await Task.sleep(nanoseconds: 500_000_000)
+                                dismiss()
+                            } else {
+                                buttonState = .idle
+                            }
                         }
                     } label: {
-                        if isSubmitting {
-                            HStack(spacing: 6) {
-                                ProgressView()
-                                    .controlSize(.small)
-                                Text("Menyimpan...")
-                            }
-                        } else {
-                            Text("Simpan")
-                        }
+                        SubmitButtonLabel(state: buttonState, idleTitle: "Simpan")
                     }
-                    .disabled(namaMatkul.trimmingCharacters(in: .whitespaces).isEmpty || isSubmitting)
+                    .disabled(viewModel.isOffline || namaMatkul.trimmingCharacters(in: .whitespaces).isEmpty || buttonState.isProcessing)
                 }
             }
             .onAppear {

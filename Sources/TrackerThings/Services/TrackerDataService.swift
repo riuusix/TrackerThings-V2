@@ -35,7 +35,16 @@ public actor TrackerDataService: TrackerDataServiceProtocol {
 
     // MARK: - Jadwal
     public func getJadwalList() async throws -> [JadwalItem] {
-        return try await network.request(endpoint: "jadwal", method: "GET")
+        do {
+            let items: [JadwalItem] = try await network.request(endpoint: "jadwal", method: "GET")
+            LocalCacheService.shared.save(items, forKey: LocalCacheService.keyJadwal)
+            return items
+        } catch {
+            if let cached: [JadwalItem] = LocalCacheService.shared.load(forKey: LocalCacheService.keyJadwal) {
+                return cached
+            }
+            throw error
+        }
     }
 
     public func createJadwal(_ item: JadwalItem) async throws -> BaseResponse {
@@ -60,9 +69,20 @@ public actor TrackerDataService: TrackerDataServiceProtocol {
     public func getTugasList() async throws -> [TugasItem] {
         do {
             let res: TasksResponse = try await network.request(endpoint: "tugas", method: "GET")
+            LocalCacheService.shared.save(res.tasks, forKey: LocalCacheService.keyTugas)
             return res.tasks
         } catch {
-            return try await network.request(endpoint: "tugas", method: "GET")
+            // Coba parsing langsung sebagai [TugasItem]
+            do {
+                let items: [TugasItem] = try await network.request(endpoint: "tugas", method: "GET")
+                LocalCacheService.shared.save(items, forKey: LocalCacheService.keyTugas)
+                return items
+            } catch let primaryError {
+                if let cached: [TugasItem] = LocalCacheService.shared.load(forKey: LocalCacheService.keyTugas) {
+                    return cached
+                }
+                throw primaryError
+            }
         }
     }
 
@@ -88,7 +108,16 @@ public actor TrackerDataService: TrackerDataServiceProtocol {
 
     // MARK: - Ujian
     public func getUjianList() async throws -> [UjianItem] {
-        return try await network.request(endpoint: "ujian", method: "GET")
+        do {
+            let items: [UjianItem] = try await network.request(endpoint: "ujian", method: "GET")
+            LocalCacheService.shared.save(items, forKey: LocalCacheService.keyUjian)
+            return items
+        } catch {
+            if let cached: [UjianItem] = LocalCacheService.shared.load(forKey: LocalCacheService.keyUjian) {
+                return cached
+            }
+            throw error
+        }
     }
 
     public func createUjian(_ item: UjianItem) async throws -> BaseResponse {
@@ -107,7 +136,16 @@ public actor TrackerDataService: TrackerDataServiceProtocol {
 
     // MARK: - Kelas Pengganti
     public func getKelasPenggantiList() async throws -> [KelasPenggantiItem] {
-        return try await network.request(endpoint: "kelas-pengganti", method: "GET")
+        do {
+            let items: [KelasPenggantiItem] = try await network.request(endpoint: "kelas-pengganti", method: "GET")
+            LocalCacheService.shared.save(items, forKey: LocalCacheService.keyKelasPengganti)
+            return items
+        } catch {
+            if let cached: [KelasPenggantiItem] = LocalCacheService.shared.load(forKey: LocalCacheService.keyKelasPengganti) {
+                return cached
+            }
+            throw error
+        }
     }
 
     public func createKelasPengganti(_ item: KelasPenggantiItem) async throws -> BaseResponse {

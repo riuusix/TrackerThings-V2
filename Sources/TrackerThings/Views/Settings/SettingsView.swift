@@ -18,6 +18,16 @@ public struct SettingsView: View {
     public var body: some View {
         NavigationStack {
             Form {
+                if viewModel.isOffline {
+                    Section {
+                        OfflineBannerView(
+                            message: "Mode offline aktif. Pengaturan profil dan kata sandi memerlukan koneksi server."
+                        )
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                    }
+                }
+
                 // MARK: - Akun & Profil (Tappable Summary & Security Rows)
                 Section {
                     NavigationLink {
@@ -31,21 +41,9 @@ public struct SettingsView: View {
                             )
 
                             VStack(alignment: .leading, spacing: 4) {
-                                HStack(spacing: 6) {
-                                    Text(authViewModel.currentUser?.fullName ?? authViewModel.currentUser?.username ?? "Pengguna")
-                                        .font(.headline)
-                                        .foregroundStyle(.primary)
-
-                                    if let role = authViewModel.currentUser?.role, !role.isEmpty {
-                                        Text(role.uppercased())
-                                            .font(.caption2.weight(.bold))
-                                            .padding(.horizontal, 6)
-                                            .padding(.vertical, 2)
-                                            .background(role.lowercased() == "admin" ? Color.purple.opacity(0.15) : Color.blue.opacity(0.15))
-                                            .foregroundStyle(role.lowercased() == "admin" ? Color.purple : Color.blue)
-                                            .clipShape(Capsule())
-                                    }
-                                }
+                                Text(authViewModel.currentUser?.fullName ?? authViewModel.currentUser?.username ?? "Pengguna")
+                                    .font(.headline)
+                                    .foregroundStyle(.primary)
 
                                 Text("@\(authViewModel.currentUser?.username ?? "user")")
                                     .font(.subheadline)
@@ -148,6 +146,57 @@ public struct SettingsView: View {
 
                 // MARK: - Jaringan & Layanan Backend
                 Section {
+                    HStack {
+                        Label {
+                            Text("Status Koneksi")
+                        } icon: {
+                            switch viewModel.connectionStatus {
+                            case .checking:
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                                    .foregroundStyle(.blue)
+                            case .connected:
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(.green)
+                            case .unreachable:
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundStyle(.orange)
+                            }
+                        }
+
+                        Spacer()
+
+                        switch viewModel.connectionStatus {
+                        case .checking:
+                            HStack(spacing: 6) {
+                                ProgressView()
+                                    .controlSize(.small)
+                                Text("Memeriksa...")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                        case .connected:
+                            Text("Terhubung")
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(.green)
+                        case .unreachable:
+                            Button {
+                                Task {
+                                    await viewModel.checkServerConnection()
+                                }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Text("Tidak Terhubung")
+                                        .font(.subheadline.weight(.medium))
+                                        .foregroundStyle(.orange)
+                                    Image(systemName: "arrow.clockwise")
+                                        .font(.caption)
+                                        .foregroundStyle(.orange)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+
                     #if DEBUG
                     Button {
                         isShowingServerSettings = true
@@ -161,23 +210,6 @@ public struct SettingsView: View {
                                 .foregroundStyle(.tertiary)
                         }
                     }
-                    #else
-                    HStack {
-                        Label("Server Resmi", systemImage: "cloud.fill")
-                            .foregroundStyle(.primary)
-                        Spacer()
-                        Text("TrackerThings Cloud")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    HStack {
-                        Label("Status Layanan", systemImage: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                        Spacer()
-                        Text("Aktif & Terhubung")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
                     #endif
                 } header: {
                     Text("Layanan & Server")
@@ -186,7 +218,7 @@ public struct SettingsView: View {
                     Text("Base URL aktif: \(AppConfig.shared.serverURLString)")
                         .font(.caption2)
                     #else
-                    Text("Aplikasi terhubung ke backend resmi https://trackerthings.vercel.app/api")
+                    Text("Status sinkronisasi data dengan server backend.")
                         .font(.caption2)
                     #endif
                 }
@@ -242,6 +274,7 @@ public struct SettingsView: View {
                 viewModel.loadUserData(from: authViewModel.currentUser)
                 Task {
                     await updateNotificationStatus()
+                    await viewModel.checkServerConnection()
                 }
             }
             #if DEBUG
