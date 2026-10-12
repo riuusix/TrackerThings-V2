@@ -1,26 +1,26 @@
 import { NextRequest } from "next/server";
-import { getSupabaseServerClient } from "@/utils/supabase/server";
+import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 import { apiSuccess, apiError } from "@/lib/apiResponse";
 
 function formatTaskResponse(t: any) {
   if (!t) return null;
-  const jadwalNama = t.jadwal?.nama_matkul || t.jadwal?.namaMatkul || null;
+  const jadwalNama = t.jadwal?.namaMatkul || t.jadwal?.nama_matkul || null;
   return {
     id: t.id,
-    user_id: t.user_id,
-    userId: t.user_id,
-    id_jadwal: t.id_jadwal,
-    idJadwal: t.id_jadwal,
-    nama_tugas: t.nama_tugas,
-    namaTugas: t.nama_tugas,
-    deadline: t.deadline,
+    user_id: t.userId,
+    userId: t.userId,
+    id_jadwal: t.idJadwal,
+    idJadwal: t.idJadwal,
+    nama_tugas: t.namaTugas,
+    namaTugas: t.namaTugas,
+    deadline: t.deadline instanceof Date ? t.deadline.toISOString() : t.deadline,
     prioritas: t.prioritas,
     jenis: t.jenis,
     status: t.status,
     progress: t.progress,
-    created_at: t.created_at,
-    createdAt: t.created_at,
+    created_at: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
     jadwal: jadwalNama ? { nama_matkul: jadwalNama, namaMatkul: jadwalNama } : null,
   };
 }
@@ -32,19 +32,17 @@ export async function GET(req: NextRequest) {
       return apiError("Sesi login telah berakhir. Silakan masuk kembali.", 401);
     }
 
-    const supabase = await getSupabaseServerClient();
-    const { data: tasks, error } = await supabase
-      .from("tugas")
-      .select("*, jadwal:id_jadwal(nama_matkul)")
-      .eq("user_id", session.userId)
-      .order("deadline", { ascending: true });
+    const tasks = await prisma.tugas.findMany({
+      where: { userId: session.userId },
+      include: {
+        jadwal: {
+          select: { namaMatkul: true },
+        },
+      },
+      orderBy: { deadline: "asc" },
+    });
 
-    if (error) {
-      console.error("Supabase fetch tugas error:", error);
-      return apiError("Gagal mengambil daftar tugas dari server.", 500);
-    }
-
-    const formattedTasks = (tasks || []).map(formatTaskResponse);
+    const formattedTasks = tasks.map(formatTaskResponse);
     return apiSuccess("Daftar tugas berhasil dimuat.", formattedTasks, 200, { tasks: formattedTasks });
   } catch (error: any) {
     console.error("GET /api/tugas exception:", error);
@@ -83,46 +81,36 @@ export async function POST(req: NextRequest) {
       return apiError("Format deadline tidak valid.", 400);
     }
 
-    const supabase = await getSupabaseServerClient();
-
     // Pastikan jadwal yang dikaitkan milik pengguna yang sedang login
-    const { data: jadwal, error: jadwalErr } = await supabase
-      .from("jadwal")
-      .select("id")
-      .eq("id", parsedJadwalId)
-      .eq("user_id", session.userId)
-      .maybeSingle();
-
-    if (jadwalErr) {
-      console.error("Supabase jadwal check error:", jadwalErr);
-      return apiError("Gagal memverifikasi jadwal mata kuliah.", 500);
-    }
+    const jadwal = await prisma.jadwal.findFirst({
+      where: {
+        id: parsedJadwalId,
+        userId: session.userId,
+      },
+      select: { id: true },
+    });
 
     if (!jadwal) {
       return apiError("Jadwal mata kuliah tidak ditemukan atau bukan milik Anda.", 404);
     }
 
-    const { data: newTask, error: insertError } = await supabase
-      .from("tugas")
-      .insert([
-        {
-          user_id: session.userId,
-          id_jadwal: parsedJadwalId,
-          nama_tugas: namaTugas,
-          deadline: parsedDeadline.toISOString(),
-          prioritas,
-          jenis,
-          status: "Belum Dikerjakan",
-          progress: 0,
+    const newTask = await prisma.tugas.create({
+      data: {
+        userId: session.userId,
+        idJadwal: parsedJadwalId,
+        namaTugas,
+        deadline: parsedDeadline,
+        prioritas,
+        jenis,
+        status: "Belum Dikerjakan",
+        progress: 0,
+      },
+      include: {
+        jadwal: {
+          select: { namaMatkul: true },
         },
-      ])
-      .select("*, jadwal:id_jadwal(nama_matkul)")
-      .single();
-
-    if (insertError) {
-      console.error("Supabase insert tugas error:", insertError);
-      return apiError("Gagal membuat tugas di database.", 500);
-    }
+      },
+    });
 
     const formatted = formatTaskResponse(newTask);
     return apiSuccess("Tugas berhasil dibuat!", formatted, 201, { task: formatted });
@@ -159,43 +147,34 @@ export async function PATCH(req: NextRequest) {
       return apiError("Nilai progress harus berupa angka.", 400);
     }
 
-    const supabase = await getSupabaseServerClient();
-
-    // Periksa keberadaan tugas terlebih dahulu
-    const { data: existingTask, error: fetchErr } = await supabase
-      .from("tugas")
-      .select("*")
-      .eq("id", taskId)
-      .maybeSingle();
-
-    if (fetchErr) {
-      console.error("Supabase fetch single tugas error:", fetchErr);
-      return apiError("Gagal memeriksa tugas di database.", 500);
-    }
+    // Periksa keberadaan dan kepemilikan tugas
+    const existingTask = await prisma.tugas.findFirst({
+      where: {
+        id: taskId,
+        userId: session.userId,
+      },
+      select: { id: true },
+    });
 
     if (!existingTask) {
-      return apiError("Tugas tidak ditemukan.", 404);
-    }
-
-    // Validasi kepemilikan tugas
-    if (existingTask.user_id !== session.userId) {
-      return apiError("Akses ditolak: Anda tidak memiliki izin untuk mengubah tugas ini.", 403);
+      return apiError("Tugas tidak ditemukan atau Anda tidak memiliki izin untuk mengubahnya.", 404);
     }
 
     const clampedProgress = Math.min(100, Math.max(0, parsedProgress));
     const status = clampedProgress >= 100 ? "Selesai" : clampedProgress > 0 ? "Sedang Dikerjakan" : "Belum Dikerjakan";
 
-    const { data: updated, error: updateErr } = await supabase
-      .from("tugas")
-      .update({ progress: clampedProgress, status })
-      .eq("id", taskId)
-      .select("*, jadwal:id_jadwal(nama_matkul)")
-      .single();
-
-    if (updateErr) {
-      console.error("Supabase update tugas error:", updateErr);
-      return apiError("Gagal memperbarui progress tugas di database.", 500);
-    }
+    const updated = await prisma.tugas.update({
+      where: { id: taskId },
+      data: {
+        progress: clampedProgress,
+        status,
+      },
+      include: {
+        jadwal: {
+          select: { namaMatkul: true },
+        },
+      },
+    });
 
     const formatted = formatTaskResponse(updated);
     return apiSuccess("Progress tugas berhasil diperbarui!", formatted, 200, { task: formatted });

@@ -1,5 +1,5 @@
 import { getSession } from "@/lib/auth";
-import { getSupabaseServerClient } from "@/utils/supabase/server";
+import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { UjianClient } from "./UjianClient";
 
@@ -9,39 +9,45 @@ export default async function UjianPage() {
     redirect("/login");
   }
 
-  const supabase = await getSupabaseServerClient();
-
-  const { data: rawCourses } = await supabase
-    .from("jadwal")
-    .select("id, nama_matkul")
-    .order("nama_matkul", { ascending: true });
+  const rawCourses = await prisma.jadwal.findMany({
+    where: { userId: session.userId },
+    select: { id: true, namaMatkul: true },
+    orderBy: { namaMatkul: "asc" },
+  });
 
   const uniqueCoursesMap = new Map<string, { id: number; namaMatkul: string }>();
-  for (const c of rawCourses || []) {
-    if (!uniqueCoursesMap.has(c.nama_matkul)) {
-      uniqueCoursesMap.set(c.nama_matkul, { id: c.id, namaMatkul: c.nama_matkul });
+  for (const c of rawCourses) {
+    if (!uniqueCoursesMap.has(c.namaMatkul)) {
+      uniqueCoursesMap.set(c.namaMatkul, { id: c.id, namaMatkul: c.namaMatkul });
     }
   }
   const courses = Array.from(uniqueCoursesMap.values());
 
-  const { data: rawExams } = await supabase
-    .from("ujian")
-    .select("*, jadwal:id_jadwal(nama_matkul)")
-    .order("tanggal", { ascending: true })
-    .order("waktu_mulai", { ascending: true });
+  const rawExams = await prisma.ujian.findMany({
+    where: { userId: session.userId },
+    include: {
+      jadwal: {
+        select: { namaMatkul: true },
+      },
+    },
+    orderBy: [
+      { tanggal: "asc" },
+      { waktuMulai: "asc" },
+    ],
+  });
 
-  const exams = (rawExams || []).map((u: any) => ({
+  const exams = rawExams.map((u) => ({
     id: u.id,
-    userId: u.user_id,
-    idJadwal: u.id_jadwal,
-    jenisUjian: u.jenis_ujian,
+    userId: u.userId,
+    idJadwal: u.idJadwal,
+    jenisUjian: u.jenisUjian,
     tanggal: new Date(u.tanggal),
-    waktuMulai: u.waktu_mulai,
-    waktuSelesai: u.waktu_selesai,
+    waktuMulai: u.waktuMulai,
+    waktuSelesai: u.waktuSelesai,
     ruangan: u.ruangan,
     catatan: u.catatan,
     createdAt: new Date(),
-    jadwal: u.jadwal ? { namaMatkul: u.jadwal.nama_matkul } : undefined,
+    jadwal: u.jadwal ? { namaMatkul: u.jadwal.namaMatkul } : undefined,
   }));
 
   return (

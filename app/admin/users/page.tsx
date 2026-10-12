@@ -1,5 +1,5 @@
 import { getSession } from "@/lib/auth";
-import { getSupabaseServerClient } from "@/utils/supabase/server";
+import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { UsersManagementClient } from "./UsersManagementClient";
 
@@ -9,14 +9,11 @@ export default async function AdminUsersPage() {
     redirect("/login");
   }
 
-  const supabase = await getSupabaseServerClient();
-
   // Verify Admin Role
-  const { data: currentUserData } = await supabase
-    .from("users")
-    .select("username, email, role")
-    .eq("id", session.userId)
-    .single();
+  const currentUserData = await prisma.user.findUnique({
+    where: { id: session.userId },
+    select: { username: true, email: true, role: true },
+  });
 
   const userRole =
     currentUserData?.role ||
@@ -28,12 +25,28 @@ export default async function AdminUsersPage() {
   }
 
   // Fetch all users
-  const { data: rawUsers } = await supabase
-    .from("users")
-    .select("id, username, email, full_name, phone_number, role, created_at")
-    .order("created_at", { ascending: false });
+  const rawUsers = await prisma.user.findMany({
+    select: {
+      id: true,
+      username: true,
+      email: true,
+      fullName: true,
+      phoneNumber: true,
+      role: true,
+      createdAt: true,
+    },
+    orderBy: { createdAt: "desc" },
+  });
 
-  const users = rawUsers || [];
+  const users = rawUsers.map((u) => ({
+    id: u.id,
+    username: u.username,
+    email: u.email,
+    full_name: u.fullName,
+    phone_number: u.phoneNumber,
+    role: u.role,
+    created_at: u.createdAt.toISOString(),
+  }));
 
   return (
     <UsersManagementClient

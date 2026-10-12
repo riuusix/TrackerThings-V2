@@ -3,8 +3,20 @@ import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 import { createClient as createSupabaseClient } from "@/utils/supabase/middleware";
 
-const JWT_SECRET = process.env.JWT_SECRET || "trackerthings_jwt_super_secret_key_32bytes_min!";
-const key = new TextEncoder().encode(JWT_SECRET);
+function getMiddlewareJwtKey(): Uint8Array | null {
+  const secret = process.env.JWT_SECRET;
+  if (process.env.NODE_ENV === "production") {
+    if (!secret || secret.trim().length < 32) {
+      return null;
+    }
+    return new TextEncoder().encode(secret);
+  }
+  const fallbackSecret =
+    secret && secret.trim().length >= 32
+      ? secret
+      : "trackerthings_jwt_super_secret_key_32bytes_min!";
+  return new TextEncoder().encode(fallbackSecret);
+}
 
 const protectedRoutes = [
   "/dashboard",
@@ -25,11 +37,20 @@ export async function middleware(request: NextRequest) {
   const token = request.cookies.get("auth_session")?.value;
 
   let isAuthenticated = false;
+  const key = getMiddlewareJwtKey();
+
   if (token) {
-    try {
-      await jwtVerify(token, key, { algorithms: ["HS256"] });
-      isAuthenticated = true;
-    } catch {
+    if (key) {
+      try {
+        await jwtVerify(token, key, { algorithms: ["HS256"] });
+        isAuthenticated = true;
+      } catch {
+        isAuthenticated = false;
+      }
+    } else {
+      console.error(
+        "[Middleware] JWT_SECRET is not configured or shorter than 32 characters in production. Denying access."
+      );
       isAuthenticated = false;
     }
   }

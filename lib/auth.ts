@@ -3,7 +3,6 @@ import { cookies } from "next/headers";
 import type { NextRequest } from "next/server";
 import bcrypt from "bcryptjs";
 import { UserSession } from "@/types";
-import { getSupabaseServerClient } from "@/utils/supabase/server";
 
 const COOKIE_NAME = "auth_session";
 
@@ -118,14 +117,13 @@ export async function requireAdminSession(req?: NextRequest | Request): Promise<
   }
 
   try {
-    const supabase = await getSupabaseServerClient();
-    const { data: dbUser, error } = await supabase
-      .from("users")
-      .select("role")
-      .eq("id", session.userId)
-      .maybeSingle();
+    const { prisma } = await import("@/lib/prisma");
+    const dbUser = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { role: true },
+    });
 
-    if (error || !dbUser || dbUser.role !== "admin") {
+    if (!dbUser || dbUser.role !== "admin") {
       return null;
     }
 

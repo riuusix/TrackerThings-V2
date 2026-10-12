@@ -1,5 +1,5 @@
 import { getSession } from "@/lib/auth";
-import { getSupabaseServerClient } from "@/utils/supabase/server";
+import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { ProfileClient } from "./ProfileClient";
 import { UserProfile } from "@/types";
@@ -10,40 +10,36 @@ export default async function ProfilePage() {
     redirect("/login");
   }
 
-  const supabase = await getSupabaseServerClient();
-
-  const { data: rawUser } = await supabase
-    .from("users")
-    .select("*")
-    .eq("id", session.userId)
-    .maybeSingle();
+  const rawUser = await prisma.user.findUnique({
+    where: { id: session.userId },
+  });
 
   const user: UserProfile = {
     id: session.userId,
     username: rawUser?.username || session.username,
     email: rawUser?.email || session.email,
-    fullName: rawUser?.full_name || null,
-    phoneNumber: rawUser?.phone_number || null,
-    profilePictureUrl: rawUser?.profile_picture_url || null,
-    securityPrompt: rawUser?.security_prompt || null,
-    createdAt: rawUser?.created_at ? new Date(rawUser.created_at) : new Date(),
-    profileUpdatedAt: rawUser?.profile_updated_at ? new Date(rawUser.profile_updated_at) : null,
-    passwordChangedAt: rawUser?.password_changed_at ? new Date(rawUser.password_changed_at) : null,
+    fullName: rawUser?.fullName || null,
+    phoneNumber: rawUser?.phoneNumber || null,
+    profilePictureUrl: rawUser?.profilePictureUrl || null,
+    securityPrompt: rawUser?.securityPrompt || null,
+    createdAt: rawUser?.createdAt ? new Date(rawUser.createdAt) : new Date(),
+    profileUpdatedAt: rawUser?.profileUpdatedAt ? new Date(rawUser.profileUpdatedAt) : null,
+    passwordChangedAt: rawUser?.passwordChangedAt ? new Date(rawUser.passwordChangedAt) : null,
   };
 
-  const [coursesRes, tasksRes, completedRes] = await Promise.all([
-    supabase.from("jadwal").select("*", { count: "exact", head: true }),
-    supabase.from("tugas").select("*", { count: "exact", head: true }),
-    supabase.from("tugas").select("*", { count: "exact", head: true }).eq("status", "Selesai"),
+  const [coursesCount, tasksCount, completedCount] = await Promise.all([
+    prisma.jadwal.count({ where: { userId: session.userId } }),
+    prisma.tugas.count({ where: { userId: session.userId } }),
+    prisma.tugas.count({ where: { userId: session.userId, status: "Selesai" } }),
   ]);
 
   return (
     <ProfileClient
       user={user}
       stats={{
-        totalCourses: coursesRes.count || 0,
-        totalTasks: tasksRes.count || 0,
-        completedTasks: completedRes.count || 0,
+        totalCourses: coursesCount,
+        totalTasks: tasksCount,
+        completedTasks: completedCount,
       }}
     />
   );

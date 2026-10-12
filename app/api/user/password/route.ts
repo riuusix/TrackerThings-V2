@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { getSupabaseServerClient } from "@/utils/supabase/server";
+import { prisma } from "@/lib/prisma";
 import { getAuthSession, verifyPassword, hashPassword } from "@/lib/auth";
 import { apiSuccess, apiError } from "@/lib/apiResponse";
 
@@ -47,15 +47,12 @@ export async function PUT(req: NextRequest) {
       return apiError("Kata sandi baru tidak boleh sama dengan kata sandi lama.", 400);
     }
 
-    const supabase = await getSupabaseServerClient();
-    const { data: user, error: userErr } = await supabase
-      .from("users")
-      .select("id, password")
-      .eq("id", session.userId)
-      .maybeSingle();
+    const user = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { id: true, password: true },
+    });
 
-    if (userErr || !user) {
-      console.error("Fetch user for password change error:", userErr);
+    if (!user) {
       return apiError("Pengguna tidak ditemukan.", 404);
     }
 
@@ -66,18 +63,13 @@ export async function PUT(req: NextRequest) {
 
     const hashedNew = await hashPassword(newPassword);
 
-    const { error: updateErr } = await supabase
-      .from("users")
-      .update({
+    await prisma.user.update({
+      where: { id: session.userId },
+      data: {
         password: hashedNew,
-        password_changed_at: new Date().toISOString(),
-      })
-      .eq("id", session.userId);
-
-    if (updateErr) {
-      console.error("Update password DB error:", updateErr);
-      return apiError("Gagal memperbarui kata sandi di database.", 500);
-    }
+        passwordChangedAt: new Date(),
+      },
+    });
 
     return apiSuccess("Kata sandi berhasil diperbarui! Silakan gunakan kata sandi baru untuk masuk berikutnya.", null, 200);
   } catch (err: any) {

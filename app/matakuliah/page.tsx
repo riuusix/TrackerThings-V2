@@ -1,5 +1,5 @@
 import { getSession } from "@/lib/auth";
-import { getSupabaseServerClient } from "@/utils/supabase/server";
+import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { MatakuliahClient } from "./MatakuliahClient";
 import { JadwalItem } from "@/types";
@@ -10,24 +10,24 @@ export default async function MatakuliahPage() {
     redirect("/login");
   }
 
-  const supabase = await getSupabaseServerClient();
+  const rawCourses = await prisma.jadwal.findMany({
+    where: { userId: session.userId },
+    orderBy: [
+      { hari: "asc" },
+      { waktuMulai: "asc" },
+    ],
+  });
 
-  const { data: rawCourses } = await supabase
-    .from("jadwal")
-    .select("*")
-    .order("hari", { ascending: true })
-    .order("waktu_mulai", { ascending: true });
-
-  const courses: JadwalItem[] = (rawCourses || []).map((c: any) => ({
+  const courses: JadwalItem[] = rawCourses.map((c) => ({
     id: c.id,
-    userId: c.user_id,
-    namaMatkul: c.nama_matkul,
+    userId: c.userId,
+    namaMatkul: c.namaMatkul,
     dosen: c.dosen,
     kategori: c.kategori,
     lokasi: c.lokasi,
     hari: c.hari,
-    waktuMulai: c.waktu_mulai,
-    waktuSelesai: c.waktu_selesai,
+    waktuMulai: c.waktuMulai,
+    waktuSelesai: c.waktuSelesai,
     createdAt: new Date(),
   }));
 

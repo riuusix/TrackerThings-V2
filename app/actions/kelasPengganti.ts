@@ -1,6 +1,6 @@
 "use server";
 
-import { getSupabaseServerClient } from "@/utils/supabase/server";
+import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 
@@ -19,24 +19,36 @@ export async function createKelasPenggantiAction(formData: FormData) {
     return { success: false, error: "Mata kuliah, tanggal, dan rentang waktu wajib diisi." };
   }
 
+  const parsedDate = new Date(tanggalStr);
+  if (isNaN(parsedDate.getTime())) {
+    return { success: false, error: "Format tanggal tidak valid." };
+  }
+
   try {
-    const supabase = await getSupabaseServerClient();
-    const { error } = await supabase.from("kelas_pengganti").insert([
-      {
-        user_id: session.userId,
-        id_jadwal: idJadwal,
-        tanggal: tanggalStr,
-        waktu_mulai: waktuMulai,
-        waktu_selesai: waktuSelesai,
+    const jadwal = await prisma.jadwal.findFirst({
+      where: {
+        id: idJadwal,
+        userId: session.userId,
+      },
+      select: { id: true },
+    });
+
+    if (!jadwal) {
+      return { success: false, error: "Mata kuliah tidak ditemukan atau bukan milik Anda." };
+    }
+
+    await prisma.kelasPengganti.create({
+      data: {
+        userId: session.userId,
+        idJadwal,
+        tanggal: parsedDate,
+        waktuMulai,
+        waktuSelesai,
         lokasi,
         catatan,
         status: "Belum Selesai",
       },
-    ]);
-
-    if (error) {
-      return { success: false, error: "Gagal menyimpan ke Supabase: " + error.message };
-    }
+    });
 
     revalidatePath("/dashboard");
     revalidatePath("/history");
@@ -52,15 +64,23 @@ export async function selesaiKelasPenggantiAction(id: number) {
   if (!session) return { success: false, error: "Unauthorized" };
 
   try {
-    const supabase = await getSupabaseServerClient();
-    const { error } = await supabase
-      .from("kelas_pengganti")
-      .update({ status: "Selesai" })
-      .eq("id", id);
+    const existing = await prisma.kelasPengganti.findUnique({
+      where: { id },
+      select: { id: true, userId: true },
+    });
 
-    if (error) {
-      return { success: false, error: "Gagal memperbarui status di Supabase: " + error.message };
+    if (!existing) {
+      return { success: false, error: "Kelas pengganti tidak ditemukan." };
     }
+
+    if (existing.userId !== session.userId) {
+      return { success: false, error: "Akses ditolak: Anda tidak memiliki izin untuk mengubah data ini." };
+    }
+
+    await prisma.kelasPengganti.update({
+      where: { id },
+      data: { status: "Selesai" },
+    });
 
     revalidatePath("/dashboard");
     revalidatePath("/history");

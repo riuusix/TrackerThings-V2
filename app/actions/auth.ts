@@ -1,6 +1,6 @@
 "use server";
 
-import { getSupabaseServerClient } from "@/utils/supabase/server";
+import { prisma } from "@/lib/prisma";
 import { createSession, destroySession, hashPassword, verifyPassword, getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 
@@ -11,31 +11,43 @@ export interface ActionResult {
 }
 
 export async function loginAction(formData: FormData): Promise<ActionResult> {
+  const reqId = `req_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`;
   const username = (formData.get("username") as string)?.trim();
   const password = formData.get("password") as string;
 
   if (!username || !password) {
+    console.warn(`[Auth][${reqId}][VALIDATION_ERROR] Missing credentials payload`);
     return { success: false, error: "Username dan password wajib diisi." };
   }
 
   try {
-    const supabase = await getSupabaseServerClient();
-    const { data: user, error } = await supabase
-      .from("users")
-      .select("*")
-      .eq("username", username)
-      .maybeSingle();
-
-    if (error) {
-      console.error("Supabase user fetch error:", error);
+    let user;
+    try {
+      user = await prisma.user.findUnique({
+        where: { username },
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          password: true,
+        },
+      });
+    } catch (dbError) {
+      console.error(`[Auth][${reqId}][DATABASE_ERROR] Prisma user lookup failed`);
+      return {
+        success: false,
+        error: "Layanan data sedang mengalami gangguan. Silakan coba lagi atau hubungi admin.",
+      };
     }
 
     if (!user) {
+      console.warn(`[Auth][${reqId}][CREDENTIAL_MISMATCH] Authentication failed`);
       return { success: false, error: "Username atau password salah." };
     }
 
     const isValid = await verifyPassword(password, user.password);
     if (!isValid) {
+      console.warn(`[Auth][${reqId}][CREDENTIAL_MISMATCH] Authentication failed`);
       return { success: false, error: "Username atau password salah." };
     }
 
@@ -43,11 +55,13 @@ export async function loginAction(formData: FormData): Promise<ActionResult> {
       id: user.id,
       username: user.username,
       email: user.email,
+      role: "user",
     });
 
+    console.info(`[Auth][${reqId}][SUCCESS] Authentication succeeded`);
     return { success: true };
-  } catch (error) {
-    console.error("Login error:", error);
+  } catch {
+    console.error(`[Auth][${reqId}][SERVER_ERROR] Internal login error`);
     return { success: false, error: "Terjadi kesalahan server saat login." };
   }
 }
@@ -64,15 +78,21 @@ export async function registerAction(formData: FormData): Promise<ActionResult> 
   }
 
   try {
-    const supabase = await getSupabaseServerClient();
-    const { data: existingUser } = await supabase
-      .from("users")
-      .select("username, email")
-      .or(`username.eq.${username},email.eq.${email}`)
-      .maybeSingle();
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { username: { equals: username, mode: "insensitive" } },
+          { email: { equals: email, mode: "insensitive" } },
+        ],
+      },
+      select: {
+        username: true,
+        email: true,
+      },
+    });
 
     if (existingUser) {
-      if (existingUser.username === username) {
+      if (existingUser.username.toLowerCase() === username.toLowerCase()) {
         return { success: false, error: "Username sudah digunakan, silakan pilih yang lain." };
       }
       return { success: false, error: "Email sudah terdaftar, silakan gunakan email lain." };
@@ -80,20 +100,16 @@ export async function registerAction(formData: FormData): Promise<ActionResult> 
 
     const hashedPassword = await hashPassword(password);
 
-    const { error: insertErr } = await supabase.from("users").insert([
-      {
+    await prisma.user.create({
+      data: {
         username,
-        full_name: fullName,
+        fullName,
         email,
-        phone_number: phoneNumber,
+        phoneNumber,
         password: hashedPassword,
+        role: "user",
       },
-    ]);
-
-    if (insertErr) {
-      console.error("Supabase register error:", insertErr);
-      return { success: false, error: "Gagal membuat akun di Supabase: " + insertErr.message };
-    }
+    });
 
     return { success: true, message: "Akun berhasil dibuat! Silakan login." };
   } catch (error) {
@@ -128,12 +144,10 @@ export async function updatePasswordAction(formData: FormData): Promise<ActionRe
   }
 
   try {
-    const supabase = await getSupabaseServerClient();
-    const { data: user } = await supabase
-      .from("users")
-      .select("*")
-      .eq("id", session.userId)
-      .single();
+    const user = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { password: true },
+    });
 
     if (!user) return { success: false, error: "Pengguna tidak ditemukan." };
 
@@ -144,13 +158,13 @@ export async function updatePasswordAction(formData: FormData): Promise<ActionRe
 
     const hashedNew = await hashPassword(newPassword);
 
-    await supabase
-      .from("users")
-      .update({
+    await prisma.user.update({
+      where: { id: session.userId },
+      data: {
         password: hashedNew,
-        password_changed_at: new Date().toISOString(),
-      })
-      .eq("id", session.userId);
+        passwordChangedAt: new Date(),
+      },
+    });
 
     return { success: true, message: "Kata sandi berhasil diperbarui!" };
   } catch (error) {
@@ -172,12 +186,10 @@ export async function updateSecurityPromptAction(formData: FormData): Promise<Ac
   }
 
   try {
-    const supabase = await getSupabaseServerClient();
-    const { data: user } = await supabase
-      .from("users")
-      .select("*")
-      .eq("id", session.userId)
-      .single();
+    const user = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { password: true },
+    });
 
     if (!user) return { success: false, error: "Pengguna tidak ditemukan." };
 
@@ -188,14 +200,14 @@ export async function updateSecurityPromptAction(formData: FormData): Promise<Ac
 
     const hashedAnswer = await hashPassword(securityAnswer);
 
-    await supabase
-      .from("users")
-      .update({
-        security_prompt: securityPrompt,
-        security_answer_hash: hashedAnswer,
-        profile_updated_at: new Date().toISOString(),
-      })
-      .eq("id", session.userId);
+    await prisma.user.update({
+      where: { id: session.userId },
+      data: {
+        securityPrompt,
+        securityAnswerHash: hashedAnswer,
+        profileUpdatedAt: new Date(),
+      },
+    });
 
     return { success: true, message: "Pertanyaan keamanan berhasil disimpan!" };
   } catch (error) {
@@ -206,18 +218,17 @@ export async function updateSecurityPromptAction(formData: FormData): Promise<Ac
 
 export async function getRecoveryPromptAction(username: string) {
   try {
-    const supabase = await getSupabaseServerClient();
-    const { data: user } = await supabase
-      .from("users")
-      .select("id, security_prompt")
-      .eq("username", username)
-      .maybeSingle();
+    const trimmed = username.trim();
+    const user = await prisma.user.findUnique({
+      where: { username: trimmed },
+      select: { id: true, securityPrompt: true },
+    });
 
-    if (!user || !user.security_prompt) {
+    if (!user || !user.securityPrompt) {
       return { success: false, error: "Pengguna tidak ditemukan atau belum mengatur pertanyaan keamanan." };
     }
 
-    return { success: true, prompt: user.security_prompt };
+    return { success: true, prompt: user.securityPrompt };
   } catch (error) {
     console.error("Get recovery prompt error:", error);
     return { success: false, error: "Gagal memeriksa akun." };
@@ -238,31 +249,32 @@ export async function recoverAccountAction(formData: FormData): Promise<ActionRe
   }
 
   try {
-    const supabase = await getSupabaseServerClient();
-    const { data: user } = await supabase
-      .from("users")
-      .select("*")
-      .eq("username", username)
-      .maybeSingle();
+    const user = await prisma.user.findUnique({
+      where: { username },
+      select: {
+        id: true,
+        securityAnswerHash: true,
+      },
+    });
 
-    if (!user || !user.security_answer_hash) {
+    if (!user || !user.securityAnswerHash) {
       return { success: false, error: "Akun tidak ditemukan atau belum ada pertanyaan keamanan." };
     }
 
-    const isAnswerCorrect = await verifyPassword(securityAnswer, user.security_answer_hash);
+    const isAnswerCorrect = await verifyPassword(securityAnswer, user.securityAnswerHash);
     if (!isAnswerCorrect) {
       return { success: false, error: "Jawaban keamanan salah!" };
     }
 
     const hashedNew = await hashPassword(newPassword);
 
-    await supabase
-      .from("users")
-      .update({
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
         password: hashedNew,
-        password_changed_at: new Date().toISOString(),
-      })
-      .eq("id", user.id);
+        passwordChangedAt: new Date(),
+      },
+    });
 
     return { success: true, message: "Kata sandi berhasil direset! Silakan login." };
   } catch (error) {

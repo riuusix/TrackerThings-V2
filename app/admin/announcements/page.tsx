@@ -1,5 +1,5 @@
 import { getSession } from "@/lib/auth";
-import { getSupabaseServerClient } from "@/utils/supabase/server";
+import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { AnnouncementsClient } from "./AnnouncementsClient";
 
@@ -9,14 +9,11 @@ export default async function AdminAnnouncementsPage() {
     redirect("/login");
   }
 
-  const supabase = await getSupabaseServerClient();
-
   // Verify Admin Role
-  const { data: currentUserData } = await supabase
-    .from("users")
-    .select("username, email, role")
-    .eq("id", session.userId)
-    .single();
+  const currentUserData = await prisma.user.findUnique({
+    where: { id: session.userId },
+    select: { username: true, email: true, role: true },
+  });
 
   const userRole =
     currentUserData?.role ||

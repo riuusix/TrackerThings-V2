@@ -1,5 +1,5 @@
 import { getSession } from "@/lib/auth";
-import { getSupabaseServerClient } from "@/utils/supabase/server";
+import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { DashboardClient } from "./DashboardClient";
 import { JadwalGabunganItem, NotificationItem, TugasItem } from "@/types";
@@ -12,23 +12,21 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  const supabase = await getSupabaseServerClient();
-
-  // 1. Fetch user data
+  // 1. Fetch user data via Prisma
   let username = session.username;
   let userEmail = session.email;
   let role = session.role || "user";
-  const { data: userData } = await supabase
-    .from("users")
-    .select("username, email, full_name, role")
-    .eq("id", session.userId)
-    .single();
+
+  const userData = await prisma.user.findUnique({
+    where: { id: session.userId },
+    select: { username: true, email: true, fullName: true, role: true },
+  });
 
   if (userData) {
-    username = userData.full_name || userData.username || session.username;
+    username = userData.fullName || userData.username || session.username;
     userEmail = userData.email || session.email;
-    if ((userData as any).role) {
-      role = (userData as any).role;
+    if (userData.role) {
+      role = userData.role;
     }
   }
 
@@ -36,31 +34,34 @@ export default async function DashboardPage() {
     role = "admin";
   }
 
-  // 2. Fetch all regular schedules from Supabase
-  const { data: rawJadwal } = await supabase
-    .from("jadwal")
-    .select("*")
-    .order("waktu_mulai", { ascending: true });
-
-  const regularSchedules = rawJadwal || [];
+  // 2. Fetch all regular schedules for current user from Prisma
+  const regularSchedules = await prisma.jadwal.findMany({
+    where: { userId: session.userId },
+    orderBy: { waktuMulai: "asc" },
+  });
 
   // Distinct courses for dropdowns
   const uniqueCoursesMap = new Map<string, { id: number; namaMatkul: string }>();
   for (const item of regularSchedules) {
-    if (!uniqueCoursesMap.has(item.nama_matkul)) {
-      uniqueCoursesMap.set(item.nama_matkul, { id: item.id, namaMatkul: item.nama_matkul });
+    if (!uniqueCoursesMap.has(item.namaMatkul)) {
+      uniqueCoursesMap.set(item.namaMatkul, { id: item.id, namaMatkul: item.namaMatkul });
     }
   }
   const courses = Array.from(uniqueCoursesMap.values());
 
-  // 3. Fetch active replacement classes from Supabase
-  const { data: rawKP } = await supabase
-    .from("kelas_pengganti")
-    .select("*, jadwal:id_jadwal(nama_matkul, kategori)")
-    .neq("status", "Selesai")
-    .order("waktu_mulai", { ascending: true });
-
-  const replacementClasses = rawKP || [];
+  // 3. Fetch active replacement classes for current user from Prisma
+  const replacementClasses = await prisma.kelasPengganti.findMany({
+    where: {
+      userId: session.userId,
+      status: { not: "Selesai" },
+    },
+    include: {
+      jadwal: {
+        select: { namaMatkul: true, kategori: true },
+      },
+    },
+    orderBy: { waktuMulai: "asc" },
+  });
 
   // Group schedules by day
   const DAYS = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
@@ -73,12 +74,12 @@ export default async function DashboardPage() {
     if (schedulesByDay[item.hari]) {
       schedulesByDay[item.hari].push({
         id: item.id,
-        namaMatkul: item.nama_matkul,
+        namaMatkul: item.namaMatkul,
         dosen: item.dosen,
         kategori: item.kategori,
         lokasi: item.lokasi,
-        waktuMulai: item.waktu_mulai,
-        waktuSelesai: item.waktu_selesai,
+        waktuMulai: item.waktuMulai,
+        waktuSelesai: item.waktuSelesai,
         tipe: "reguler",
       });
     }
@@ -89,12 +90,12 @@ export default async function DashboardPage() {
     if (schedulesByDay[classDay]) {
       schedulesByDay[classDay].push({
         id: kp.id,
-        idJadwal: kp.id_jadwal,
-        namaMatkul: kp.jadwal?.nama_matkul || "Kelas Pengganti",
+        idJadwal: kp.idJadwal,
+        namaMatkul: kp.jadwal?.namaMatkul || "Kelas Pengganti",
         kategori: kp.jadwal?.kategori,
         lokasi: kp.lokasi,
-        waktuMulai: kp.waktu_mulai,
-        waktuSelesai: kp.waktu_selesai,
+        waktuMulai: kp.waktuMulai,
+        waktuSelesai: kp.waktuSelesai,
         tipe: "pengganti",
         catatan: kp.catatan,
         status: kp.status,
@@ -109,73 +110,96 @@ export default async function DashboardPage() {
   const currentDayOfWeek = DAY_NAMES[new Date().getDay()];
   const initialDay = DAYS.includes(currentDayOfWeek) ? currentDayOfWeek : "Senin";
 
-  // 4. Fetch upcoming exams from Supabase
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const { data: rawExams } = await supabase
-    .from("ujian")
-    .select("*, jadwal:id_jadwal(nama_matkul)")
-    .gte("tanggal", todayStr)
-    .order("tanggal", { ascending: true })
-    .order("waktu_mulai", { ascending: true })
-    .limit(1);
+  // 4. Fetch upcoming exam for current user from Prisma
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
 
-  const upcomingExamRaw = rawExams && rawExams.length > 0 ? rawExams[0] : null;
+  const upcomingExamRaw = await prisma.ujian.findFirst({
+    where: {
+      userId: session.userId,
+      tanggal: { gte: todayStart },
+    },
+    include: {
+      jadwal: {
+        select: { namaMatkul: true },
+      },
+    },
+    orderBy: [
+      { tanggal: "asc" },
+      { waktuMulai: "asc" },
+    ],
+  });
+
   const upcomingExam = upcomingExamRaw
     ? {
         id: upcomingExamRaw.id,
-        userId: upcomingExamRaw.user_id,
-        idJadwal: upcomingExamRaw.id_jadwal,
-        jenisUjian: upcomingExamRaw.jenis_ujian,
+        userId: upcomingExamRaw.userId,
+        idJadwal: upcomingExamRaw.idJadwal,
+        jenisUjian: upcomingExamRaw.jenisUjian,
         tanggal: new Date(upcomingExamRaw.tanggal),
-        waktuMulai: upcomingExamRaw.waktu_mulai,
-        waktuSelesai: upcomingExamRaw.waktu_selesai,
+        waktuMulai: upcomingExamRaw.waktuMulai,
+        waktuSelesai: upcomingExamRaw.waktuSelesai,
         ruangan: upcomingExamRaw.ruangan,
         catatan: upcomingExamRaw.catatan,
         createdAt: new Date(),
-        jadwal: upcomingExamRaw.jadwal ? { namaMatkul: upcomingExamRaw.jadwal.nama_matkul } : undefined,
+        jadwal: upcomingExamRaw.jadwal ? { namaMatkul: upcomingExamRaw.jadwal.namaMatkul } : undefined,
       }
     : null;
 
-  // 5. Fetch urgent tasks from Supabase
-  const { data: rawTasks } = await supabase
-    .from("tugas")
-    .select("*, jadwal:id_jadwal(nama_matkul)")
-    .neq("status", "Selesai")
-    .order("deadline", { ascending: true });
+  // 5. Fetch urgent tasks for current user from Prisma
+  const rawTasks = await prisma.tugas.findMany({
+    where: {
+      userId: session.userId,
+      status: { not: "Selesai" },
+    },
+    include: {
+      jadwal: {
+        select: { namaMatkul: true },
+      },
+    },
+    orderBy: { deadline: "asc" },
+  });
 
-  const urgentTasks: TugasItem[] = (rawTasks || []).map((t: any) => ({
+  const urgentTasks: TugasItem[] = rawTasks.map((t) => ({
     id: t.id,
-    userId: t.user_id,
-    idJadwal: t.id_jadwal,
-    namaTugas: t.nama_tugas,
+    userId: t.userId,
+    idJadwal: t.idJadwal,
+    namaTugas: t.namaTugas,
     deadline: new Date(t.deadline),
     prioritas: t.prioritas,
     jenis: t.jenis,
     status: t.status,
     progress: t.progress,
     createdAt: new Date(),
-    jadwal: t.jadwal ? { namaMatkul: t.jadwal.nama_matkul } : undefined,
+    jadwal: t.jadwal ? { namaMatkul: t.jadwal.namaMatkul } : undefined,
   }));
 
-  // 6. Fetch completed tasks from Supabase
-  const { data: rawCompletedTasks } = await supabase
-    .from("tugas")
-    .select("*, jadwal:id_jadwal(nama_matkul)")
-    .eq("status", "Selesai")
-    .order("deadline", { ascending: false });
+  // 6. Fetch completed tasks for current user from Prisma
+  const rawCompletedTasks = await prisma.tugas.findMany({
+    where: {
+      userId: session.userId,
+      status: "Selesai",
+    },
+    include: {
+      jadwal: {
+        select: { namaMatkul: true },
+      },
+    },
+    orderBy: { deadline: "desc" },
+  });
 
-  const completedTasks: TugasItem[] = (rawCompletedTasks || []).map((t: any) => ({
+  const completedTasks: TugasItem[] = rawCompletedTasks.map((t) => ({
     id: t.id,
-    userId: t.user_id,
-    idJadwal: t.id_jadwal,
-    namaTugas: t.nama_tugas,
+    userId: t.userId,
+    idJadwal: t.idJadwal,
+    namaTugas: t.namaTugas,
     deadline: new Date(t.deadline),
     prioritas: t.prioritas,
     jenis: t.jenis,
     status: t.status,
     progress: t.progress,
     createdAt: new Date(),
-    jadwal: t.jadwal ? { namaMatkul: t.jadwal.nama_matkul } : undefined,
+    jadwal: t.jadwal ? { namaMatkul: t.jadwal.namaMatkul } : undefined,
   }));
 
   // 7. Calculate urgent notifications

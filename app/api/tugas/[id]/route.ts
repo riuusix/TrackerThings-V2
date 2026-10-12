@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { getSupabaseServerClient } from "@/utils/supabase/server";
+import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 import { apiSuccess, apiError } from "@/lib/apiResponse";
 
@@ -30,40 +30,43 @@ export async function PUT(
     const prioritas = body.prioritas || "Sedang";
     const jenis = body.jenis || "Individu";
 
-    const supabase = await getSupabaseServerClient();
+    // Pastikan tugas ada dan milik user yang sedang login
+    const existing = await prisma.tugas.findUnique({
+      where: { id: taskId },
+      select: { id: true, userId: true },
+    });
 
-    // Pastikan tugas milik user
-    const { data: existing, error: checkErr } = await supabase
-      .from("tugas")
-      .select("id, user_id")
-      .eq("id", taskId)
-      .maybeSingle();
-
-    if (checkErr || !existing) {
+    if (!existing) {
       return apiError("Tugas tidak ditemukan.", 404);
     }
 
-    if (existing.user_id !== session.userId) {
+    if (existing.userId !== session.userId) {
       return apiError("Akses ditolak: Anda tidak memiliki izin untuk mengubah tugas ini.", 403);
+    }
+
+    // Jika id_jadwal diubah, pastikan jadwal target juga milik user yang sama
+    if (!isNaN(parsedJadwalId) && parsedJadwalId > 0) {
+      const validJadwal = await prisma.jadwal.findFirst({
+        where: { id: parsedJadwalId, userId: session.userId },
+        select: { id: true },
+      });
+      if (!validJadwal) {
+        return apiError("Jadwal mata kuliah tidak ditemukan atau bukan milik Anda.", 404);
+      }
     }
 
     const updateData: any = {
       prioritas,
       jenis,
     };
-    if (namaTugas) updateData.nama_tugas = namaTugas;
-    if (!isNaN(parsedJadwalId) && parsedJadwalId > 0) updateData.id_jadwal = parsedJadwalId;
-    if (deadline) updateData.deadline = new Date(deadline).toISOString();
+    if (namaTugas) updateData.namaTugas = namaTugas;
+    if (!isNaN(parsedJadwalId) && parsedJadwalId > 0) updateData.idJadwal = parsedJadwalId;
+    if (deadline) updateData.deadline = new Date(deadline);
 
-    const { error: updateErr } = await supabase
-      .from("tugas")
-      .update(updateData)
-      .eq("id", taskId);
-
-    if (updateErr) {
-      console.error("Supabase update tugas error:", updateErr);
-      return apiError("Gagal memperbarui tugas di database.", 500);
-    }
+    await prisma.tugas.update({
+      where: { id: taskId },
+      data: updateData,
+    });
 
     return apiSuccess("Tugas berhasil diperbarui!", null, 200);
   } catch (error) {
@@ -87,18 +90,22 @@ export async function DELETE(
   }
 
   try {
-    const supabase = await getSupabaseServerClient();
+    const existing = await prisma.tugas.findUnique({
+      where: { id: taskId },
+      select: { id: true, userId: true },
+    });
 
-    const { error } = await supabase
-      .from("tugas")
-      .delete()
-      .eq("id", taskId)
-      .eq("user_id", session.userId);
-
-    if (error) {
-      console.error("Supabase delete tugas error:", error);
-      return apiError("Gagal menghapus tugas dari database.", 500);
+    if (!existing) {
+      return apiError("Tugas tidak ditemukan.", 404);
     }
+
+    if (existing.userId !== session.userId) {
+      return apiError("Akses ditolak: Anda tidak memiliki izin untuk menghapus tugas ini.", 403);
+    }
+
+    await prisma.tugas.delete({
+      where: { id: taskId },
+    });
 
     return apiSuccess("Tugas berhasil dihapus!", null, 200);
   } catch (error) {

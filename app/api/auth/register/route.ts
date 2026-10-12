@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { getSupabaseServerClient } from "@/utils/supabase/server";
+import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/auth";
 import { apiSuccess, apiError } from "@/lib/apiResponse";
 
@@ -34,16 +34,22 @@ export async function POST(req: NextRequest) {
       return apiError("Format email tidak valid.", 400);
     }
 
-    const supabase = await getSupabaseServerClient();
-
-    // Periksa duplikasi username atau email
-    const { data: existingUser, error: checkError } = await supabase
-      .from("users")
-      .select("username, email")
-      .or(`username.eq.${username},email.eq.${email}`)
-      .maybeSingle();
-
-    if (checkError) {
+    // Periksa duplikasi username atau email via Prisma
+    let existingUser;
+    try {
+      existingUser = await prisma.user.findFirst({
+        where: {
+          OR: [
+            { username: { equals: username, mode: "insensitive" } },
+            { email: { equals: email, mode: "insensitive" } },
+          ],
+        },
+        select: {
+          username: true,
+          email: true,
+        },
+      });
+    } catch (checkError) {
       console.error("Database check error during register:", checkError);
       return apiError("Terjadi kesalahan saat memeriksa akun.", 500);
     }
@@ -57,19 +63,19 @@ export async function POST(req: NextRequest) {
 
     const hashedPassword = await hashPassword(password);
 
-    const { error: insertErr } = await supabase.from("users").insert([
-      {
-        username,
-        full_name: fullName || null,
-        email,
-        phone_number: phoneNumber || null,
-        password: hashedPassword,
-        role: "user",
-      },
-    ]);
-
-    if (insertErr) {
-      console.error("Database insert error during register:", insertErr);
+    try {
+      await prisma.user.create({
+        data: {
+          username,
+          fullName: fullName || null,
+          email,
+          phoneNumber: phoneNumber || null,
+          password: hashedPassword,
+          role: "user",
+        },
+      });
+    } catch (insertErr) {
+      console.error("Prisma user.create error during register:", insertErr);
       return apiError("Gagal membuat akun di sistem.", 500);
     }
 

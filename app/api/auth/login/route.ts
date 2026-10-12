@@ -1,9 +1,10 @@
 import { NextRequest } from "next/server";
-import { getSupabaseServerClient } from "@/utils/supabase/server";
+import { prisma } from "@/lib/prisma";
 import { verifyPassword, signSessionToken, createSession } from "@/lib/auth";
 import { apiSuccess, apiError } from "@/lib/apiResponse";
 
 export async function POST(req: NextRequest) {
+  const reqId = `req_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`;
   try {
     const body = await req.json().catch(() => null);
 
@@ -15,31 +16,45 @@ export async function POST(req: NextRequest) {
     const password = typeof body.password === "string" ? body.password : "";
 
     if (!username || !password) {
+      console.warn(`[Auth][${reqId}][VALIDATION_ERROR] Missing credentials payload in API`);
       return apiError("Username dan password wajib diisi.", 400);
     }
 
-    const supabase = await getSupabaseServerClient();
-    const { data: user, error: dbError } = await supabase
-      .from("users")
-      .select("*")
-      .eq("username", username)
-      .maybeSingle();
-
-    if (dbError) {
-      console.error("Database query error during login:", dbError);
-      return apiError("Terjadi kesalahan server saat memproses login.", 500);
+    let user;
+    try {
+      user = await prisma.user.findUnique({
+        where: { username },
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          password: true,
+          fullName: true,
+          phoneNumber: true,
+          profilePictureUrl: true,
+          securityPrompt: true,
+          createdAt: true,
+          profileUpdatedAt: true,
+          passwordChangedAt: true,
+        },
+      });
+    } catch {
+      console.error(`[Auth][${reqId}][DATABASE_ERROR] Database query failed in login API`);
+      return apiError("Layanan data sedang mengalami gangguan. Silakan coba lagi.", 500);
     }
 
     if (!user) {
+      console.warn(`[Auth][${reqId}][CREDENTIAL_MISMATCH] API authentication failed`);
       return apiError("Username atau password salah.", 401);
     }
 
     const isValid = await verifyPassword(password, user.password);
     if (!isValid) {
+      console.warn(`[Auth][${reqId}][CREDENTIAL_MISMATCH] API authentication failed`);
       return apiError("Username atau password salah.", 401);
     }
 
-    const role = user.role || "user";
+    const role = "user";
 
     // Generate JWT token untuk klien native iOS (dan web jika diperlukan)
     const token = await signSessionToken({
@@ -57,38 +72,39 @@ export async function POST(req: NextRequest) {
         email: user.email,
         role,
       });
-    } catch (cookieErr) {
-      console.warn("Could not set cookie in login route handler:", cookieErr);
+    } catch {
+      console.warn(`[Auth][${reqId}][SESSION_WARN] Could not set cookie in login route handler`);
     }
 
-    // Sanitasi data pengguna agar tidak membocorkan hash password atau data sensitif
+    // Sanitasi data pengguna: TIDAK BOLEH menyertakan password hash atau data rahasia
     const safeUser = {
       id: user.id,
       username: user.username,
       email: user.email,
       role,
-      fullName: user.full_name || null,
-      full_name: user.full_name || null,
-      phoneNumber: user.phone_number || null,
-      phone_number: user.phone_number || null,
-      profilePictureUrl: user.profile_picture_url || null,
-      profile_picture_url: user.profile_picture_url || null,
-      securityPrompt: user.security_prompt || null,
-      security_prompt: user.security_prompt || null,
-      createdAt: user.created_at ? new Date(user.created_at).toISOString() : null,
-      created_at: user.created_at ? new Date(user.created_at).toISOString() : null,
-      profileUpdatedAt: user.profile_updated_at ? new Date(user.profile_updated_at).toISOString() : null,
-      profile_updated_at: user.profile_updated_at ? new Date(user.profile_updated_at).toISOString() : null,
-      passwordChangedAt: user.password_changed_at ? new Date(user.password_changed_at).toISOString() : null,
-      password_changed_at: user.password_changed_at ? new Date(user.password_changed_at).toISOString() : null,
+      fullName: user.fullName || null,
+      full_name: user.fullName || null,
+      phoneNumber: user.phoneNumber || null,
+      phone_number: user.phoneNumber || null,
+      profilePictureUrl: user.profilePictureUrl || null,
+      profile_picture_url: user.profilePictureUrl || null,
+      securityPrompt: user.securityPrompt || null,
+      security_prompt: user.securityPrompt || null,
+      createdAt: user.createdAt ? user.createdAt.toISOString() : null,
+      created_at: user.createdAt ? user.createdAt.toISOString() : null,
+      profileUpdatedAt: user.profileUpdatedAt ? user.profileUpdatedAt.toISOString() : null,
+      profile_updated_at: user.profileUpdatedAt ? user.profileUpdatedAt.toISOString() : null,
+      passwordChangedAt: user.passwordChangedAt ? user.passwordChangedAt.toISOString() : null,
+      password_changed_at: user.passwordChangedAt ? user.passwordChangedAt.toISOString() : null,
     };
 
+    console.info(`[Auth][${reqId}][SUCCESS] API authentication succeeded`);
     return apiSuccess("Login berhasil!", safeUser, 200, {
       user: safeUser,
       token,
     });
-  } catch (err: any) {
-    console.error("Unexpected error in /api/auth/login:", err);
+  } catch {
+    console.error(`[Auth][${reqId}][SERVER_ERROR] Unexpected error in /api/auth/login`);
     return apiError("Terjadi kesalahan server saat login.", 500);
   }
 }

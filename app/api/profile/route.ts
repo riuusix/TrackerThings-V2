@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseServerClient } from "@/utils/supabase/server";
+import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
@@ -9,14 +9,24 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const supabase = await getSupabaseServerClient();
-    const { data: user, error } = await supabase
-      .from("users")
-      .select("id, username, email, role, full_name, phone_number, profile_picture_url, security_prompt, created_at, profile_updated_at, password_changed_at")
-      .eq("id", session.userId)
-      .maybeSingle();
+    const user = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        role: true,
+        fullName: true,
+        phoneNumber: true,
+        profilePictureUrl: true,
+        securityPrompt: true,
+        createdAt: true,
+        profileUpdatedAt: true,
+        passwordChangedAt: true,
+      },
+    });
 
-    if (error || !user) {
+    if (!user) {
       return NextResponse.json({ error: "User profile tidak ditemukan" }, { status: 404 });
     }
 
@@ -27,13 +37,13 @@ export async function GET(req: NextRequest) {
       username: user.username,
       email: user.email,
       role,
-      fullName: user.full_name,
-      phoneNumber: user.phone_number,
-      profilePictureUrl: user.profile_picture_url,
-      securityPrompt: user.security_prompt,
-      createdAt: user.created_at,
-      profileUpdatedAt: user.profile_updated_at,
-      passwordChangedAt: user.password_changed_at,
+      fullName: user.fullName,
+      phoneNumber: user.phoneNumber,
+      profilePictureUrl: user.profilePictureUrl,
+      securityPrompt: user.securityPrompt,
+      createdAt: user.createdAt,
+      profileUpdatedAt: user.profileUpdatedAt,
+      passwordChangedAt: user.passwordChangedAt,
     });
   } catch (error) {
     console.error("GET /api/profile exception:", error);
@@ -54,24 +64,21 @@ export async function PUT(req: NextRequest) {
     }
 
     const updateData: any = {
-      profile_updated_at: new Date().toISOString(),
+      profileUpdatedAt: new Date(),
     };
 
-    if (body.email) updateData.email = body.email;
-    if (body.full_name !== undefined) updateData.full_name = body.full_name;
-    if (body.phone_number !== undefined) updateData.phone_number = body.phone_number;
-    if (body.profile_picture_url !== undefined) updateData.profile_picture_url = body.profile_picture_url;
+    if (body.email) updateData.email = body.email.trim().toLowerCase();
+    if (body.full_name !== undefined) updateData.fullName = body.full_name;
+    if (body.fullName !== undefined) updateData.fullName = body.fullName;
+    if (body.phone_number !== undefined) updateData.phoneNumber = body.phone_number;
+    if (body.phoneNumber !== undefined) updateData.phoneNumber = body.phoneNumber;
+    if (body.profile_picture_url !== undefined) updateData.profilePictureUrl = body.profile_picture_url;
+    if (body.profilePictureUrl !== undefined) updateData.profilePictureUrl = body.profilePictureUrl;
 
-    const supabase = await getSupabaseServerClient();
-    const { error } = await supabase
-      .from("users")
-      .update(updateData)
-      .eq("id", session.userId);
-
-    if (error) {
-      console.error("Supabase update profile error:", error);
-      return NextResponse.json({ error: "Gagal memperbarui profil" }, { status: 500 });
-    }
+    await prisma.user.update({
+      where: { id: session.userId },
+      data: updateData,
+    });
 
     return NextResponse.json({ success: true, message: "Profil berhasil diperbarui" });
   } catch (error) {

@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { getSupabaseServerClient } from "@/utils/supabase/server";
+import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 import { apiSuccess, apiError } from "@/lib/apiResponse";
 
@@ -12,17 +12,22 @@ export async function GET(req: NextRequest) {
       return apiError("Sesi login telah berakhir. Silakan masuk kembali.", 401);
     }
 
-    const supabase = await getSupabaseServerClient();
-    const { data: user, error: dbErr } = await supabase
-      .from("users")
-      .select("id, username, email, role, full_name, phone_number, profile_picture_url, security_prompt, created_at, profile_updated_at, password_changed_at")
-      .eq("id", session.userId)
-      .maybeSingle();
-
-    if (dbErr) {
-      console.error("Fetch profile DB error:", dbErr);
-      return apiError("Gagal mengambil data profil dari server.", 500);
-    }
+    const user = await prisma.user.findUnique({
+      where: { id: session.userId },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        role: true,
+        fullName: true,
+        phoneNumber: true,
+        profilePictureUrl: true,
+        securityPrompt: true,
+        createdAt: true,
+        profileUpdatedAt: true,
+        passwordChangedAt: true,
+      },
+    });
 
     if (!user) {
       return apiError("Pengguna tidak ditemukan.", 404);
@@ -35,13 +40,20 @@ export async function GET(req: NextRequest) {
       username: user.username,
       email: user.email,
       role,
-      fullName: user.full_name,
-      phoneNumber: user.phone_number,
-      profilePictureUrl: user.profile_picture_url,
-      securityPrompt: user.security_prompt,
-      createdAt: user.created_at,
-      profileUpdatedAt: user.profile_updated_at,
-      passwordChangedAt: user.password_changed_at,
+      fullName: user.fullName,
+      full_name: user.fullName,
+      phoneNumber: user.phoneNumber,
+      phone_number: user.phoneNumber,
+      profilePictureUrl: user.profilePictureUrl,
+      profile_picture_url: user.profilePictureUrl,
+      securityPrompt: user.securityPrompt,
+      security_prompt: user.securityPrompt,
+      createdAt: user.createdAt ? user.createdAt.toISOString() : null,
+      created_at: user.createdAt ? user.createdAt.toISOString() : null,
+      profileUpdatedAt: user.profileUpdatedAt ? user.profileUpdatedAt.toISOString() : null,
+      profile_updated_at: user.profileUpdatedAt ? user.profileUpdatedAt.toISOString() : null,
+      passwordChangedAt: user.passwordChangedAt ? user.passwordChangedAt.toISOString() : null,
+      password_changed_at: user.passwordChangedAt ? user.passwordChangedAt.toISOString() : null,
     };
 
     return apiSuccess("Profil berhasil dimuat.", safeProfile, 200, { user: safeProfile });
@@ -79,8 +91,6 @@ export async function PUT(req: NextRequest) {
       return apiError("Nama lengkap tidak boleh kosong.", 400);
     }
 
-    const supabase = await getSupabaseServerClient();
-
     // Validasi email jika diubah
     if (email) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -88,17 +98,13 @@ export async function PUT(req: NextRequest) {
         return apiError("Format email tidak valid.", 400);
       }
 
-      const { data: existingEmail, error: checkErr } = await supabase
-        .from("users")
-        .select("id")
-        .eq("email", email)
-        .neq("id", session.userId)
-        .maybeSingle();
-
-      if (checkErr) {
-        console.error("Check email uniqueness error:", checkErr);
-        return apiError("Gagal memvalidasi email.", 500);
-      }
+      const existingEmail = await prisma.user.findFirst({
+        where: {
+          email: { equals: email, mode: "insensitive" },
+          id: { not: session.userId },
+        },
+        select: { id: true },
+      });
 
       if (existingEmail) {
         return apiError("Email sudah digunakan oleh akun lain.", 409);
@@ -106,25 +112,28 @@ export async function PUT(req: NextRequest) {
     }
 
     const updatePayload: Record<string, any> = {
-      profile_updated_at: new Date().toISOString(),
+      profileUpdatedAt: new Date(),
     };
 
-    if (fullName !== null) updatePayload.full_name = fullName;
+    if (fullName !== null) updatePayload.fullName = fullName;
     if (email) updatePayload.email = email;
-    if (phoneNumber !== null) updatePayload.phone_number = phoneNumber;
-    if (profilePictureUrl !== null) updatePayload.profile_picture_url = profilePictureUrl;
+    if (phoneNumber !== null) updatePayload.phoneNumber = phoneNumber;
+    if (profilePictureUrl !== null) updatePayload.profilePictureUrl = profilePictureUrl;
 
-    const { data: updatedUser, error: updateErr } = await supabase
-      .from("users")
-      .update(updatePayload)
-      .eq("id", session.userId)
-      .select("id, username, email, role, full_name, phone_number, profile_picture_url, profile_updated_at")
-      .single();
-
-    if (updateErr) {
-      console.error("Update profile DB error:", updateErr);
-      return apiError("Gagal memperbarui profil pengguna di database.", 500);
-    }
+    const updatedUser = await prisma.user.update({
+      where: { id: session.userId },
+      data: updatePayload,
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        role: true,
+        fullName: true,
+        phoneNumber: true,
+        profilePictureUrl: true,
+        profileUpdatedAt: true,
+      },
+    });
 
     const role = updatedUser.role || "user";
 
@@ -133,10 +142,14 @@ export async function PUT(req: NextRequest) {
       username: updatedUser.username,
       email: updatedUser.email,
       role,
-      fullName: updatedUser.full_name,
-      phoneNumber: updatedUser.phone_number,
-      profilePictureUrl: updatedUser.profile_picture_url,
-      profileUpdatedAt: updatedUser.profile_updated_at,
+      fullName: updatedUser.fullName,
+      full_name: updatedUser.fullName,
+      phoneNumber: updatedUser.phoneNumber,
+      phone_number: updatedUser.phoneNumber,
+      profilePictureUrl: updatedUser.profilePictureUrl,
+      profile_picture_url: updatedUser.profilePictureUrl,
+      profileUpdatedAt: updatedUser.profileUpdatedAt ? updatedUser.profileUpdatedAt.toISOString() : null,
+      profile_updated_at: updatedUser.profileUpdatedAt ? updatedUser.profileUpdatedAt.toISOString() : null,
     };
 
     return apiSuccess("Profil berhasil diperbarui!", safeUser, 200, { user: safeUser });

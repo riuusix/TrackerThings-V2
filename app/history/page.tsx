@@ -1,5 +1,5 @@
 import { getSession } from "@/lib/auth";
-import { getSupabaseServerClient } from "@/utils/supabase/server";
+import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { Navbar } from "@/components/Navbar";
 import { formatIndonesianDate } from "@/lib/utils";
@@ -11,17 +11,29 @@ export default async function HistoryPage() {
     redirect("/login");
   }
 
-  const supabase = await getSupabaseServerClient();
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
 
-  const { data: rawHistory } = await supabase
-    .from("kelas_pengganti")
-    .select("*, jadwal:id_jadwal(nama_matkul, kategori)")
-    .or(`status.eq.Selesai,tanggal.lt.${todayStr}`)
-    .order("tanggal", { ascending: false })
-    .order("waktu_mulai", { ascending: false });
+  const rawHistory = await prisma.kelasPengganti.findMany({
+    where: {
+      userId: session.userId,
+      OR: [
+        { status: "Selesai" },
+        { tanggal: { lt: todayStart } },
+      ],
+    },
+    include: {
+      jadwal: {
+        select: { namaMatkul: true, kategori: true },
+      },
+    },
+    orderBy: [
+      { tanggal: "desc" },
+      { waktuMulai: "desc" },
+    ],
+  });
 
-  const historyClasses = rawHistory || [];
+  const historyClasses = rawHistory;
 
   return (
     <div className="min-h-screen pb-16">
@@ -58,7 +70,7 @@ export default async function HistoryPage() {
               </p>
             </div>
           ) : (
-            historyClasses.map((item: any) => (
+            historyClasses.map((item) => (
               <div
                 key={item.id}
                 className="glass-card rounded-2xl p-5 hover:shadow-lg transition-all duration-200 border border-white/60 dark:border-white/10"
@@ -79,7 +91,7 @@ export default async function HistoryPage() {
                     </div>
 
                     <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                      {item.jadwal?.nama_matkul || "Kelas Pengganti"}
+                      {item.jadwal?.namaMatkul || "Kelas Pengganti"}
                     </h3>
                   </div>
 
@@ -93,7 +105,7 @@ export default async function HistoryPage() {
                   <div className="flex items-center gap-2">
                     <Clock className="w-4 h-4 text-indigo-500 shrink-0" />
                     <span>
-                      {item.waktu_mulai} - {item.waktu_selesai}
+                      {item.waktuMulai} - {item.waktuSelesai}
                     </span>
                   </div>
 

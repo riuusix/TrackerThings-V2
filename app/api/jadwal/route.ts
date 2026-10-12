@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseServerClient } from "@/utils/supabase/server";
+import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
@@ -9,35 +9,29 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const supabase = await getSupabaseServerClient();
-    const { data: jadwal, error } = await supabase
-      .from("jadwal")
-      .select("*")
-      .eq("user_id", session.userId)
-      .order("hari", { ascending: true });
-
-    if (error) {
-      console.error("Supabase fetch jadwal error:", error);
-      return NextResponse.json({ error: "Failed to fetch jadwal" }, { status: 500 });
-    }
+    const jadwal = await prisma.jadwal.findMany({
+      where: { userId: session.userId },
+      orderBy: { hari: "asc" },
+    });
 
     // Kembalikan baik snake_case (Swift Codable) maupun camelCase
-    const formatted = (jadwal || []).map((j: any) => ({
+    const formatted = jadwal.map((j) => ({
       id: j.id,
-      user_id: j.user_id,
-      userId: j.user_id,
-      nama_matkul: j.nama_matkul,
-      namaMatkul: j.nama_matkul,
+      user_id: j.userId,
+      userId: j.userId,
+      nama_matkul: j.namaMatkul,
+      namaMatkul: j.namaMatkul,
       dosen: j.dosen,
       kategori: j.kategori,
       lokasi: j.lokasi,
       hari: j.hari,
-      waktu_mulai: j.waktu_mulai,
-      waktuMulai: j.waktu_mulai,
-      waktu_selesai: j.waktu_selesai,
-      waktuSelesai: j.waktu_selesai,
-      created_at: j.created_at,
-      createdAt: j.created_at,
+      waktu_mulai: j.waktuMulai,
+      waktuMulai: j.waktuMulai,
+      waktu_selesai: j.waktuSelesai,
+      waktuSelesai: j.waktuSelesai,
+      sks: j.sks,
+      created_at: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
     }));
 
     return NextResponse.json(formatted);
@@ -71,31 +65,39 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Nama matkul, hari, waktu mulai, dan waktu selesai wajib diisi" }, { status: 400 });
     }
 
-    const supabase = await getSupabaseServerClient();
-    const { data: newJadwal, error } = await supabase
-      .from("jadwal")
-      .insert([
-        {
-          user_id: session.userId,
-          nama_matkul: namaMatkul,
-          hari,
-          waktu_mulai: waktuMulai,
-          waktu_selesai: waktuSelesai,
-          dosen,
-          kategori,
-          lokasi,
-        },
-      ])
-      .select()
-      .single();
+    const newJadwal = await prisma.jadwal.create({
+      data: {
+        userId: session.userId,
+        namaMatkul,
+        hari,
+        waktuMulai,
+        waktuSelesai,
+        dosen,
+        kategori,
+        lokasi,
+      },
+    });
 
-    if (error) {
-      console.error("Supabase insert jadwal error:", error);
-      return NextResponse.json({ error: "Gagal menyimpan jadwal: " + error.message }, { status: 500 });
-    }
+    const formatted = {
+      id: newJadwal.id,
+      user_id: newJadwal.userId,
+      userId: newJadwal.userId,
+      nama_matkul: newJadwal.namaMatkul,
+      namaMatkul: newJadwal.namaMatkul,
+      dosen: newJadwal.dosen,
+      kategori: newJadwal.kategori,
+      lokasi: newJadwal.lokasi,
+      hari: newJadwal.hari,
+      waktu_mulai: newJadwal.waktuMulai,
+      waktuMulai: newJadwal.waktuMulai,
+      waktu_selesai: newJadwal.waktuSelesai,
+      waktuSelesai: newJadwal.waktuSelesai,
+      created_at: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+    };
 
-    return NextResponse.json({ success: true, jadwal: newJadwal }, { status: 201 });
-  } catch (error) {
+    return NextResponse.json({ success: true, jadwal: formatted }, { status: 201 });
+  } catch (error: any) {
     console.error("POST /api/jadwal exception:", error);
     return NextResponse.json({ error: "Gagal membuat jadwal" }, { status: 500 });
   }

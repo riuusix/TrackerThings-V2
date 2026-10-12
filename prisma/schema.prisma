@@ -17,6 +17,7 @@ model User {
   profilePictureUrl  String?          @map("profile_picture_url")
   securityPrompt     String?          @map("security_prompt")
   securityAnswerHash String?          @map("security_answer_hash")
+  role               String           @default("user")
   createdAt          DateTime         @default(now()) @map("created_at")
   profileUpdatedAt   DateTime?        @map("profile_updated_at")
   passwordChangedAt  DateTime?        @map("password_changed_at")
@@ -36,10 +37,10 @@ model Jadwal {
   dosen          String?
   kategori       String?
   lokasi         String?
+  sks            Int?
   hari           String
   waktuMulai     String           @map("waktu_mulai")
   waktuSelesai   String           @map("waktu_selesai")
-  createdAt      DateTime         @default(now()) @map("created_at")
 
   user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   tugas          Tugas[]
@@ -59,7 +60,6 @@ model Tugas {
   jenis      String
   status     String   @default("Belum Dikerjakan")
   progress   Int      @default(0)
-  createdAt  DateTime @default(now()) @map("created_at")
 
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   jadwal     Jadwal   @relation(fields: [idJadwal], references: [id], onDelete: Cascade)
@@ -77,7 +77,6 @@ model Ujian {
   waktuSelesai String?  @map("waktu_selesai")
   ruangan      String?
   catatan      String?
-  createdAt    DateTime @default(now()) @map("created_at")
 
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   jadwal       Jadwal   @relation(fields: [idJadwal], references: [id], onDelete: Cascade)

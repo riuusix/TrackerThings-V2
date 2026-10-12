@@ -1,6 +1,6 @@
 "use server";
 
-import { getSupabaseServerClient } from "@/utils/supabase/server";
+import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 
@@ -21,24 +21,18 @@ export async function createJadwalAction(formData: FormData) {
   }
 
   try {
-    const supabase = await getSupabaseServerClient();
-    const { error } = await supabase.from("jadwal").insert([
-      {
-        user_id: session.userId,
-        nama_matkul: namaMatkul,
+    await prisma.jadwal.create({
+      data: {
+        userId: session.userId,
+        namaMatkul,
         dosen,
         kategori,
         lokasi,
         hari,
-        waktu_mulai: waktuMulai,
-        waktu_selesai: waktuSelesai,
+        waktuMulai,
+        waktuSelesai,
       },
-    ]);
-
-    if (error) {
-      console.error("Supabase insert jadwal error:", error);
-      return { success: false, error: "Gagal menyimpan ke Supabase: " + error.message };
-    }
+    });
 
     revalidatePath("/dashboard");
     revalidatePath("/matakuliah");
@@ -67,23 +61,27 @@ export async function updateJadwalAction(formData: FormData) {
   }
 
   try {
-    const supabase = await getSupabaseServerClient();
-    const { error } = await supabase
-      .from("jadwal")
-      .update({
-        nama_matkul: namaMatkul,
+    const existing = await prisma.jadwal.findUnique({
+      where: { id },
+      select: { id: true, userId: true },
+    });
+
+    if (!existing || existing.userId !== session.userId) {
+      return { success: false, error: "Mata kuliah tidak ditemukan atau bukan milik Anda." };
+    }
+
+    await prisma.jadwal.update({
+      where: { id },
+      data: {
+        namaMatkul,
         dosen,
         kategori,
         lokasi,
         hari,
-        waktu_mulai: waktuMulai,
-        waktu_selesai: waktuSelesai,
-      })
-      .eq("id", id);
-
-    if (error) {
-      return { success: false, error: "Gagal memperbarui di Supabase: " + error.message };
-    }
+        waktuMulai,
+        waktuSelesai,
+      },
+    });
 
     revalidatePath("/dashboard");
     revalidatePath("/matakuliah");
@@ -99,12 +97,18 @@ export async function deleteJadwalAction(id: number) {
   if (!session) return { success: false, error: "Unauthorized" };
 
   try {
-    const supabase = await getSupabaseServerClient();
-    const { error } = await supabase.from("jadwal").delete().eq("id", id);
+    const existing = await prisma.jadwal.findUnique({
+      where: { id },
+      select: { id: true, userId: true },
+    });
 
-    if (error) {
-      return { success: false, error: "Gagal menghapus dari Supabase: " + error.message };
+    if (!existing || existing.userId !== session.userId) {
+      return { success: false, error: "Mata kuliah tidak ditemukan atau bukan milik Anda." };
     }
+
+    await prisma.jadwal.delete({
+      where: { id },
+    });
 
     revalidatePath("/dashboard");
     revalidatePath("/matakuliah");

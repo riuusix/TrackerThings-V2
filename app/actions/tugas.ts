@@ -1,6 +1,6 @@
 "use server";
 
-import { getSupabaseServerClient } from "@/utils/supabase/server";
+import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 
@@ -19,24 +19,28 @@ export async function createTugasAction(formData: FormData) {
   }
 
   try {
-    const supabase = await getSupabaseServerClient();
-    const { error } = await supabase.from("tugas").insert([
-      {
-        user_id: session.userId,
-        id_jadwal: idJadwal,
-        nama_tugas: namaTugas,
-        deadline: new Date(deadlineStr).toISOString(),
+    // Validasi jadwal milik user yang sedang login
+    const jadwal = await prisma.jadwal.findFirst({
+      where: { id: idJadwal, userId: session.userId },
+      select: { id: true },
+    });
+
+    if (!jadwal) {
+      return { success: false, error: "Jadwal mata kuliah tidak ditemukan atau bukan milik Anda." };
+    }
+
+    await prisma.tugas.create({
+      data: {
+        userId: session.userId,
+        idJadwal,
+        namaTugas,
+        deadline: new Date(deadlineStr),
         prioritas,
         jenis,
         status: "Belum Dikerjakan",
         progress: 0,
       },
-    ]);
-
-    if (error) {
-      console.error("Supabase insert tugas error:", error);
-      return { success: false, error: "Gagal menyimpan ke Supabase: " + error.message };
-    }
+    });
 
     revalidatePath("/dashboard");
     return { success: true, message: "Tugas berhasil ditambahkan!" };
@@ -62,21 +66,34 @@ export async function updateTugasAction(formData: FormData) {
   }
 
   try {
-    const supabase = await getSupabaseServerClient();
-    const { error } = await supabase
-      .from("tugas")
-      .update({
-        nama_tugas: namaTugas,
-        deadline: new Date(deadlineStr).toISOString(),
-        id_jadwal: idJadwal,
+    const existing = await prisma.tugas.findUnique({
+      where: { id: idTugas },
+      select: { id: true, userId: true },
+    });
+
+    if (!existing || existing.userId !== session.userId) {
+      return { success: false, error: "Tugas tidak ditemukan atau bukan milik Anda." };
+    }
+
+    const jadwal = await prisma.jadwal.findFirst({
+      where: { id: idJadwal, userId: session.userId },
+      select: { id: true },
+    });
+
+    if (!jadwal) {
+      return { success: false, error: "Jadwal mata kuliah tidak ditemukan atau bukan milik Anda." };
+    }
+
+    await prisma.tugas.update({
+      where: { id: idTugas },
+      data: {
+        namaTugas,
+        deadline: new Date(deadlineStr),
+        idJadwal,
         prioritas,
         jenis,
-      })
-      .eq("id", idTugas);
-
-    if (error) {
-      return { success: false, error: "Gagal memperbarui di Supabase: " + error.message };
-    }
+      },
+    });
 
     revalidatePath("/dashboard");
     return { success: true, message: "Tugas berhasil diperbarui!" };
@@ -99,18 +116,22 @@ export async function updateTugasProgressAction(idTugas: number, progressVal: nu
   }
 
   try {
-    const supabase = await getSupabaseServerClient();
-    const { error } = await supabase
-      .from("tugas")
-      .update({
+    const existing = await prisma.tugas.findUnique({
+      where: { id: idTugas },
+      select: { id: true, userId: true },
+    });
+
+    if (!existing || existing.userId !== session.userId) {
+      return { success: false, error: "Tugas tidak ditemukan atau bukan milik Anda." };
+    }
+
+    await prisma.tugas.update({
+      where: { id: idTugas },
+      data: {
         progress: clampedProgress,
         status,
-      })
-      .eq("id", idTugas);
-
-    if (error) {
-      return { success: false, error: "Gagal memperbarui progress: " + error.message };
-    }
+      },
+    });
 
     revalidatePath("/dashboard");
     return { success: true, status, progress: clampedProgress };
@@ -125,12 +146,18 @@ export async function deleteTugasAction(idTugas: number) {
   if (!session) return { success: false, error: "Unauthorized" };
 
   try {
-    const supabase = await getSupabaseServerClient();
-    const { error } = await supabase.from("tugas").delete().eq("id", idTugas);
+    const existing = await prisma.tugas.findUnique({
+      where: { id: idTugas },
+      select: { id: true, userId: true },
+    });
 
-    if (error) {
-      return { success: false, error: "Gagal menghapus tugas: " + error.message };
+    if (!existing || existing.userId !== session.userId) {
+      return { success: false, error: "Tugas tidak ditemukan atau bukan milik Anda." };
     }
+
+    await prisma.tugas.delete({
+      where: { id: idTugas },
+    });
 
     revalidatePath("/dashboard");
     return { success: true, message: "Tugas berhasil dihapus." };

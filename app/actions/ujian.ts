@@ -1,6 +1,6 @@
 "use server";
 
-import { getSupabaseServerClient } from "@/utils/supabase/server";
+import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 
@@ -20,24 +20,36 @@ export async function createUjianAction(formData: FormData) {
     return { success: false, error: "Mata kuliah, jenis ujian, dan tanggal ujian wajib diisi." };
   }
 
+  const parsedDate = new Date(tanggalStr);
+  if (isNaN(parsedDate.getTime())) {
+    return { success: false, error: "Format tanggal ujian tidak valid." };
+  }
+
   try {
-    const supabase = await getSupabaseServerClient();
-    const { error } = await supabase.from("ujian").insert([
-      {
-        user_id: session.userId,
-        id_jadwal: idJadwal,
-        jenis_ujian: jenisUjian,
-        tanggal: tanggalStr,
-        waktu_mulai: waktuMulai,
-        waktu_selesai: waktuSelesai,
+    const jadwal = await prisma.jadwal.findFirst({
+      where: {
+        id: idJadwal,
+        userId: session.userId,
+      },
+      select: { id: true },
+    });
+
+    if (!jadwal) {
+      return { success: false, error: "Mata kuliah tidak ditemukan atau bukan milik Anda." };
+    }
+
+    await prisma.ujian.create({
+      data: {
+        userId: session.userId,
+        idJadwal,
+        jenisUjian,
+        tanggal: parsedDate,
+        waktuMulai,
+        waktuSelesai,
         ruangan,
         catatan,
       },
-    ]);
-
-    if (error) {
-      return { success: false, error: "Gagal menyimpan ke Supabase: " + error.message };
-    }
+    });
 
     revalidatePath("/dashboard");
     revalidatePath("/ujian");
@@ -65,24 +77,49 @@ export async function updateUjianAction(formData: FormData) {
     return { success: false, error: "Mata kuliah, jenis ujian, dan tanggal ujian wajib diisi." };
   }
 
+  const parsedDate = new Date(tanggalStr);
+  if (isNaN(parsedDate.getTime())) {
+    return { success: false, error: "Format tanggal ujian tidak valid." };
+  }
+
   try {
-    const supabase = await getSupabaseServerClient();
-    const { error } = await supabase
-      .from("ujian")
-      .update({
-        id_jadwal: idJadwal,
-        jenis_ujian: jenisUjian,
-        tanggal: tanggalStr,
-        waktu_mulai: waktuMulai,
-        waktu_selesai: waktuSelesai,
+    const existing = await prisma.ujian.findUnique({
+      where: { id },
+      select: { id: true, userId: true },
+    });
+
+    if (!existing) {
+      return { success: false, error: "Jadwal ujian tidak ditemukan." };
+    }
+
+    if (existing.userId !== session.userId) {
+      return { success: false, error: "Akses ditolak: Anda tidak memiliki izin untuk mengubah data ini." };
+    }
+
+    const jadwal = await prisma.jadwal.findFirst({
+      where: {
+        id: idJadwal,
+        userId: session.userId,
+      },
+      select: { id: true },
+    });
+
+    if (!jadwal) {
+      return { success: false, error: "Mata kuliah tidak ditemukan atau bukan milik Anda." };
+    }
+
+    await prisma.ujian.update({
+      where: { id },
+      data: {
+        idJadwal,
+        jenisUjian,
+        tanggal: parsedDate,
+        waktuMulai,
+        waktuSelesai,
         ruangan,
         catatan,
-      })
-      .eq("id", id);
-
-    if (error) {
-      return { success: false, error: "Gagal memperbarui di Supabase: " + error.message };
-    }
+      },
+    });
 
     revalidatePath("/dashboard");
     revalidatePath("/ujian");
@@ -98,12 +135,22 @@ export async function deleteUjianAction(id: number) {
   if (!session) return { success: false, error: "Unauthorized" };
 
   try {
-    const supabase = await getSupabaseServerClient();
-    const { error } = await supabase.from("ujian").delete().eq("id", id);
+    const existing = await prisma.ujian.findUnique({
+      where: { id },
+      select: { id: true, userId: true },
+    });
 
-    if (error) {
-      return { success: false, error: "Gagal menghapus dari Supabase: " + error.message };
+    if (!existing) {
+      return { success: false, error: "Jadwal ujian tidak ditemukan." };
     }
+
+    if (existing.userId !== session.userId) {
+      return { success: false, error: "Akses ditolak: Anda tidak memiliki izin untuk menghapus data ini." };
+    }
+
+    await prisma.ujian.delete({
+      where: { id },
+    });
 
     revalidatePath("/dashboard");
     revalidatePath("/ujian");
