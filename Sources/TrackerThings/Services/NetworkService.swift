@@ -44,7 +44,7 @@ public actor NetworkService: NetworkServiceProtocol {
                   let savedURL = URL(string: savedURLStr) {
             self.baseURL = savedURL
         } else {
-            self.baseURL = URL(string: "http://localhost:3000/api")!
+            self.baseURL = URL(string: AppConfig.defaultServerURL) ?? URL(string: "http://localhost:3000/api")!
         }
 
         self.urlSession = urlSession

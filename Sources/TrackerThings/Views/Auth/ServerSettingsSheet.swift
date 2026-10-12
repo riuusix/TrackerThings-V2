@@ -30,13 +30,14 @@ public struct ServerSettingsSheet: View {
                 } header: {
                     Text("Alamat Server Backend")
                 } footer: {
-                    Text("Untuk iPhone fisik, masukkan IP lokal komputer Anda (misal 192.168.1.15:3000 atau http://192.168.1.15:3000/api). Jalur /api akan otomatis disesuaikan.")
+                    Text("Untuk testing lokal di iPhone fisik, masukkan IP lokal komputer Anda (contoh: 192.168.1.15:3000 atau http://192.168.1.15:3000/api). Untuk server online, masukkan URL deployment Vercel Anda yang sudah aktif (contoh: https://project-anda.vercel.app). Jalur /api akan disesuaikan otomatis.")
                         .font(.footnote)
                 }
 
                 Section {
-                    Button("Gunakan Default (localhost)") {
-                        urlInput = AppConfig.defaultServerURL
+                    Button("Kembalikan ke URL Default Sistem") {
+                        config.resetToDefault()
+                        urlInput = config.serverURLString
                     }
                     .foregroundStyle(.blue)
                 }

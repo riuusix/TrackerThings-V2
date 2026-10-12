@@ -97,5 +97,7 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>ServerBaseURL</key>
+	<string></string>
 </dict>
 </plist>
