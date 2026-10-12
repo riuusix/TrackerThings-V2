@@ -98,6 +98,6 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 	<key>ServerBaseURL</key>
-	<string></string>
+	<string>https://trackerthings.vercel.app/api</string>
 </dict>
 </plist>
