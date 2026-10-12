@@ -13,6 +13,11 @@ public final class DashboardViewModel {
     public var selectedDay: String = "Senin"
     public var isLoading: Bool = false
     public var errorMessage: String?
+    public var toast: FeedbackToastData?
+
+    public func showToast(_ message: String, severity: FeedbackSeverity = .info) {
+        self.toast = FeedbackToastData(message: message, severity: severity)
+    }
 
     public let daysOfWeek = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]
 
@@ -123,10 +128,12 @@ public final class DashboardViewModel {
             _ = try await dataService.updateTugasProgress(id: task.id, progress: progress)
             if progress >= 100 {
                 NotificationService.shared.cancelReminderForTask(id: task.id)
+                showToast("Tugas \"\(task.namaTugas)\" selesai!", severity: .success)
             }
             await loadDashboardData()
         } catch {
             errorMessage = error.localizedDescription
+            showToast(error.localizedDescription, severity: .error)
         }
     }
 
@@ -151,6 +158,7 @@ public final class DashboardViewModel {
         do {
             _ = try await dataService.createTugas(newTask)
             await loadDashboardData()
+            showToast("Tugas baru berhasil ditambahkan!", severity: .success)
 
             // Jadwalkan pengingat lokal untuk tugas yang baru disimpan
             let course = courses.first(where: { $0.id == idJadwal })
@@ -167,6 +175,7 @@ public final class DashboardViewModel {
             return true
         } catch {
             errorMessage = error.localizedDescription
+            showToast(error.localizedDescription, severity: .error)
             return false
         }
     }
@@ -175,9 +184,11 @@ public final class DashboardViewModel {
         guard item.tipe == .pengganti else { return }
         do {
             _ = try await dataService.selesaiKelasPengganti(id: item.id)
+            showToast("Kelas pengganti berhasil diselesaikan!", severity: .success)
             await loadDashboardData()
         } catch {
             errorMessage = error.localizedDescription
+            showToast(error.localizedDescription, severity: .error)
         }
     }
 

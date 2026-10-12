@@ -99,6 +99,7 @@ public struct CourseListView: View {
             .task {
                 await viewModel.fetchCourses()
             }
+            .feedbackToast(toast: $viewModel.toast)
         }
     }
 }

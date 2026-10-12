@@ -16,6 +16,21 @@ private struct TasksEnvelope<D: Decodable>: Decodable {
     let tasks: D
 }
 
+private struct JadwalEnvelope<D: Decodable>: Decodable {
+    let jadwal: D
+}
+
+private struct ExamsEnvelope<D: Decodable>: Decodable {
+    let exams: D
+}
+
+private struct KelasPenggantiEnvelope<D: Decodable>: Decodable {
+    let kelasPengganti: D
+    enum CodingKeys: String, CodingKey {
+        case kelasPengganti = "kelas_pengganti"
+    }
+}
+
 public protocol NetworkServiceProtocol: Sendable {
     func request<T: Decodable & Sendable>(
         endpoint: String,
@@ -205,6 +220,15 @@ public actor NetworkService: NetworkServiceProtocol {
             }
             if let envelope = try? jsonDecoder.decode(TasksEnvelope<T>.self, from: data) {
                 return envelope.tasks
+            }
+            if let envelope = try? jsonDecoder.decode(JadwalEnvelope<T>.self, from: data) {
+                return envelope.jadwal
+            }
+            if let envelope = try? jsonDecoder.decode(ExamsEnvelope<T>.self, from: data) {
+                return envelope.exams
+            }
+            if let envelope = try? jsonDecoder.decode(KelasPenggantiEnvelope<T>.self, from: data) {
+                return envelope.kelasPengganti
             }
             throw AppError.decodingError(primaryError.localizedDescription)
         }

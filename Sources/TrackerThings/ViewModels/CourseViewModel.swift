@@ -10,6 +10,11 @@ public final class CourseViewModel {
     public var errorMessage: String?
     public var isPresentingSheet: Bool = false
     public var editingCourse: JadwalItem?
+    public var toast: FeedbackToastData?
+
+    public func showToast(_ message: String, severity: FeedbackSeverity = .info) {
+        self.toast = FeedbackToastData(message: message, severity: severity)
+    }
 
     private let dataService: TrackerDataServiceProtocol
 
@@ -65,10 +70,12 @@ public final class CourseViewModel {
         )
 
         do {
-            if let editing = editingCourse {
+            if editingCourse != nil {
                 _ = try await dataService.updateJadwal(newItem)
+                showToast("Mata kuliah berhasil diperbarui!", severity: .success)
             } else {
                 _ = try await dataService.createJadwal(newItem)
+                showToast("Mata kuliah baru berhasil ditambahkan!", severity: .success)
             }
             await fetchCourses()
             isPresentingSheet = false
@@ -77,6 +84,7 @@ public final class CourseViewModel {
             return true
         } catch {
             errorMessage = error.localizedDescription
+            showToast(error.localizedDescription, severity: .error)
             isLoading = false
             return false
         }
@@ -86,8 +94,10 @@ public final class CourseViewModel {
         do {
             _ = try await dataService.deleteJadwal(id: id)
             courses.removeAll { $0.id == id }
+            showToast("Mata kuliah berhasil dihapus.", severity: .success)
         } catch {
             errorMessage = error.localizedDescription
+            showToast(error.localizedDescription, severity: .error)
         }
     }
 }

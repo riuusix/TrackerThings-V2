@@ -217,6 +217,7 @@ public struct DashboardView: View {
             .sheet(isPresented: $isPresentingAddTask) {
                 TaskFormSheet(viewModel: viewModel)
             }
+            .feedbackToast(toast: $viewModel.toast)
         }
     }
 }

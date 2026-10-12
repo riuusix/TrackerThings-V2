@@ -7,13 +7,13 @@ import SwiftUI
 public final class AppConfig {
     public static let shared = AppConfig()
 
-    public static let serverURLKey = "trackerthings_custom_server_url"
+    nonisolated public static let serverURLKey = "trackerthings_custom_server_url"
 
     /// Base URL produksi bawaan aplikasi (selalu mengarah ke cloud deployment resmi Vercel).
-    public static let productionServerURL = "https://trackerthings.vercel.app/api"
+    nonisolated public static let productionServerURL = "https://trackerthings.vercel.app/api"
 
     /// Base URL fallback development lokal.
-    public static let developmentServerURL = "http://localhost:3000/api"
+    nonisolated public static let developmentServerURL = "http://localhost:3000/api"
 
     /// Mengambil default Server Base URL secara nonisolated dan thread-safe (Swift 6 compliant).
     /// Prioritas:
