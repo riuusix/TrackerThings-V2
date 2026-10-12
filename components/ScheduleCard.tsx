@@ -16,6 +16,7 @@ export function ScheduleCard({ item }: ScheduleCardProps) {
   const { showSuccess, showError } = useToast();
 
   const handleSelesai = () => {
+    if (isPending) return;
     if (!confirm("Selesaikan kelas pengganti ini dan pindahkan ke riwayat?")) return;
     startTransition(async () => {
       try {
@@ -72,11 +73,21 @@ export function ScheduleCard({ item }: ScheduleCardProps) {
             type="button"
             onClick={handleSelesai}
             disabled={isPending}
+            aria-busy={isPending}
             title="Tandai Kelas Selesai"
-            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40 transition-all font-semibold active:scale-95"
+            className="flex items-center justify-center gap-1.5 text-xs px-3 py-1.5 min-w-[96px] rounded-xl bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40 transition-all font-semibold active:scale-95 disabled:opacity-50"
           >
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-            <span>Selesai</span>
+            {isPending ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-600 dark:text-emerald-400" />
+                <span>Memproses...</span>
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                <span>Selesai</span>
+              </>
+            )}
           </button>
         )}
       </div>

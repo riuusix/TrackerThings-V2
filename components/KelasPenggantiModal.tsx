@@ -146,17 +146,25 @@ export function KelasPenggantiModal({
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            disabled={isPending}
+            className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
           >
             Batal
           </button>
           <button
             type="submit"
             disabled={isPending}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-600/20 transition-all disabled:opacity-50 active:scale-95"
+            aria-busy={isPending}
+            className="flex items-center justify-center gap-2 px-5 py-2.5 min-w-[210px] rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-600/20 transition-all disabled:opacity-50 active:scale-95"
           >
-            {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-            <span>Tambah Kelas Pengganti</span>
+            {isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Menyimpan...</span>
+              </>
+            ) : (
+              <span>Tambah Kelas Pengganti</span>
+            )}
           </button>
         </div>
       </form>

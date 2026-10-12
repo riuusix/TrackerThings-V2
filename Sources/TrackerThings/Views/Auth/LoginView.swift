@@ -114,6 +114,8 @@ public struct LoginView: View {
                         if authViewModel.isLoading {
                             ProgressView()
                                 .tint(.white)
+                            Text("Masuk...")
+                                .font(.headline.weight(.semibold))
                         } else {
                             Text("Masuk")
                                 .font(.headline.weight(.semibold))

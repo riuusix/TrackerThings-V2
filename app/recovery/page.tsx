@@ -28,6 +28,7 @@ export default function RecoveryPage() {
 
   const handleCheckUsername = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (isPending) return;
     setError(null);
     const formData = new FormData(e.currentTarget);
     const u = (formData.get("username") as string)?.trim();
@@ -47,6 +48,7 @@ export default function RecoveryPage() {
 
   const handleResetPassword = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (isPending) return;
     setError(null);
     const formData = new FormData(e.currentTarget);
     formData.set("username", username);
@@ -119,10 +121,14 @@ export default function RecoveryPage() {
               <button
                 type="submit"
                 disabled={isPending}
-                className="w-full py-3.5 px-4 rounded-xl font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                aria-busy={isPending}
+                className="w-full py-3.5 px-4 min-h-[50px] rounded-xl font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 {isPending ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>Memeriksa...</span>
+                  </>
                 ) : (
                   <>
                     <span>Cari Akun</span>
@@ -174,10 +180,14 @@ export default function RecoveryPage() {
               <button
                 type="submit"
                 disabled={isPending}
-                className="w-full py-3.5 px-4 rounded-xl font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                aria-busy={isPending}
+                className="w-full py-3.5 px-4 min-h-[50px] rounded-xl font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 {isPending ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>Menyimpan...</span>
+                  </>
                 ) : (
                   <span>Simpan Kata Sandi Baru</span>
                 )}

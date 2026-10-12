@@ -218,6 +218,8 @@ public struct RegisterView: View {
                             if authViewModel.isLoading {
                                 ProgressView()
                                     .tint(.white)
+                                Text("Mendaftar...")
+                                    .font(.headline.weight(.semibold))
                             } else {
                                 Text("Daftar Sekarang")
                                     .font(.headline.weight(.semibold))
@@ -296,6 +298,7 @@ public struct RegisterView: View {
     }
 
     private func handleRegister() {
+        guard !authViewModel.isLoading else { return }
         localValidationMessage = nil
         authViewModel.clearMessages()
 

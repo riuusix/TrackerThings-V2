@@ -46,6 +46,7 @@ export function UjianClient({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [examToEdit, setExamToEdit] = useState<(UjianItem & { jadwal?: { namaMatkul: string } }) | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { showSuccess, showError } = useToast();
 
@@ -66,7 +67,9 @@ export function UjianClient({
   };
 
   const handleDelete = async (exam: UjianItem) => {
+    if (deletingId !== null) return;
     if (!confirm("Hapus jadwal ujian ini?")) return;
+    setDeletingId(exam.id);
     try {
       const res = await deleteUjianAction(exam.id);
       if (res.success) {
@@ -80,6 +83,8 @@ export function UjianClient({
     } catch (err) {
       const friendly = classifyApiError(err, "Gagal memproses penghapusan ujian.");
       showError(friendly);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -247,17 +252,24 @@ export function UjianClient({
                   <div className="flex items-center justify-end gap-2 pt-4 mt-4 border-t border-slate-100 dark:border-slate-800/60">
                     <button
                       onClick={() => handleOpenEdit(u)}
-                      className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                      disabled={deletingId !== null}
+                      className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
                       title="Edit Ujian"
                     >
                       <Edit2 className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleDelete(u)}
-                      className="p-2 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors"
+                      disabled={deletingId !== null}
+                      aria-busy={deletingId === u.id}
+                      className="p-2 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors disabled:opacity-50"
                       title="Hapus Ujian"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      {deletingId === u.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
                     </button>
                   </div>
                 </div>
@@ -388,17 +400,25 @@ export function UjianClient({
             <button
               type="button"
               onClick={() => setIsModalOpen(false)}
-              className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              disabled={isPending}
+              className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
             >
               Batal
             </button>
             <button
               type="submit"
               disabled={isPending}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-500/25 transition-all disabled:opacity-50"
+              aria-busy={isPending}
+              className="flex items-center justify-center gap-2 px-5 py-2.5 min-w-[160px] rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-500/25 transition-all disabled:opacity-50"
             >
-              {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-              <span>{examToEdit ? "Simpan Perubahan" : "Simpan Jadwal"}</span>
+              {isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Menyimpan...</span>
+                </>
+              ) : (
+                <span>{examToEdit ? "Simpan Perubahan" : "Simpan Jadwal"}</span>
+              )}
             </button>
           </div>
         </form>

@@ -31,6 +31,7 @@ export function TaskItem({ task, onEdit }: TaskItemProps) {
   const isPast = daysLeft < 0 && task.status !== "Selesai";
 
   const handleProgressChange = (newVal: number) => {
+    if (isPending || isDeleting) return;
     setProgress(newVal);
     startTransition(async () => {
       try {
@@ -45,6 +46,7 @@ export function TaskItem({ task, onEdit }: TaskItemProps) {
   };
 
   const handleMarkComplete = () => {
+    if (isPending || isDeleting) return;
     setProgress(100);
     startTransition(async () => {
       try {
@@ -61,7 +63,7 @@ export function TaskItem({ task, onEdit }: TaskItemProps) {
   };
 
   const handleDelete = async () => {
-    if (isDeleting) return;
+    if (isDeleting || isPending) return;
     if (!confirm(`Hapus tugas "${task.namaTugas}"?`)) return;
     setIsDeleting(true);
     try {
@@ -70,10 +72,10 @@ export function TaskItem({ task, onEdit }: TaskItemProps) {
         showSuccess(`Tugas "${task.namaTugas}" berhasil dihapus.`);
       } else {
         showError(classifyApiError(res.error, "Gagal menghapus tugas."));
-        setIsDeleting(false);
       }
     } catch (err) {
       showError(classifyApiError(err, "Gagal memproses penghapusan tugas."));
+    } finally {
       setIsDeleting(false);
     }
   };
@@ -138,19 +140,25 @@ export function TaskItem({ task, onEdit }: TaskItemProps) {
             <button
               type="button"
               onClick={handleMarkComplete}
-              disabled={isPending}
+              disabled={isPending || isDeleting}
+              aria-busy={isPending}
               title="Tandai Selesai"
-              className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40 transition-all active:scale-95"
+              className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40 transition-all active:scale-95 disabled:opacity-50"
             >
-              <CheckCircle2 className="w-4 h-4" />
+              {isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin text-emerald-600 dark:text-emerald-400" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4" />
+              )}
             </button>
           )}
 
           <button
             type="button"
             onClick={() => onEdit(task)}
+            disabled={isPending || isDeleting}
             title="Edit Tugas"
-            className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/80 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700 transition-all active:scale-95"
+            className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/80 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700 transition-all active:scale-95 disabled:opacity-50"
           >
             <Edit2 className="w-4 h-4" />
           </button>
@@ -158,7 +166,8 @@ export function TaskItem({ task, onEdit }: TaskItemProps) {
           <button
             type="button"
             onClick={handleDelete}
-            disabled={isDeleting}
+            disabled={isDeleting || isPending}
+            aria-busy={isDeleting}
             title="Hapus Tugas"
             className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/40 transition-all disabled:opacity-50 active:scale-95"
           >

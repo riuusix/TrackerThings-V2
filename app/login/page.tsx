@@ -17,6 +17,7 @@ function LoginForm() {
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (isPending) return;
     setError(null);
     const formData = new FormData(e.currentTarget);
 
@@ -85,10 +86,14 @@ function LoginForm() {
         <button
           type="submit"
           disabled={isPending}
-          className="w-full py-3.5 px-4 rounded-xl font-semibold text-white bg-blue-600 hover:bg-blue-700 active:scale-[0.98] shadow-lg shadow-blue-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+          aria-busy={isPending}
+          className="w-full py-3.5 px-4 min-h-[50px] rounded-xl font-semibold text-white bg-blue-600 hover:bg-blue-700 active:scale-[0.98] shadow-lg shadow-blue-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
         >
           {isPending ? (
-            <Loader2 className="w-5 h-5 animate-spin" />
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              <span>Memproses...</span>
+            </>
           ) : (
             <>
               <span>Masuk ke Akun</span>

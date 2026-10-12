@@ -59,10 +59,12 @@ public struct TaskFormSheet: View {
                     Button("Batal") {
                         dismiss()
                     }
+                    .disabled(isSubmitting)
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Simpan") {
+                    Button {
+                        guard !isSubmitting else { return }
                         isSubmitting = true
                         Task {
                             let ok = await viewModel.saveTask(
@@ -76,6 +78,16 @@ public struct TaskFormSheet: View {
                             if ok {
                                 dismiss()
                             }
+                        }
+                    } label: {
+                        if isSubmitting {
+                            HStack(spacing: 6) {
+                                ProgressView()
+                                    .controlSize(.small)
+                                Text("Menyimpan...")
+                            }
+                        } else {
+                            Text("Simpan")
                         }
                     }
                     .disabled(namaTugas.trimmingCharacters(in: .whitespaces).isEmpty || idJadwal <= 0 || isSubmitting)

@@ -4,6 +4,13 @@ public struct ScheduleCardView: View {
     public let item: JadwalGabunganItem
     public var onMarkComplete: (() -> Void)?
 
+    @State private var isProcessing: Bool = false
+
+    public init(item: JadwalGabunganItem, onMarkComplete: (() -> Void)? = nil) {
+        self.item = item
+        self.onMarkComplete = onMarkComplete
+    }
+
     public var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Header Tags
@@ -39,16 +46,36 @@ public struct ScheduleCardView: View {
                 Spacer()
 
                 if item.tipe == .pengganti, let onMarkComplete = onMarkComplete {
-                    Button(action: onMarkComplete) {
-                        Label("Selesai", systemImage: "checkmark.circle.fill")
+                    Button {
+                        guard !isProcessing else { return }
+                        isProcessing = true
+                        onMarkComplete()
+                    } label: {
+                        if isProcessing {
+                            HStack(spacing: 4) {
+                                ProgressView()
+                                    .controlSize(.small)
+                                    .tint(.green)
+                                Text("Memproses...")
+                            }
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.green)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                             .background(Color.green.opacity(0.12))
                             .clipShape(Capsule())
+                        } else {
+                            Label("Selesai", systemImage: "checkmark.circle.fill")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.green)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.green.opacity(0.12))
+                                .clipShape(Capsule())
+                        }
                     }
                     .buttonStyle(.plain)
+                    .disabled(isProcessing)
                 }
             }
 

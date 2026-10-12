@@ -118,6 +118,7 @@ public struct SettingsView: View {
                     }
 
                     Button {
+                        guard !viewModel.isLoadingProfile else { return }
                         Task {
                             if let updatedUser = await viewModel.saveProfile() {
                                 authViewModel.currentUser = updatedUser
@@ -217,6 +218,7 @@ public struct SettingsView: View {
                     }
 
                     Button {
+                        guard !viewModel.isLoadingPassword else { return }
                         Task {
                             _ = await viewModel.savePassword()
                         }
@@ -228,7 +230,7 @@ public struct SettingsView: View {
                                     .tint(.white)
                                     .padding(.trailing, 6)
                             }
-                            Text(viewModel.isLoadingPassword ? "Mengubah Sandi..." : "Perbarui Kata Sandi")
+                            Text(viewModel.isLoadingPassword ? "Memproses..." : "Perbarui Kata Sandi")
                                 .fontWeight(.semibold)
                             Spacer()
                         }

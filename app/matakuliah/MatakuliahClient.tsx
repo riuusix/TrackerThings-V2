@@ -46,6 +46,7 @@ export function MatakuliahClient({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [courseToEdit, setCourseToEdit] = useState<JadwalItem | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { showSuccess, showError } = useToast();
 
@@ -75,7 +76,9 @@ export function MatakuliahClient({
   };
 
   const handleDelete = async (course: JadwalItem) => {
+    if (deletingId !== null) return;
     if (!confirm(`Hapus mata kuliah "${course.namaMatkul}" beserta jadwalnya?`)) return;
+    setDeletingId(course.id);
     try {
       const res = await deleteJadwalAction(course.id);
       if (res.success) {
@@ -89,6 +92,8 @@ export function MatakuliahClient({
     } catch (err) {
       const friendly = classifyApiError(err, "Gagal memproses penghapusan mata kuliah.");
       showError(friendly);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -247,17 +252,24 @@ export function MatakuliahClient({
                 <div className="flex items-center justify-end gap-2 pt-4 mt-4 border-t border-slate-100 dark:border-slate-800/60">
                   <button
                     onClick={() => handleOpenEdit(c)}
-                    className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    disabled={deletingId !== null}
+                    className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
                     title="Edit Mata Kuliah"
                   >
                     <Edit2 className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => handleDelete(c)}
-                    className="p-2 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors"
+                    disabled={deletingId !== null}
+                    aria-busy={deletingId === c.id}
+                    className="p-2 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors disabled:opacity-50"
                     title="Hapus Mata Kuliah"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    {deletingId === c.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
                   </button>
                 </div>
               </div>
@@ -389,17 +401,25 @@ export function MatakuliahClient({
             <button
               type="button"
               onClick={() => setIsModalOpen(false)}
-              className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              disabled={isPending}
+              className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
             >
               Batal
             </button>
             <button
               type="submit"
               disabled={isPending}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-500/25 transition-all disabled:opacity-50"
+              aria-busy={isPending}
+              className="flex items-center justify-center gap-2 px-5 py-2.5 min-w-[170px] rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-500/25 transition-all disabled:opacity-50"
             >
-              {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-              <span>{courseToEdit ? "Simpan Perubahan" : "Tambah Mata Kuliah"}</span>
+              {isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Menyimpan...</span>
+                </>
+              ) : (
+                <span>{courseToEdit ? "Simpan Perubahan" : "Tambah Mata Kuliah"}</span>
+              )}
             </button>
           </div>
         </form>

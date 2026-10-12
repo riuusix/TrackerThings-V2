@@ -182,10 +182,17 @@ export function SettingsClient({ user }: SettingsClientProps) {
                 <button
                   type="submit"
                   disabled={pwdPending}
-                  className="w-full py-2.5 px-4 rounded-xl font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-500/25 transition-all text-sm flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
+                  aria-busy={pwdPending}
+                  className="w-full py-2.5 px-4 min-h-[42px] rounded-xl font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-500/25 transition-all text-sm flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
                 >
-                  {pwdPending && <Loader2 className="w-4 h-4 animate-spin" />}
-                  <span>Perbarui Kata Sandi</span>
+                  {pwdPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Memproses...</span>
+                    </>
+                  ) : (
+                    <span>Perbarui Kata Sandi</span>
+                  )}
                 </button>
               </form>
             </div>
@@ -264,10 +271,17 @@ export function SettingsClient({ user }: SettingsClientProps) {
                 <button
                   type="submit"
                   disabled={secPending}
-                  className="w-full py-2.5 px-4 rounded-xl font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md shadow-emerald-500/25 transition-all text-sm flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
+                  aria-busy={secPending}
+                  className="w-full py-2.5 px-4 min-h-[42px] rounded-xl font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md shadow-emerald-500/25 transition-all text-sm flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
                 >
-                  {secPending && <Loader2 className="w-4 h-4 animate-spin" />}
-                  <span>Simpan Pertanyaan</span>
+                  {secPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Menyimpan...</span>
+                    </>
+                  ) : (
+                    <span>Simpan Pertanyaan</span>
+                  )}
                 </button>
               </form>
             </div>

@@ -7,6 +7,7 @@ public struct TaskCardView: View {
     public var onMarkCompleted: (() -> Void)?
 
     @State private var localProgress: Double
+    @State private var isMarkingComplete: Bool = false
 
     public init(
         task: TugasItem,
@@ -73,11 +74,22 @@ public struct TaskCardView: View {
 
                 HStack(spacing: 8) {
                     if task.status != .selesai, let onMarkCompleted = onMarkCompleted {
-                        Button(action: onMarkCompleted) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.body)
-                                .foregroundStyle(.green)
+                        Button {
+                            guard !isMarkingComplete else { return }
+                            isMarkingComplete = true
+                            onMarkCompleted()
+                        } label: {
+                            if isMarkingComplete {
+                                ProgressView()
+                                    .controlSize(.small)
+                                    .tint(.green)
+                            } else {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.body)
+                                    .foregroundStyle(.green)
+                            }
                         }
+                        .disabled(isMarkingComplete)
                     }
 
                     if let onEdit = onEdit {
@@ -86,6 +98,7 @@ public struct TaskCardView: View {
                                 .font(.body)
                                 .foregroundStyle(.secondary)
                         }
+                        .disabled(isMarkingComplete)
                     }
                 }
             }
@@ -152,6 +165,10 @@ public struct TaskCardView: View {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(Color(uiColor: .secondarySystemGroupedBackground))
                 .shadow(color: .black.opacity(0.04), radius: 6, x: 0, y: 3)
+        }
+        .onChange(of: task.progress) { _, newProgress in
+            localProgress = Double(newProgress)
+            isMarkingComplete = false
         }
     }
 }

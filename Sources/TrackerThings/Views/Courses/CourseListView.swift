@@ -115,6 +115,7 @@ public struct CourseFormSheet: View {
     @State private var waktuMulai: String = "08:00"
     @State private var waktuSelesai: String = "09:40"
     @State private var lokasi: String = ""
+    @State private var isSubmitting: Bool = false
 
     private let hariOptions = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]
     private let kategoriOptions = ["Wajib", "Pilihan", "Praktikum", "Umum"]
@@ -163,10 +164,13 @@ public struct CourseFormSheet: View {
                     Button("Batal") {
                         dismiss()
                     }
+                    .disabled(isSubmitting)
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Simpan") {
+                    Button {
+                        guard !isSubmitting else { return }
+                        isSubmitting = true
                         Task {
                             let ok = await viewModel.saveCourse(
                                 namaMatkul: namaMatkul,
@@ -177,10 +181,21 @@ public struct CourseFormSheet: View {
                                 waktuMulai: waktuMulai,
                                 waktuSelesai: waktuSelesai
                             )
+                            isSubmitting = false
                             if ok { dismiss() }
                         }
+                    } label: {
+                        if isSubmitting {
+                            HStack(spacing: 6) {
+                                ProgressView()
+                                    .controlSize(.small)
+                                Text("Menyimpan...")
+                            }
+                        } else {
+                            Text("Simpan")
+                        }
                     }
-                    .disabled(namaMatkul.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .disabled(namaMatkul.trimmingCharacters(in: .whitespaces).isEmpty || isSubmitting)
                 }
             }
             .onAppear {

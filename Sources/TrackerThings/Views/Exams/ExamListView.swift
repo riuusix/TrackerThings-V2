@@ -143,6 +143,7 @@ public struct ExamFormSheet: View {
     @State private var waktuSelesai: String = "10:00"
     @State private var ruangan: String = ""
     @State private var catatan: String = ""
+    @State private var isSubmitting: Bool = false
 
     private let jenisOptions = ["UTS", "UAS", "Kuis", "Responsi", "Praktikum"]
 
@@ -195,10 +196,13 @@ public struct ExamFormSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Batal") { dismiss() }
+                        .disabled(isSubmitting)
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Simpan") {
+                    Button {
+                        guard !isSubmitting else { return }
+                        isSubmitting = true
                         Task {
                             let ok = await viewModel.saveExam(
                                 idJadwal: idJadwal,
@@ -209,9 +213,21 @@ public struct ExamFormSheet: View {
                                 ruangan: ruangan.isEmpty ? nil : ruangan,
                                 catatan: catatan.isEmpty ? nil : catatan
                             )
+                            isSubmitting = false
                             if ok { dismiss() }
                         }
+                    } label: {
+                        if isSubmitting {
+                            HStack(spacing: 6) {
+                                ProgressView()
+                                    .controlSize(.small)
+                                Text("Menyimpan...")
+                            }
+                        } else {
+                            Text("Simpan")
+                        }
                     }
+                    .disabled(idJadwal <= 0 || isSubmitting)
                 }
             }
             .onAppear {
