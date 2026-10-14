@@ -1,145 +1,200 @@
 import SwiftUI
 import UIKit
 
-/// Monogram Logo Geometris Kanonikal TrackerThings.
-/// Mengikuti siluet referensi resmi (media_1792004406941_078456aa.webp):
-/// - Palang horizontal T dengan potongan terminal diagonal 45° di kanan atas.
-/// - Sayap centang dinamis yang menyatu secara mulus dengan dasar batang stem tanpa ekor menggantung.
-/// - Pertemuan sisi dalam sayap centang pada titik koordinat presisi (Y ≈ 0.552).
+/// Landmark geometri kanonikal TrackerThings dari gambar referensi resmi (media_1792004406941_078456aa.webp).
+private enum BrandLogoGeometry {
+    static let topY: CGFloat = 0.2646
+    static let cbBotY: CGFloat = 0.3535
+    static let cbLeft: CGFloat = 0.2520
+    static let cbRightTop: CGFloat = 0.7441
+    static let cbRightBot: CGFloat = 0.6689
+
+    static let stemLeft: CGFloat = 0.3984
+    static let stemRight: CGFloat = 0.4912
+    static let stemJoinY: CGFloat = 0.5518
+    static let stemBottomY: CGFloat = 0.7334
+    static let bottomApexX: CGFloat = 0.4500
+
+    static let cmTopY: CGFloat = 0.4033
+    static let cmInnerX: CGFloat = 0.6113
+    static let cmOuterX: CGFloat = 0.7227
+
+    static let rCorner: CGFloat = 0.010
+    static let rStemBottom: CGFloat = 0.024
+}
+
+/// Shape monolitik animatable untuk monogram TrackerThings yang menggabungkan seluruh geometri kanonikal
+/// ke dalam satu progress tunggal [0.0...1.0]:
+/// - Fase 1 (0.00...0.33): Batang vertikal "I" digambar dari atas ke bawah.
+/// - Fase 2 (0.33...0.66): Palang horizontal "T" digambar dari kiri ke kanan dengan terminal diagonal 45°.
+/// - Fase 3 (0.66...1.00): Sayap centang digambar dari dasar batang ke kanan atas hingga siluet kanonikal sempurna.
+public struct BrandLogoMonogramShape: Shape {
+    public var progress: CGFloat
+
+    public var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    public init(progress: CGFloat = 1.0) {
+        self.progress = progress
+    }
+
+    public func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let p = min(max(progress, 0.0), 1.0)
+        guard p > 0 else { return path }
+
+        let w = rect.width
+        let h = rect.height
+
+        let topY = h * BrandLogoGeometry.topY
+        let cbBotY = h * BrandLogoGeometry.cbBotY
+        let cbLeft = w * BrandLogoGeometry.cbLeft
+        let cbRightTop = w * BrandLogoGeometry.cbRightTop
+        let cbRightBot = w * BrandLogoGeometry.cbRightBot
+
+        let stemLeft = w * BrandLogoGeometry.stemLeft
+        let stemRight = w * BrandLogoGeometry.stemRight
+        let stemJoinY = h * BrandLogoGeometry.stemJoinY
+        let stemBottomY = h * BrandLogoGeometry.stemBottomY
+        let bottomApexX = w * BrandLogoGeometry.bottomApexX
+
+        let cmTopY = h * BrandLogoGeometry.cmTopY
+        let cmInnerX = w * BrandLogoGeometry.cmInnerX
+        let cmOuterX = w * BrandLogoGeometry.cmOuterX
+
+        let rCorner = w * BrandLogoGeometry.rCorner
+        let rStemBottom = w * BrandLogoGeometry.rStemBottom
+
+        // Pemetaan eksplisit & kontinu per fase dengan clamping 0...1
+        let pStem = min(max(p / 0.33, 0.0), 1.0)
+        let pCb = min(max((p - 0.33) / 0.33, 0.0), 1.0)
+        let pCm = min(max((p - 0.66) / 0.34, 0.0), 1.0)
+
+        // 1. Subpath Batang Vertikal "I" (Fase 1)
+        if pStem > 0 {
+            let currBottomY = topY + (stemBottomY - topY) * pStem
+            path.move(to: CGPoint(x: stemLeft, y: topY))
+            path.addLine(to: CGPoint(x: stemRight, y: topY))
+
+            if pStem < 1.0 {
+                path.addLine(to: CGPoint(x: stemRight, y: currBottomY))
+                path.addLine(to: CGPoint(x: stemLeft, y: currBottomY))
+            } else {
+                path.addLine(to: CGPoint(x: stemRight, y: stemBottomY - rStemBottom))
+                path.addQuadCurve(
+                    to: CGPoint(x: bottomApexX, y: stemBottomY),
+                    control: CGPoint(x: stemRight, y: stemBottomY)
+                )
+                path.addQuadCurve(
+                    to: CGPoint(x: stemLeft, y: stemBottomY - rStemBottom),
+                    control: CGPoint(x: stemLeft, y: stemBottomY)
+                )
+            }
+            path.closeSubpath()
+        }
+
+        // 2. Subpath Palang Horizontal "T" (Fase 2)
+        if pCb > 0 {
+            let totalSpan = cbRightTop - cbLeft
+            let currX = cbLeft + totalSpan * pCb
+
+            path.move(to: CGPoint(x: cbLeft + rCorner, y: topY))
+
+            if currX <= cbRightBot {
+                path.addLine(to: CGPoint(x: currX, y: topY))
+                path.addLine(to: CGPoint(x: currX, y: cbBotY))
+                path.addLine(to: CGPoint(x: cbLeft + rCorner, y: cbBotY))
+            } else {
+                let alpha = (currX - cbRightBot) / (cbRightTop - cbRightBot)
+                let currYSlant = cbBotY + (topY - cbBotY) * alpha
+
+                path.addLine(to: CGPoint(x: currX, y: topY))
+                path.addLine(to: CGPoint(x: currX, y: currYSlant))
+                path.addLine(to: CGPoint(x: cbRightBot, y: cbBotY))
+                path.addLine(to: CGPoint(x: cbLeft + rCorner, y: cbBotY))
+            }
+
+            path.addArc(
+                tangent1End: CGPoint(x: cbLeft, y: cbBotY),
+                tangent2End: CGPoint(x: cbLeft, y: topY),
+                radius: rCorner
+            )
+            path.addLine(to: CGPoint(x: cbLeft, y: topY + rCorner))
+            path.addArc(
+                tangent1End: CGPoint(x: cbLeft, y: topY),
+                tangent2End: CGPoint(x: cbLeft + rCorner, y: topY),
+                radius: rCorner
+            )
+            path.closeSubpath()
+        }
+
+        // 3. Subpath Sayap Centang (Fase 3)
+        if pCm > 0 {
+            let currY = stemBottomY + (cmTopY - stemBottomY) * pCm
+            let alphaOut = (currY - stemBottomY) / (cmTopY - stemBottomY)
+            let currXOut = bottomApexX + (cmOuterX - bottomApexX) * alphaOut
+
+            path.move(to: CGPoint(x: stemLeft, y: stemBottomY - rStemBottom))
+            path.addQuadCurve(
+                to: CGPoint(x: bottomApexX, y: stemBottomY),
+                control: CGPoint(x: stemLeft, y: stemBottomY)
+            )
+            path.addLine(to: CGPoint(x: currXOut, y: currY))
+
+            if currY >= stemJoinY {
+                path.addLine(to: CGPoint(x: stemRight, y: currY))
+            } else {
+                let alphaIn = (currY - stemJoinY) / (cmTopY - stemJoinY)
+                let currXIn = stemRight + (cmInnerX - stemRight) * alphaIn
+
+                path.addLine(to: CGPoint(x: currXIn, y: currY))
+                path.addLine(to: CGPoint(x: stemRight, y: stemJoinY))
+            }
+
+            path.addLine(to: CGPoint(x: stemRight, y: stemBottomY))
+            path.addLine(to: CGPoint(x: stemLeft, y: stemBottomY))
+            path.closeSubpath()
+        }
+
+        return path
+    }
+}
+
+/// Komponen visual Monogram Logo Geometris Kanonikal TrackerThings.
+/// Mempertahankan kompatibilitas API publik dengan initializer yang ada.
 public struct BrandLogoMarkView: View {
-    public let stemProgress: CGFloat
-    public let crossbarProgress: CGFloat
-    public let checkmarkProgress: CGFloat
+    public let progress: CGFloat
+
+    public init(progress: CGFloat = 1.0) {
+        self.progress = progress
+    }
 
     public init(
         stemProgress: CGFloat = 1.0,
         crossbarProgress: CGFloat = 1.0,
         checkmarkProgress: CGFloat = 1.0
     ) {
-        self.stemProgress = stemProgress
-        self.crossbarProgress = crossbarProgress
-        self.checkmarkProgress = checkmarkProgress
+        // Pemetaan kompatibilitas mundur
+        if stemProgress < 1.0 {
+            self.progress = stemProgress * 0.33
+        } else if crossbarProgress < 1.0 {
+            self.progress = 0.33 + crossbarProgress * 0.33
+        } else {
+            self.progress = 0.66 + checkmarkProgress * 0.34
+        }
     }
 
     public var body: some View {
-        GeometryReader { proxy in
-            let w = proxy.size.width
-            let h = proxy.size.height
-
-            // Landmark geometris terkalibrasi langsung dari gambar referensi kanonikal
-            let topY = h * 0.2646
-            let cbBotY = h * 0.3535
-            let cbLeft = w * 0.2520
-            let cbRightTop = w * 0.7441
-            let cbRightBot = w * 0.6689
-
-            let stemLeft = w * 0.3984
-            let stemRight = w * 0.4912
-            let stemJoinY = h * 0.5518
-            let stemBottomY = h * 0.7334
-            let bottomApexX = w * 0.4500
-
-            let cmTopY = h * 0.4033
-            let cmInnerX = w * 0.6113
-            let cmOuterX = w * 0.7227
-
-            let rCorner = w * 0.010
-            let rStemBottom = w * 0.024
-
-            ZStack {
-                // 1. Batang Vertikal "I" (Fase 1: Muncul pertama kali)
-                if stemProgress > 0 {
-                    Path { path in
-                        let currentBottomY = topY + (stemBottomY - topY) * stemProgress
-
-                        path.move(to: CGPoint(x: stemLeft, y: topY))
-                        path.addLine(to: CGPoint(x: stemRight, y: topY))
-                        path.addLine(to: CGPoint(x: stemRight, y: max(topY, currentBottomY - rStemBottom)))
-                        path.addQuadCurve(
-                            to: CGPoint(x: (stemLeft + stemRight) / 2, y: currentBottomY),
-                            control: CGPoint(x: stemRight, y: currentBottomY)
-                        )
-                        path.addQuadCurve(
-                            to: CGPoint(x: stemLeft, y: max(topY, currentBottomY - rStemBottom)),
-                            control: CGPoint(x: stemLeft, y: currentBottomY)
-                        )
-                        path.closeSubpath()
-                    }
-                    .fill(Color.white)
-                }
-
-                // 2. Palang Horizontal "I -> T" (Fase 2: Berkembang ke kiri & kanan dengan terminal diagonal)
-                if crossbarProgress > 0 {
-                    Path { path in
-                        let currentLeft = stemLeft - (stemLeft - cbLeft) * crossbarProgress
-                        let currentRightTop = stemRight + (cbRightTop - stemRight) * crossbarProgress
-                        let currentRightBot = stemRight + (cbRightBot - stemRight) * crossbarProgress
-
-                        path.move(to: CGPoint(x: currentLeft + rCorner, y: topY))
-                        path.addLine(to: CGPoint(x: currentRightTop, y: topY))
-                        // Terminal diagonal di ujung kanan palang atas
-                        path.addLine(to: CGPoint(x: currentRightBot, y: cbBotY))
-                        path.addLine(to: CGPoint(x: currentLeft + rCorner, y: cbBotY))
-                        path.addArc(
-                            tangent1End: CGPoint(x: currentLeft, y: cbBotY),
-                            tangent2End: CGPoint(x: currentLeft, y: topY),
-                            radius: rCorner
-                        )
-                        path.addLine(to: CGPoint(x: currentLeft, y: topY + rCorner))
-                        path.addArc(
-                            tangent1End: CGPoint(x: currentLeft, y: topY),
-                            tangent2End: CGPoint(x: currentLeft + rCorner, y: topY),
-                            radius: rCorner
-                        )
-                        path.closeSubpath()
-                    }
-                    .fill(Color.white)
-                }
-
-                // 3. Garis Centang & Badan Bawah Terpadu "T -> checkmark" (Fase 3: Tumbuh menyatu dari dasar batang)
-                if checkmarkProgress > 0 {
-                    Path { path in
-                        // Bentuk kanonikal sayap centang yang menyatu mulus dengan dasar batang T
-                        path.move(to: CGPoint(x: stemLeft, y: stemBottomY - rStemBottom))
-                        path.addQuadCurve(
-                            to: CGPoint(x: bottomApexX, y: stemBottomY),
-                            control: CGPoint(x: stemLeft, y: stemBottomY)
-                        )
-                        // Diagonal luar naik ke ujung sayap
-                        path.addLine(to: CGPoint(x: cmOuterX, y: cmTopY))
-                        // Potongan horizontal atas sayap
-                        path.addLine(to: CGPoint(x: cmInnerX, y: cmTopY))
-                        // Diagonal dalam turun ke pertemuan batang
-                        path.addLine(to: CGPoint(x: stemRight, y: stemJoinY))
-                        // Menyatu ke batang tegak
-                        path.addLine(to: CGPoint(x: stemRight, y: stemBottomY))
-                        path.addLine(to: CGPoint(x: stemLeft, y: stemBottomY))
-                        path.closeSubpath()
-                    }
-                    .fill(Color.white)
-                    // Mask menyapu secara diagonal/vertikal dari dasar batang ke ujung sayap
-                    .mask(
-                        GeometryReader { maskProxy in
-                            let mw = maskProxy.size.width
-                            let mh = maskProxy.size.height
-                            let startY = mh * 0.75
-                            let totalSpan = mh * 0.38
-                            let currentHeight = totalSpan * checkmarkProgress
-
-                            Rectangle()
-                                .frame(width: mw, height: currentHeight + (mh * 0.05))
-                                .offset(x: 0, y: startY - currentHeight)
-                        }
-                    )
-                }
-            }
-        }
+        BrandLogoMonogramShape(progress: progress)
+            .fill(Color.white)
     }
 }
 
 /// Tampilan logo kanonikal TrackerThings untuk iOS yang konsisten dengan identitas brand.
-/// Mendukung rendering vektor presisi tinggi, mode animasi sekuensial (I -> T -> Checkmark),
-/// dan penyesuaian otomatis terhadap aksesibilitas `accessibilityReduceMotion`.
+/// Mendukung rendering vektor presisi tinggi, animasi sekuensial (I -> T -> Checkmark)
+/// dengan kontrol progress tunggal native, serta penyesuaian dinamis aksesibilitas Reduce Motion.
 public struct BrandLogoView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -148,10 +203,9 @@ public struct BrandLogoView: View {
     private let showShadow: Bool
     private let isAnimated: Bool
 
-    // Animation progress states (0.0 -> 1.0)
-    @State private var stemProgress: CGFloat = 1.0
-    @State private var crossbarProgress: CGFloat = 1.0
-    @State private var checkmarkProgress: CGFloat = 1.0
+    // Progress tunggal dinamis: diinisialisasi 0.0 jika animasi aktif agar tidak ada flash logo final
+    @State private var animationProgress: CGFloat
+    @State private var hasCompletedAnimation: Bool = false
 
     public init(
         size: CGFloat = 64,
@@ -163,6 +217,7 @@ public struct BrandLogoView: View {
         self.cornerRadius = cornerRadius ?? (size * 0.24)
         self.showShadow = showShadow
         self.isAnimated = isAnimated
+        self._animationProgress = State(initialValue: isAnimated ? 0.0 : 1.0)
     }
 
     public var body: some View {
@@ -182,12 +237,9 @@ public struct BrandLogoView: View {
                 .frame(width: size, height: size)
 
             // Monogram Simbol Logo (Solid Putih Murni, Tanpa Gradien / Glossy)
-            BrandLogoMarkView(
-                stemProgress: isAnimated && !reduceMotion ? stemProgress : 1.0,
-                crossbarProgress: isAnimated && !reduceMotion ? crossbarProgress : 1.0,
-                checkmarkProgress: isAnimated && !reduceMotion ? checkmarkProgress : 1.0
-            )
-            .frame(width: size, height: size)
+            BrandLogoMonogramShape(progress: effectiveProgress)
+                .fill(Color.white)
+                .frame(width: size, height: size)
         }
         .shadow(
             color: showShadow ? Color.black.opacity(0.18) : .clear,
@@ -198,33 +250,28 @@ public struct BrandLogoView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Logo TrackerThings")
         .accessibilityAddTraits(.isImage)
-        .onAppear {
-            if isAnimated && !reduceMotion {
-                // Reset ke awal untuk memulai urutan animasi
-                stemProgress = 0.0
-                crossbarProgress = 0.0
-                checkmarkProgress = 0.0
+        .task {
+            guard isAnimated, !reduceMotion, !hasCompletedAnimation else { return }
 
-                Task {
-                    // 1. Fase I: Garis putih batang stem muncul
-                    withAnimation(.easeOut(duration: 0.35)) {
-                        stemProgress = 1.0
-                    }
+            withAnimation(.easeInOut(duration: 1.15)) {
+                animationProgress = 1.0
+            }
 
-                    // 2. Fase I -> T: Palang horizontal berkembang dengan terminal diagonal
-                    try? await Task.sleep(nanoseconds: 280_000_000)
-                    withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
-                        crossbarProgress = 1.0
-                    }
-
-                    // 3. Fase T -> checkmark: Garis centang tumbuh dari dasar batang ke kanan atas
-                    try? await Task.sleep(nanoseconds: 320_000_000)
-                    withAnimation(.easeOut(duration: 0.42)) {
-                        checkmarkProgress = 1.0
-                    }
-                }
+            do {
+                try await Task.sleep(nanoseconds: 1_200_000_000)
+                guard !Task.isCancelled else { return }
+                hasCompletedAnimation = true
+            } catch {
+                // Task dibatalkan ketika view di-dismiss (misal: navigasi selesai)
             }
         }
+    }
+
+    private var effectiveProgress: CGFloat {
+        if reduceMotion || !isAnimated || hasCompletedAnimation {
+            return 1.0
+        }
+        return animationProgress
     }
 }
 

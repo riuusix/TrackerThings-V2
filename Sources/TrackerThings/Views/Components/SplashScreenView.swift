@@ -37,18 +37,6 @@ public struct SplashScreenView: View {
                 }
 
                 Spacer()
-
-                // Indikator Pemeriksaan Sesi Ringkas & Non-Intrusif
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .controlSize(.small)
-                        .tint(Color.white.opacity(0.75))
-
-                    Text("Memeriksa sesi...")
-                        .font(AppTheme.Typography.caption)
-                        .foregroundStyle(Color.white.opacity(0.75))
-                }
-                .padding(.bottom, 48)
             }
         }
     }
