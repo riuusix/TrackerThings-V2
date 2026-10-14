@@ -15,6 +15,13 @@ public final class DashboardViewModel {
     public var errorMessage: String?
     public var toast: FeedbackToastData?
 
+    // MARK: - In-Flight Request Guards & Race Condition Mitigation
+    public private(set) var isSavingTask: Bool = false
+    public private(set) var isSavingReplacement: Bool = false
+    public private(set) var inFlightTaskIds: Set<Int> = []
+    public private(set) var inFlightReplacementIds: Set<Int> = []
+    private var currentLoadId: UUID = UUID()
+
     public func showToast(_ message: String, severity: FeedbackSeverity = .info) {
         self.toast = FeedbackToastData(message: message, severity: severity)
     }
@@ -75,6 +82,9 @@ public final class DashboardViewModel {
     }
 
     public func loadDashboardData() async {
+        let loadId = UUID()
+        self.currentLoadId = loadId
+
         isLoading = true
         errorMessage = nil
 
@@ -90,6 +100,9 @@ public final class DashboardViewModel {
                 fetchExams,
                 fetchKP
             )
+
+            // Race condition check: ensure newer request has not overtaken this one
+            guard loadId == self.currentLoadId else { return }
 
             courses = loadedCourses
             urgentTasks = loadedTasks.filter { $0.status != .selesai }.sorted { $0.deadline < $1.deadline }
@@ -115,8 +128,13 @@ public final class DashboardViewModel {
 
             isLoading = false
         } catch {
+            guard loadId == self.currentLoadId else { return }
             errorMessage = error.localizedDescription
             isLoading = false
+            // Jika sudah ada data lama (pull-to-refresh gagal), pertahankan data lama dan beri tahu user
+            if !courses.isEmpty {
+                showToast("Gagal memperbarui data terkini. Menampilkan data tersimpan.", severity: .warning)
+            }
         }
     }
 
@@ -140,6 +158,10 @@ public final class DashboardViewModel {
             showToast("Tidak dapat memperbarui progress saat offline.", severity: .warning)
             return
         }
+
+        guard !inFlightTaskIds.contains(task.id) else { return }
+        inFlightTaskIds.insert(task.id)
+        defer { inFlightTaskIds.remove(task.id) }
 
         do {
             _ = try await dataService.updateTugasProgress(id: task.id, progress: progress)
@@ -165,6 +187,10 @@ public final class DashboardViewModel {
             showToast("Tidak dapat menambah tugas saat offline. Hubungkan ke internet untuk menyimpan ke server.", severity: .warning)
             return false
         }
+
+        guard !isSavingTask else { return false }
+        isSavingTask = true
+        defer { isSavingTask = false }
 
         let newTask = TugasItem(
             id: 0,
@@ -195,6 +221,10 @@ public final class DashboardViewModel {
             return
         }
 
+        guard !inFlightTaskIds.contains(id) else { return }
+        inFlightTaskIds.insert(id)
+        defer { inFlightTaskIds.remove(id) }
+
         do {
             _ = try await dataService.deleteTugas(id: id)
             NotificationService.shared.cancelReminderForTask(id: id)
@@ -218,6 +248,10 @@ public final class DashboardViewModel {
             showToast("Tidak dapat menambah kelas pengganti saat offline.", severity: .warning)
             return false
         }
+
+        guard !isSavingReplacement else { return false }
+        isSavingReplacement = true
+        defer { isSavingReplacement = false }
 
         let newKP = KelasPenggantiItem(
             id: 0,
@@ -249,6 +283,10 @@ public final class DashboardViewModel {
             return
         }
 
+        guard !inFlightReplacementIds.contains(item.id) else { return }
+        inFlightReplacementIds.insert(item.id)
+        defer { inFlightReplacementIds.remove(item.id) }
+
         do {
             _ = try await dataService.selesaiKelasPengganti(id: item.id)
             showToast("Kelas pengganti berhasil diselesaikan!", severity: .success)
@@ -262,14 +300,16 @@ public final class DashboardViewModel {
     private func generateNotifications() {
         var notifs: [NotificationItem] = []
         let now = Date()
-        let twoDaysLater = Calendar.current.date(byAdding: .day, value: 2, to: now) ?? now
+        let calendar = Calendar.current
+        let todayStart = calendar.startOfDay(for: now)
+        let twoDaysLaterEnd = calendar.date(byAdding: .day, value: 3, to: todayStart) ?? now
 
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "id_ID")
         formatter.dateStyle = .medium
-        formatter.timeStyle = .short
+        formatter.timeStyle = .none
 
-        for task in urgentTasks where task.deadline >= now && task.deadline <= twoDaysLater {
+        for task in urgentTasks where task.deadline >= todayStart && task.deadline < twoDaysLaterEnd {
             notifs.append(
                 NotificationItem(
                     id: "task-\(task.id)",

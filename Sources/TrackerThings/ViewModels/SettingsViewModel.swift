@@ -61,6 +61,7 @@ public final class SettingsViewModel {
     }
 
     public func checkServerConnection() async {
+        guard connectionStatus != .checking else { return }
         connectionStatus = .checking
         do {
             _ = try await authService.getProfile()
@@ -126,6 +127,7 @@ public final class SettingsViewModel {
 
     /// Memperbarui informasi profil pengguna (Nama Lengkap & Nomor HP)
     public func saveProfile() async -> UserProfile? {
+        guard !isLoadingProfile else { return nil }
         guard !isOffline else {
             let msg = "Tidak dapat memperbarui profil saat offline. Hubungkan ke internet terlebih dahulu."
             self.errorMessage = msg
@@ -176,6 +178,7 @@ public final class SettingsViewModel {
 
     /// Memperbarui kata sandi pengguna
     public func savePassword() async -> Bool {
+        guard !isLoadingPassword else { return false }
         guard !isOffline else {
             let msg = "Tidak dapat mengubah kata sandi saat offline. Hubungkan ke internet terlebih dahulu."
             self.errorMessage = msg

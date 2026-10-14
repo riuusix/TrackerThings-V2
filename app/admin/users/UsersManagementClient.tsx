@@ -18,6 +18,7 @@ import {
   Trash2,
   KeyRound,
   RefreshCw,
+  Loader2,
 } from "lucide-react";
 
 interface UserItem {
@@ -47,6 +48,7 @@ export function UsersManagementClient({
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [processingUserId, setProcessingUserId] = useState<number | null>(null);
 
   const filteredUsers = users.filter((u) => {
     const matchesSearch =
@@ -64,27 +66,42 @@ export function UsersManagementClient({
   const totalStudents = users.length - totalAdmin;
 
   const handleToggleRole = (userId: number, currentRole?: string | null) => {
+    if (processingUserId !== null) return;
     const newRole = currentRole?.toLowerCase() === "admin" ? "user" : "admin";
     if (!confirm(`Ubah role user ini menjadi ${newRole.toUpperCase()}?`)) return;
 
+    setProcessingUserId(userId);
     setUsers((prev) =>
       prev.map((u) => (u.id === userId ? { ...u, role: newRole } : u))
     );
     setActionMessage(`Role pengguna ID #${userId} berhasil diperbarui menjadi ${newRole.toUpperCase()}.`);
-    setTimeout(() => setActionMessage(null), 4000);
+    setTimeout(() => {
+      setProcessingUserId(null);
+      setActionMessage(null);
+    }, 1500);
   };
 
-  const handleResetPassword = (username: string) => {
+  const handleResetPassword = (username: string, userId: number) => {
+    if (processingUserId !== null) return;
     if (!confirm(`Kirim instruksi reset password darurat untuk user @${username}?`)) return;
+    setProcessingUserId(userId);
     setActionMessage(`Instruksi reset password darurat telah dikirimkan ke email terdaftar @${username}.`);
-    setTimeout(() => setActionMessage(null), 4000);
+    setTimeout(() => {
+      setProcessingUserId(null);
+      setActionMessage(null);
+    }, 1500);
   };
 
   const handleDeleteUser = (userId: number, username: string) => {
+    if (processingUserId !== null) return;
     if (!confirm(`PERINGATAN: Hapus permanen akun @${username}? Seluruh data jadwal dan tugas akan terhapus.`)) return;
+    setProcessingUserId(userId);
     setUsers((prev) => prev.filter((u) => u.id !== userId));
     setActionMessage(`Akun pengguna @${username} berhasil dihapus dari sistem.`);
-    setTimeout(() => setActionMessage(null), 4000);
+    setTimeout(() => {
+      setProcessingUserId(null);
+      setActionMessage(null);
+    }, 1500);
   };
 
   return (
@@ -285,17 +302,25 @@ export function UsersManagementClient({
                             <button
                               type="button"
                               onClick={() => handleToggleRole(user.id, user.role)}
+                              disabled={processingUserId !== null}
                               title={isUserAdmin ? "Jadikan Mahasiswa Reguler" : "Angkat Jadi Admin"}
-                              className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
+                              className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors disabled:opacity-50"
                             >
-                              {isUserAdmin ? <UserX className="w-4 h-4 text-amber-500" /> : <UserCheck className="w-4 h-4 text-blue-600" />}
+                              {processingUserId === user.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                              ) : isUserAdmin ? (
+                                <UserX className="w-4 h-4 text-amber-500" />
+                              ) : (
+                                <UserCheck className="w-4 h-4 text-blue-600" />
+                              )}
                             </button>
 
                             <button
                               type="button"
-                              onClick={() => handleResetPassword(user.username)}
+                              onClick={() => handleResetPassword(user.username, user.id)}
+                              disabled={processingUserId !== null}
                               title="Reset Password Pengguna"
-                              className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors"
+                              className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors disabled:opacity-50"
                             >
                               <KeyRound className="w-4 h-4 text-slate-500" />
                             </button>
@@ -303,8 +328,9 @@ export function UsersManagementClient({
                             <button
                               type="button"
                               onClick={() => handleDeleteUser(user.id, user.username)}
+                              disabled={processingUserId !== null}
                               title="Hapus Akun Pengguna"
-                              className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 transition-colors"
+                              className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 transition-colors disabled:opacity-50"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>

@@ -198,9 +198,18 @@ export function MatakuliahClient({
               </h3>
               <p className="text-sm text-slate-400 mt-1 max-w-md mx-auto">
                 {searchTerm
-                  ? "Tidak ada hasil yang sesuai dengan kata kunci pencarian Anda."
+                  ? `Tidak ada hasil yang sesuai dengan kata kunci "${searchTerm}".`
                   : "Mulai tambahkan mata kuliah pertama Anda dengan menekan tombol Tambah Mata Kuliah."}
               </p>
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm("")}
+                  className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors"
+                >
+                  Bersihkan Pencarian
+                </button>
+              )}
             </div>
           ) : (
             filteredCourses.map((c) => (

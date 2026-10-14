@@ -11,6 +11,8 @@ public final class ExamViewModel {
     public var isPresentingSheet: Bool = false
     public var editingExam: UjianItem?
     public var deletingId: Int? = nil
+    public var isSavingExam: Bool = false
+    public var currentLoadId: UUID = UUID()
     public var toast: FeedbackToastData?
 
     public func showToast(_ message: String, severity: FeedbackSeverity = .info) {
@@ -24,18 +26,26 @@ public final class ExamViewModel {
     }
 
     public func fetchExams() async {
+        let loadId = UUID()
+        currentLoadId = loadId
         isLoading = true
         errorMessage = nil
+
         do {
             async let examTask = dataService.getUjianList()
             async let courseTask = dataService.getJadwalList()
             let (loadedExams, loadedCourses) = try await (examTask, courseTask)
+            guard currentLoadId == loadId else { return }
             exams = loadedExams.sorted { $0.tanggal < $1.tanggal }
             courses = loadedCourses
             isLoading = false
         } catch {
+            guard currentLoadId == loadId else { return }
             errorMessage = error.localizedDescription
             isLoading = false
+            if !exams.isEmpty {
+                showToast("Gagal memperbarui jadwal ujian. Menampilkan data tersimpan.", severity: .warning)
+            }
         }
     }
 
@@ -67,6 +77,9 @@ public final class ExamViewModel {
             showToast("Tidak dapat menyimpan jadwal ujian saat offline. Hubungkan ke internet untuk menyinkronkan dengan server.", severity: .warning)
             return false
         }
+        guard !isSavingExam else { return false }
+        isSavingExam = true
+        defer { isSavingExam = false }
 
         isLoading = true
         errorMessage = nil

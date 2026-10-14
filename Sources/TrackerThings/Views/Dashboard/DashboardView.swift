@@ -92,9 +92,19 @@ public struct DashboardView: View {
                         .padding(.horizontal)
 
                         if viewModel.isLoading && viewModel.courses.isEmpty {
-                            ProgressView("Memuat jadwal...")
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 24)
+                            VStack(spacing: 12) {
+                                SkeletonCardView(lines: 3)
+                                SkeletonCardView(lines: 2)
+                            }
+                            .padding(.horizontal)
+                        } else if let error = viewModel.errorMessage, viewModel.courses.isEmpty {
+                            ErrorRetryView(
+                                title: "Gagal Memuat Jadwal",
+                                message: error
+                            ) {
+                                await viewModel.loadDashboardData()
+                            }
+                            .padding(.vertical, 12)
                         } else if viewModel.schedulesForSelectedDay.isEmpty {
                             ContentUnavailableView(
                                 "Tidak Ada Kuliah",
@@ -177,9 +187,19 @@ public struct DashboardView: View {
                         .padding(.horizontal)
 
                         if viewModel.isLoading && viewModel.urgentTasks.isEmpty && viewModel.courses.isEmpty {
-                            ProgressView("Memuat tugas...")
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 24)
+                            VStack(spacing: 12) {
+                                SkeletonCardView(lines: 2)
+                                SkeletonCardView(lines: 2)
+                            }
+                            .padding(.horizontal)
+                        } else if let error = viewModel.errorMessage, viewModel.urgentTasks.isEmpty && viewModel.courses.isEmpty {
+                            ErrorRetryView(
+                                title: "Gagal Memuat Tugas",
+                                message: error
+                            ) {
+                                await viewModel.loadDashboardData()
+                            }
+                            .padding(.vertical, 12)
                         } else if viewModel.urgentTasks.isEmpty {
                             ContentUnavailableView(
                                 "Semua Tugas Selesai",

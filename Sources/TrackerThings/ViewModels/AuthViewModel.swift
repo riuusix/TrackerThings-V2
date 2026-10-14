@@ -62,6 +62,7 @@ public final class AuthViewModel {
     }
 
     public func login(username: String, password: String) async {
+        guard !isLoading else { return }
         guard !username.trimmingCharacters(in: .whitespaces).isEmpty,
               !password.isEmpty else {
             errorMessage = "Username dan password wajib diisi."
@@ -103,6 +104,7 @@ public final class AuthViewModel {
         fullName: String?,
         phoneNumber: String?
     ) async -> Bool {
+        guard !isLoading else { return false }
         guard !username.trimmingCharacters(in: .whitespaces).isEmpty,
               !email.trimmingCharacters(in: .whitespaces).isEmpty,
               password.count >= 6 else {

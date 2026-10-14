@@ -9,6 +9,7 @@ public final class AdminViewModel {
     public var isLoading: Bool = false
     public var errorMessage: String?
     public var isUnauthorized: Bool = false
+    public var currentLoadId: UUID = UUID()
 
     private let adminService: AdminServiceProtocol
 
@@ -18,15 +19,20 @@ public final class AdminViewModel {
 
     /// Memuat data statistik dan metrik sistem admin dari backend
     public func loadDashboard() async {
+        guard !isLoading else { return }
+        let loadId = UUID()
+        currentLoadId = loadId
         isLoading = true
         errorMessage = nil
         isUnauthorized = false
 
         do {
             let data = try await adminService.fetchDashboardMetrics()
+            guard currentLoadId == loadId else { return }
             self.metrics = data
             self.isLoading = false
         } catch let appError as AppError {
+            guard currentLoadId == loadId else { return }
             self.isLoading = false
             if case .serverError(let code, _) = appError, code == 403 {
                 self.isUnauthorized = true
@@ -35,6 +41,7 @@ public final class AdminViewModel {
                 self.errorMessage = appError.localizedDescription
             }
         } catch {
+            guard currentLoadId == loadId else { return }
             self.isLoading = false
             self.errorMessage = error.localizedDescription
         }

@@ -11,6 +11,8 @@ public final class CourseViewModel {
     public var isPresentingSheet: Bool = false
     public var editingCourse: JadwalItem?
     public var deletingId: Int? = nil
+    public var isSavingCourse: Bool = false
+    public var currentLoadId: UUID = UUID()
     public var toast: FeedbackToastData?
 
     public func showToast(_ message: String, severity: FeedbackSeverity = .info) {
@@ -36,14 +38,23 @@ public final class CourseViewModel {
     }
 
     public func fetchCourses() async {
+        let loadId = UUID()
+        currentLoadId = loadId
         isLoading = true
         errorMessage = nil
+
         do {
-            courses = try await dataService.getJadwalList()
+            let loadedCourses = try await dataService.getJadwalList()
+            guard currentLoadId == loadId else { return }
+            courses = loadedCourses
             isLoading = false
         } catch {
+            guard currentLoadId == loadId else { return }
             errorMessage = error.localizedDescription
             isLoading = false
+            if !courses.isEmpty {
+                showToast("Gagal memperbarui daftar kuliah. Menampilkan data tersimpan.", severity: .warning)
+            }
         }
     }
 
@@ -75,6 +86,9 @@ public final class CourseViewModel {
             showToast("Tidak dapat menyimpan mata kuliah saat offline. Hubungkan ke internet untuk menyinkronkan dengan server.", severity: .warning)
             return false
         }
+        guard !isSavingCourse else { return false }
+        isSavingCourse = true
+        defer { isSavingCourse = false }
 
         isLoading = true
         errorMessage = nil

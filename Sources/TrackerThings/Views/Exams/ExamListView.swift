@@ -32,7 +32,24 @@ public struct ExamListView: View {
                     }
                 }
 
-                if viewModel.exams.isEmpty {
+                if viewModel.isLoading && viewModel.exams.isEmpty {
+                    Section {
+                        SkeletonRowView()
+                        SkeletonRowView()
+                        SkeletonRowView()
+                    }
+                } else if let error = viewModel.errorMessage, viewModel.exams.isEmpty {
+                    Section {
+                        ErrorRetryView(
+                            title: "Gagal Memuat Jadwal Ujian",
+                            message: error
+                        ) {
+                            await viewModel.fetchExams()
+                        }
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                    }
+                } else if viewModel.exams.isEmpty {
                     ContentUnavailableView(
                         "Belum Ada Ujian",
                         systemImage: "graduationcap",
