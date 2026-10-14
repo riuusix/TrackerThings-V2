@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Tampilan native SwiftUI untuk mengedit biodata profil pengguna.
-/// Menampilkan avatar, nama lengkap, nomor telepon, dan URL foto profil dengan validasi form dan loading state.
+/// Tampilan native SwiftUI untuk mengedit biodata profil pengguna TrackerThings V2.
+/// Membedakan field read-only sistem dengan field yang dapat diedit, dilengkapi validasi instan,
+/// loading state, pencegahan submit berulang, serta toast feedback.
 public struct EditProfileView: View {
     @Environment(AuthViewModel.self) private var authViewModel
     @Environment(\.dismiss) private var dismiss
@@ -16,23 +17,23 @@ public struct EditProfileView: View {
         Form {
             // MARK: - Header Avatar Pratinjau
             Section {
-                VStack(spacing: 12) {
+                VStack(spacing: AppTheme.Metrics.spacingMedium) {
                     UserAvatarView(
                         url: viewModel.profilePictureUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                             ? authViewModel.currentUser?.profilePictureUrl
                             : viewModel.profilePictureUrl,
                         initials: String((viewModel.fullName.isEmpty ? (authViewModel.currentUser?.username ?? "U") : viewModel.fullName).prefix(1)).uppercased(),
-                        size: 80
+                        size: 76
                     )
 
-                    VStack(spacing: 4) {
-                        Text(authViewModel.currentUser?.fullName ?? authViewModel.currentUser?.username ?? "Pengguna")
-                            .font(.headline)
-                            .foregroundStyle(.primary)
+                    VStack(spacing: 3) {
+                        Text(viewModel.fullName.isEmpty ? (authViewModel.currentUser?.fullName ?? "Nama Pengguna") : viewModel.fullName)
+                            .font(AppTheme.Typography.sectionHeader)
+                            .foregroundStyle(AppTheme.Colors.textPrimary)
 
                         Text("@\(authViewModel.currentUser?.username ?? "user")")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(AppTheme.Typography.caption)
+                            .foregroundStyle(AppTheme.Colors.textSecondary)
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -42,65 +43,97 @@ public struct EditProfileView: View {
 
             // MARK: - Identitas Akun (Read-only)
             Section {
-                LabeledContent {
+                HStack {
+                    Label("Username", systemImage: "person.text.rectangle")
+                        .font(AppTheme.Typography.body)
+                    Spacer()
                     Text("@\(authViewModel.currentUser?.username ?? "-")")
-                        .foregroundStyle(.secondary)
-                } label: {
-                    Text("Username")
+                        .font(AppTheme.Typography.body)
+                        .foregroundStyle(AppTheme.Colors.textSecondary)
                 }
+                .frame(minHeight: AppTheme.Metrics.minTouchTarget)
 
-                LabeledContent {
+                HStack {
+                    Label("Email Utama", systemImage: "envelope")
+                        .font(AppTheme.Typography.body)
+                    Spacer()
                     Text(authViewModel.currentUser?.email ?? "-")
-                        .foregroundStyle(.secondary)
-                } label: {
-                    Text("Email")
+                        .font(AppTheme.Typography.body)
+                        .foregroundStyle(AppTheme.Colors.textSecondary)
                 }
+                .frame(minHeight: AppTheme.Metrics.minTouchTarget)
             } header: {
-                Text("Identitas Akun")
+                Text("Identitas Akun (Sistem)")
             } footer: {
-                Text("Username dan email utama terikat dengan akun Anda dan dikelola oleh sistem.")
+                Text("Username dan email utama terikat permanen dengan akun Anda dan dikelola oleh sistem.")
             }
 
             // MARK: - Biodata yang Dapat Diedit
             Section {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Nama Lengkap")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                // Nama Lengkap
+                VStack(alignment: .leading, spacing: AppTheme.Metrics.spacingXXSmall) {
+                    HStack {
+                        Text("Nama Lengkap")
+                            .font(AppTheme.Typography.captionBold)
+                            .foregroundStyle(AppTheme.Colors.textSecondary)
+                        Text("*")
+                            .font(AppTheme.Typography.captionBold)
+                            .foregroundStyle(AppTheme.Colors.urgent)
+                    }
+
                     TextField("Nama Lengkap Anda", text: $viewModel.fullName)
+                        .font(AppTheme.Typography.body)
                         .textContentType(.name)
                         .autocorrectionDisabled()
-                }
+                        .frame(minHeight: 36)
 
-                VStack(alignment: .leading, spacing: 6) {
+                    if !viewModel.isNameValid {
+                        Text("Nama lengkap tidak boleh kosong.")
+                            .font(AppTheme.Typography.badge)
+                            .foregroundStyle(AppTheme.Colors.urgent)
+                    }
+                }
+                .padding(.vertical, 2)
+
+                // Nomor Telepon
+                VStack(alignment: .leading, spacing: AppTheme.Metrics.spacingXXSmall) {
                     Text("Nomor Telepon (Opsional)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(AppTheme.Typography.captionBold)
+                        .foregroundStyle(AppTheme.Colors.textSecondary)
+
                     TextField("Contoh: 081234567890", text: $viewModel.phoneNumber)
+                        .font(AppTheme.Typography.body)
                         .keyboardType(.phonePad)
                         .textContentType(.telephoneNumber)
+                        .frame(minHeight: 36)
                 }
+                .padding(.vertical, 2)
 
-                VStack(alignment: .leading, spacing: 6) {
+                // URL Foto Profil
+                VStack(alignment: .leading, spacing: AppTheme.Metrics.spacingXXSmall) {
                     Text("URL Foto Profil (Opsional)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(AppTheme.Typography.captionBold)
+                        .foregroundStyle(AppTheme.Colors.textSecondary)
+
                     TextField("https://...", text: $viewModel.profilePictureUrl)
+                        .font(AppTheme.Typography.body)
                         .keyboardType(.URL)
                         .textContentType(.URL)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+                        .frame(minHeight: 36)
                 }
+                .padding(.vertical, 2)
             } header: {
                 Text("Data Pribadi")
             } footer: {
-                Text("Gunakan URL gambar publik (misalnya Gravatar, GitHub, atau link HTTPS) untuk memperbarui foto profil.")
+                Text("URL foto profil mendukung link gambar publik langsung (HTTPS). Avatar di atas akan otomatis memperbarui tampilan.")
             }
 
             // MARK: - Tombol Simpan Profil
             Section {
                 Button {
-                    guard !viewModel.isLoadingProfile, !viewModel.isOffline else { return }
+                    guard !viewModel.isLoadingProfile, !viewModel.isOffline, viewModel.isNameValid else { return }
                     Task {
                         if let updatedUser = await viewModel.saveProfile() {
                             authViewModel.currentUser = updatedUser
@@ -117,17 +150,24 @@ public struct EditProfileView: View {
                                 .tint(.white)
                                 .padding(.trailing, 6)
                         }
-                        Text(viewModel.isLoadingProfile ? "Menyimpan..." : "Simpan Profil")
+                        Text(viewModel.isLoadingProfile ? "Menyimpan Perubahan..." : "Simpan Profil")
+                            .font(AppTheme.Typography.cardTitle)
                             .fontWeight(.semibold)
                         Spacer()
                     }
+                    .frame(minHeight: AppTheme.Metrics.minTouchTarget)
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(AppTheme.Colors.brandPrimary)
                 .disabled(!viewModel.isNameValid || viewModel.isLoadingProfile || viewModel.isOffline)
             } footer: {
                 if viewModel.isOffline {
-                    Text("Perangkat sedang offline. Sambungkan ke internet untuk memperbarui profil.")
-                        .foregroundStyle(.orange)
+                    HStack(spacing: 6) {
+                        Image(systemName: "wifi.slash")
+                        Text("Perangkat sedang offline. Sambungkan ke internet untuk memperbarui profil.")
+                    }
+                    .font(AppTheme.Typography.caption)
+                    .foregroundStyle(AppTheme.Colors.warning)
                 }
             }
         }
@@ -139,4 +179,3 @@ public struct EditProfileView: View {
         }
     }
 }
-

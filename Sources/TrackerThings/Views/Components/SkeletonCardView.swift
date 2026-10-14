@@ -10,30 +10,28 @@ public struct SkeletonCardView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: AppTheme.Metrics.spacingMedium) {
             HStack {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color(uiColor: .tertiarySystemFill))
-                    .frame(width: 140, height: 18)
+                RoundedRectangle(cornerRadius: AppTheme.Metrics.cornerRadiusSmall)
+                    .fill(AppTheme.Colors.neutralBackground)
+                    .frame(width: 130, height: 16)
 
                 Spacer()
 
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(uiColor: .tertiarySystemFill))
-                    .frame(width: 60, height: 20)
+                RoundedRectangle(cornerRadius: AppTheme.Metrics.cornerRadiusSmall)
+                    .fill(AppTheme.Colors.neutralBackground)
+                    .frame(width: 50, height: 18)
             }
 
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: AppTheme.Metrics.spacingSmall) {
                 ForEach(0..<lines, id: \.self) { index in
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color(uiColor: .quaternarySystemFill))
-                        .frame(maxWidth: index == lines - 1 ? 220 : .infinity, minHeight: 14, maxHeight: 14)
+                    RoundedRectangle(cornerRadius: AppTheme.Metrics.cornerRadiusSmall)
+                        .fill(AppTheme.Colors.neutralBackground.opacity(0.7))
+                        .frame(maxWidth: index == lines - 1 ? 200 : .infinity, minHeight: 12, maxHeight: 12)
                 }
             }
         }
-        .padding(16)
-        .background(Color(uiColor: .secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .cardSurface()
         .opacity(isPulsing ? 0.45 : 0.95)
         .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: isPulsing)
         .onAppear {
@@ -49,26 +47,26 @@ public struct SkeletonRowView: View {
     public init() {}
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: AppTheme.Metrics.spacingSmall) {
             HStack {
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(Color(uiColor: .tertiarySystemFill))
-                    .frame(width: 70, height: 16)
+                RoundedRectangle(cornerRadius: AppTheme.Metrics.cornerRadiusSmall)
+                    .fill(AppTheme.Colors.neutralBackground)
+                    .frame(width: 60, height: 14)
                 Spacer()
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(Color(uiColor: .quaternarySystemFill))
-                    .frame(width: 90, height: 14)
+                RoundedRectangle(cornerRadius: AppTheme.Metrics.cornerRadiusSmall)
+                    .fill(AppTheme.Colors.neutralBackground.opacity(0.7))
+                    .frame(width: 80, height: 12)
             }
 
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color(uiColor: .tertiarySystemFill))
-                .frame(width: 180, height: 20)
+            RoundedRectangle(cornerRadius: AppTheme.Metrics.cornerRadiusSmall)
+                .fill(AppTheme.Colors.neutralBackground)
+                .frame(width: 160, height: 18)
 
-            RoundedRectangle(cornerRadius: 6)
-                .fill(Color(uiColor: .quaternarySystemFill))
-                .frame(width: 130, height: 14)
+            RoundedRectangle(cornerRadius: AppTheme.Metrics.cornerRadiusSmall)
+                .fill(AppTheme.Colors.neutralBackground.opacity(0.7))
+                .frame(width: 110, height: 12)
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, 4)
         .opacity(isPulsing ? 0.45 : 0.95)
         .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: isPulsing)
         .onAppear {

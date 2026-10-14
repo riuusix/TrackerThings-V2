@@ -1,70 +1,55 @@
 import SwiftUI
 
-/// Splash screen native TrackerThings yang minimalis, elegan, dan konsisten dengan identitas brand.
-/// Menampilkan BrandLogoView dengan animasi scale & fade-in ringan serta status pemulihan sesi.
+/// Splash screen native TrackerThings yang minimalis, elegan, dan fokus pada identitas brand.
+/// Menampilkan BrandLogoView dengan animasi sekuensial logo kanonikal (I -> T -> Checkmark),
+/// tipografi wordmark glossy, serta status sinkronisasi sesi tanpa delay buatan.
 public struct SplashScreenView: View {
-    @State private var isVisible: Bool = false
-
     public init() {}
 
     public var body: some View {
         ZStack {
-            Color(uiColor: .systemGroupedBackground)
+            // Latar Belakang Deep Sapphire Navy Kanonikal (Sampling referensi #023075)
+            Color(red: 0.008, green: 0.188, blue: 0.459)
                 .ignoresSafeArea()
 
-            VStack(spacing: 24) {
+            VStack(spacing: AppTheme.Metrics.spacingLarge) {
                 Spacer()
 
-                VStack(spacing: 16) {
-                    BrandLogoView(size: 88, cornerRadius: 22, showShadow: true)
-                        .scaleEffect(isVisible ? 1.0 : 0.88)
-                        .opacity(isVisible ? 1.0 : 0.0)
+                VStack(spacing: AppTheme.Metrics.spacingXLarge) {
+                    // Logo Kanonikal dengan Animasi Sekuensial I -> T -> Checkmark
+                    BrandLogoView(
+                        size: 96,
+                        cornerRadius: 24,
+                        showShadow: true,
+                        isAnimated: true
+                    )
 
-                    HStack(spacing: 0) {
-                        Text("Tracker")
-                            .font(.system(size: 32, weight: .bold, design: .rounded))
-                            .foregroundStyle(.primary)
+                    // Tipografi Wordmark: "Tracker" solid bersih & "Things" glossy reflektif
+                    VStack(spacing: 8) {
+                        BrandWordmarkView(size: 34, onDarkBackground: true)
 
-                        Text("Things")
-                            .font(.system(size: 32, weight: .bold, design: .rounded))
-                            .foregroundStyle(
-                                LinearGradient(
-                                    colors: [.blue, Color(red: 0.05, green: 0.72, blue: 0.88)],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
+                        Text("Portal Manajemen Jadwal & Tugas Akademik")
+                            .font(AppTheme.Typography.caption)
+                            .foregroundStyle(Color.white.opacity(0.80))
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 32)
                     }
-                    .opacity(isVisible ? 1.0 : 0.0)
-
-                    Text("Portal Manajemen Jadwal & Tugas Akademik")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 32)
-                        .opacity(isVisible ? 0.9 : 0.0)
                 }
 
                 Spacer()
 
-                VStack(spacing: 10) {
+                // Indikator Pemeriksaan Sesi Ringkas & Non-Intrusif
+                HStack(spacing: 8) {
                     ProgressView()
-                        .controlSize(.regular)
-                        .tint(.blue)
+                        .controlSize(.small)
+                        .tint(Color.white.opacity(0.75))
 
                     Text("Memeriksa sesi...")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .font(AppTheme.Typography.caption)
+                        .foregroundStyle(Color.white.opacity(0.75))
                 }
                 .padding(.bottom, 48)
-                .opacity(isVisible ? 1.0 : 0.0)
-            }
-        }
-        .onAppear {
-            withAnimation(.easeOut(duration: 0.5)) {
-                isVisible = true
             }
         }
     }
 }
-

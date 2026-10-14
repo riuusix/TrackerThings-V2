@@ -9,35 +9,53 @@ public struct DashboardView: View {
         self.viewModel = viewModel
     }
 
+    private var indonesianTodayText: String {
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "id_ID")
+        df.dateFormat = "EEEE, d MMMM yyyy"
+        return df.string(from: Date())
+    }
+
+    /// Item 'Perlu Perhatian': tugas yang tenggatnya <= 2 hari atau terlewat, dan bukan tugas selesai.
+    private var tasksNeedingAttention: [TugasItem] {
+        let calendar = Calendar.current
+        let todayStart = calendar.startOfDay(for: Date())
+        let limit = calendar.date(byAdding: .day, value: 3, to: todayStart) ?? Date()
+        return viewModel.urgentTasks.filter { $0.status != .selesai && $0.deadline < limit }
+    }
+
+    private var hasAttentionItems: Bool {
+        !tasksNeedingAttention.isEmpty || viewModel.upcomingExam != nil
+    }
+
     public var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    // Header Card
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Text("Semester Aktif")
-                                .font(.caption.weight(.bold))
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 4)
-                                .background(Color.blue.opacity(0.12))
-                                .foregroundStyle(.blue)
-                                .clipShape(Capsule())
+                VStack(alignment: .leading, spacing: AppTheme.Metrics.spacingSection) {
+                    // 1. Header & Identitas Pengguna Ringkas + 2. Tanggal Hari Ini
+                    VStack(alignment: .leading, spacing: AppTheme.Metrics.spacingXXSmall) {
+                        HStack(alignment: .center) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(indonesianTodayText)
+                                    .font(AppTheme.Typography.captionBold)
+                                    .foregroundStyle(AppTheme.Colors.brandPrimary)
+                                    .textCase(.uppercase)
+
+                                Text("TrackerThings")
+                                    .font(AppTheme.Typography.pageTitle)
+                                    .foregroundStyle(AppTheme.Colors.textPrimary)
+                            }
 
                             Spacer()
 
                             Text("2026/2027")
-                                .font(.caption.weight(.medium))
-                                .foregroundStyle(.secondary)
+                                .font(AppTheme.Typography.badge)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(AppTheme.Colors.infoBackground)
+                                .foregroundStyle(AppTheme.Colors.info)
+                                .clipShape(Capsule())
                         }
-
-                        Text("TrackerThings")
-                            .font(.system(.largeTitle, design: .rounded, weight: .bold))
-                            .foregroundStyle(.primary)
-
-                        Text("Pantau jadwal harian, target tugas akademik, dan persiapan ujian Anda.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
                     }
                     .padding(.horizontal)
 
@@ -50,50 +68,50 @@ public struct DashboardView: View {
                                 await viewModel.loadDashboardData()
                             }
                         }
-                    }
-
-                    // Day Selector Segment
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(viewModel.daysOfWeek, id: \.self) { day in
-                                let isSelected = viewModel.selectedDay == day
-                                Button {
-                                    withAnimation(.snappy) {
-                                        viewModel.selectedDay = day
-                                    }
-                                } label: {
-                                    VStack(spacing: 4) {
-                                        Text(day)
-                                            .font(.subheadline.weight(isSelected ? .bold : .medium))
-                                    }
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 10)
-                                    .background(isSelected ? Color.blue : Color(uiColor: .secondarySystemGroupedBackground))
-                                    .foregroundStyle(isSelected ? .white : .primary)
-                                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                                    .shadow(color: isSelected ? Color.blue.opacity(0.3) : .clear, radius: 6, x: 0, y: 3)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
                         .padding(.horizontal)
                     }
 
-                    // Schedules List
-                    VStack(alignment: .leading, spacing: 12) {
+                    // 3. Jadwal Hari Ini & Day Selector
+                    VStack(alignment: .leading, spacing: AppTheme.Metrics.spacingMedium) {
                         HStack {
                             Label("Jadwal Kuliah: \(viewModel.selectedDay)", systemImage: "calendar.badge.clock")
-                                .font(.headline)
+                                .font(AppTheme.Typography.sectionHeader)
+                                .foregroundStyle(AppTheme.Colors.textPrimary)
                             Spacer()
                             Text("\(viewModel.schedulesForSelectedDay.count) Kelas")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(AppTheme.Typography.caption)
+                                .foregroundStyle(AppTheme.Colors.textSecondary)
                         }
                         .padding(.horizontal)
 
+                        // Compact Day Selector Segment
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: AppTheme.Metrics.spacingSmall) {
+                                ForEach(viewModel.daysOfWeek, id: \.self) { day in
+                                    let isSelected = viewModel.selectedDay == day
+                                    Button {
+                                        withAnimation(.snappy) {
+                                            viewModel.selectedDay = day
+                                        }
+                                    } label: {
+                                        Text(day)
+                                            .font(isSelected ? AppTheme.Typography.captionBold : AppTheme.Typography.caption)
+                                            .padding(.horizontal, 14)
+                                            .padding(.vertical, 8)
+                                            .background(isSelected ? AppTheme.Colors.brandPrimary : AppTheme.Colors.cardBackground)
+                                            .foregroundStyle(isSelected ? Color.white : AppTheme.Colors.textPrimary)
+                                            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Metrics.cornerRadiusSmall, style: .continuous))
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(.horizontal)
+                        }
+
+                        // Schedule Cards List
                         if viewModel.isLoading && viewModel.courses.isEmpty {
-                            VStack(spacing: 12) {
-                                SkeletonCardView(lines: 3)
+                            VStack(spacing: AppTheme.Metrics.spacingSmall) {
+                                SkeletonCardView(lines: 2)
                                 SkeletonCardView(lines: 2)
                             }
                             .padding(.horizontal)
@@ -104,16 +122,16 @@ public struct DashboardView: View {
                             ) {
                                 await viewModel.loadDashboardData()
                             }
-                            .padding(.vertical, 12)
+                            .padding(.vertical, AppTheme.Metrics.spacingSmall)
                         } else if viewModel.schedulesForSelectedDay.isEmpty {
                             ContentUnavailableView(
                                 "Tidak Ada Kuliah",
                                 systemImage: "sparkles",
-                                description: Text("Hari \(viewModel.selectedDay) bebas perkuliahan. Waktunya belajar mandiri atau menyelesaikan tugas.")
+                                description: Text("Hari \(viewModel.selectedDay) bebas perkuliahan.")
                             )
-                            .padding(.vertical, 20)
+                            .padding(.vertical, AppTheme.Metrics.spacingSmall)
                         } else {
-                            LazyVStack(spacing: 12) {
+                            LazyVStack(spacing: AppTheme.Metrics.spacingSmall) {
                                 ForEach(viewModel.schedulesForSelectedDay) { schedule in
                                     ScheduleCardView(item: schedule, isOffline: viewModel.isOffline) {
                                         await viewModel.markReplacementCompleted(item: schedule)
@@ -124,70 +142,112 @@ public struct DashboardView: View {
                         }
                     }
 
-                    // Upcoming Exam Highlight
-                    if let exam = viewModel.upcomingExam {
-                        VStack(alignment: .leading, spacing: 10) {
-                            HStack {
-                                Label("Ujian Terdekat", systemImage: "graduationcap.fill")
-                                    .font(.headline)
-                                    .foregroundStyle(.primary)
-                                Spacer()
+                    // 4. Perlu Perhatian (Dedicated Urgency Section)
+                    VStack(alignment: .leading, spacing: AppTheme.Metrics.spacingSmall) {
+                        HStack {
+                            Label("Perlu Perhatian", systemImage: "exclamationmark.circle.fill")
+                                .font(AppTheme.Typography.sectionHeader)
+                                .foregroundStyle(hasAttentionItems ? AppTheme.Colors.urgent : AppTheme.Colors.textPrimary)
+                            Spacer()
+                            if hasAttentionItems {
+                                Text("\(tasksNeedingAttention.count + (viewModel.upcomingExam != nil ? 1 : 0)) Item")
+                                    .font(AppTheme.Typography.caption)
+                                    .foregroundStyle(AppTheme.Colors.urgent)
                             }
+                        }
+                        .padding(.horizontal)
+
+                        if !hasAttentionItems {
+                            HStack(spacing: AppTheme.Metrics.spacingSmall) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(AppTheme.Colors.success)
+                                Text("Semua aman! Tidak ada tugas atau ujian mendesak saat ini.")
+                                    .font(AppTheme.Typography.caption)
+                                    .foregroundStyle(AppTheme.Colors.textSecondary)
+                            }
+                            .cardSurface()
                             .padding(.horizontal)
+                        } else {
+                            VStack(spacing: AppTheme.Metrics.spacingSmall) {
+                                // Tampilkan tugas yang butuh perhatian
+                                ForEach(tasksNeedingAttention) { task in
+                                    HStack(spacing: AppTheme.Metrics.spacingMedium) {
+                                        Circle()
+                                            .fill(AppTheme.Colors.urgent)
+                                            .frame(width: 8, height: 8)
 
-                            VStack(alignment: .leading, spacing: 10) {
-                                HStack {
-                                    Text(exam.jenisUjian)
-                                        .font(.caption2.weight(.bold))
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 4)
-                                        .background(Color.red.opacity(0.15))
-                                        .foregroundStyle(.red)
-                                        .clipShape(Capsule())
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(task.namaTugas)
+                                                .font(AppTheme.Typography.cardTitle)
+                                                .foregroundStyle(AppTheme.Colors.textPrimary)
+                                                .lineLimit(1)
+                                            Text("\(task.jadwal?.namaMatkul ?? "Tugas") • Tenggat: \(task.deadline.formatted(date: .abbreviated, time: .omitted))")
+                                                .font(AppTheme.Typography.caption)
+                                                .foregroundStyle(AppTheme.Colors.textSecondary)
+                                        }
 
-                                    Spacer()
+                                        Spacer()
 
-                                    Text(exam.tanggal.formatted(date: .abbreviated, time: .omitted))
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(.red)
+                                        Text(task.prioritas.rawValue)
+                                            .font(AppTheme.Typography.badge)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(AppTheme.Colors.urgentBackground)
+                                            .foregroundStyle(AppTheme.Colors.urgent)
+                                            .clipShape(Capsule())
+                                    }
+                                    .cardSurface(strokeColor: AppTheme.Colors.urgent.opacity(0.3))
                                 }
 
-                                Text(exam.jadwal?.namaMatkul ?? "Ujian Akademik")
-                                    .font(.headline)
+                                // Tampilkan ujian terdekat di section Perlu Perhatian jika ada
+                                if let exam = viewModel.upcomingExam {
+                                    HStack(spacing: AppTheme.Metrics.spacingMedium) {
+                                        Image(systemName: "graduationcap.fill")
+                                            .font(AppTheme.Typography.captionBold)
+                                            .foregroundStyle(AppTheme.Colors.warning)
 
-                                if let room = exam.ruangan {
-                                    Label("Ruangan: \(room)", systemImage: "mappin")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text("\(exam.jenisUjian): \(exam.jadwal?.namaMatkul ?? "Ujian Akademik")")
+                                                .font(AppTheme.Typography.cardTitle)
+                                                .foregroundStyle(AppTheme.Colors.textPrimary)
+                                                .lineLimit(1)
+                                            Text("\(exam.tanggal.formatted(date: .abbreviated, time: .omitted))\(exam.ruangan.map { " • R: " + $0 } ?? "")")
+                                                .font(AppTheme.Typography.caption)
+                                                .foregroundStyle(AppTheme.Colors.textSecondary)
+                                        }
+
+                                        Spacer()
+
+                                        Text("Ujian")
+                                            .font(AppTheme.Typography.badge)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(AppTheme.Colors.warningBackground)
+                                            .foregroundStyle(AppTheme.Colors.warning)
+                                            .clipShape(Capsule())
+                                    }
+                                    .cardSurface(strokeColor: AppTheme.Colors.warning.opacity(0.3))
                                 }
-                            }
-                            .padding(16)
-                            .background {
-                                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                    .fill(Color(uiColor: .secondarySystemGroupedBackground))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 18)
-                                            .stroke(Color.red.opacity(0.25), lineWidth: 1)
-                                    )
                             }
                             .padding(.horizontal)
                         }
                     }
 
-                    // Urgent Tasks Section
-                    VStack(alignment: .leading, spacing: 12) {
+                    // 5. Tugas & Deadline (Semua Tugas Aktif, terhindar duplikasi tampilan penuh jika diperlukan)
+                    VStack(alignment: .leading, spacing: AppTheme.Metrics.spacingSmall) {
                         HStack {
-                            Label("Tugas Aktif", systemImage: "checklist")
-                                .font(.headline)
+                            Label("Daftar Tugas Aktif", systemImage: "checklist")
+                                .font(AppTheme.Typography.sectionHeader)
+                                .foregroundStyle(AppTheme.Colors.textPrimary)
                             Spacer()
                             Text("\(viewModel.urgentTasks.count) Tugas")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(AppTheme.Typography.caption)
+                                .foregroundStyle(AppTheme.Colors.textSecondary)
                         }
                         .padding(.horizontal)
 
                         if viewModel.isLoading && viewModel.urgentTasks.isEmpty && viewModel.courses.isEmpty {
-                            VStack(spacing: 12) {
+                            VStack(spacing: AppTheme.Metrics.spacingSmall) {
                                 SkeletonCardView(lines: 2)
                                 SkeletonCardView(lines: 2)
                             }
@@ -199,16 +259,16 @@ public struct DashboardView: View {
                             ) {
                                 await viewModel.loadDashboardData()
                             }
-                            .padding(.vertical, 12)
+                            .padding(.vertical, AppTheme.Metrics.spacingSmall)
                         } else if viewModel.urgentTasks.isEmpty {
                             ContentUnavailableView(
                                 "Semua Tugas Selesai",
                                 systemImage: "checkmark.circle",
-                                description: Text("Bagus sekali! Tidak ada tugas yang tertunda saat ini.")
+                                description: Text("Bagus sekali! Tidak ada tugas yang tertunda.")
                             )
-                            .padding(.vertical, 20)
+                            .padding(.vertical, AppTheme.Metrics.spacingSmall)
                         } else {
-                            LazyVStack(spacing: 12) {
+                            LazyVStack(spacing: AppTheme.Metrics.spacingSmall) {
                                 ForEach(viewModel.urgentTasks) { task in
                                     TaskCardView(task: task, isOffline: viewModel.isOffline) { newProg in
                                         Task {
@@ -221,7 +281,7 @@ public struct DashboardView: View {
                         }
                     }
                 }
-                .padding(.vertical)
+                .padding(.vertical, AppTheme.Metrics.spacingMedium)
             }
             .navigationTitle("Home")
             .navigationBarTitleDisplayMode(.inline)
@@ -242,6 +302,7 @@ public struct DashboardView: View {
                     } label: {
                         Image(systemName: "plus")
                             .font(.headline)
+                            .frame(minWidth: AppTheme.Metrics.minTouchTarget, minHeight: AppTheme.Metrics.minTouchTarget)
                     }
                 }
             }

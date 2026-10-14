@@ -1,6 +1,8 @@
 import SwiftUI
 
-/// Tampilan native SwiftUI untuk keamanan akun, penggantian kata sandi, dan panduan pemulihan akun.
+/// Tampilan native SwiftUI untuk keamanan akun, penggantian kata sandi, dan panduan keamanan data.
+/// Memastikan tidak ada data sensitif yang terekspos, dilengkapi indikator kekuatan kata sandi,
+/// toggle visibilitas dengan target sentuh 44×44pt, serta feedback toast.
 public struct AccountSecurityView: View {
     @Environment(AuthViewModel.self) private var authViewModel
     @Environment(\.dismiss) private var dismiss
@@ -15,24 +17,24 @@ public struct AccountSecurityView: View {
         Form {
             // MARK: - Banner Proteksi Akun
             Section {
-                HStack(spacing: 14) {
+                HStack(spacing: AppTheme.Metrics.spacingMedium) {
                     Image(systemName: "lock.shield.fill")
-                        .font(.title)
+                        .font(.system(size: 32))
                         .foregroundStyle(
                             LinearGradient(
-                                colors: [.blue, .indigo],
+                                colors: [AppTheme.Colors.brandPrimary, Color.indigo],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
                         )
 
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Enkripsi & Keamanan")
-                            .font(.headline)
-                            .foregroundStyle(.primary)
-                        Text("Kata sandi akun Anda dilindungi dengan enkripsi hash bcrypt berstandar keamanan tinggi.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        Text("Proteksi Enkripsi Akun")
+                            .font(AppTheme.Typography.sectionHeader)
+                            .foregroundStyle(AppTheme.Colors.textPrimary)
+                        Text("Kata sandi dilindungi menggunakan hash kriptografis standar industri. Sistem tidak pernah menyimpan atau menampilkan teks sandi terbuka.")
+                            .font(AppTheme.Typography.caption)
+                            .foregroundStyle(AppTheme.Colors.textSecondary)
                     }
                 }
                 .padding(.vertical, 4)
@@ -40,94 +42,152 @@ public struct AccountSecurityView: View {
 
             // MARK: - Form Ganti Kata Sandi
             Section {
-                // Password Lama
-                VStack(alignment: .leading, spacing: 6) {
+                // Kata Sandi Saat Ini
+                VStack(alignment: .leading, spacing: AppTheme.Metrics.spacingXXSmall) {
                     Text("Kata Sandi Saat Ini")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(AppTheme.Typography.captionBold)
+                        .foregroundStyle(AppTheme.Colors.textSecondary)
+
                     HStack {
                         if viewModel.isCurrentPasswordVisible {
                             TextField("Masukkan kata sandi saat ini", text: $viewModel.currentPassword)
+                                .font(AppTheme.Typography.body)
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
                         } else {
                             SecureField("Masukkan kata sandi saat ini", text: $viewModel.currentPassword)
+                                .font(AppTheme.Typography.body)
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
                         }
+
                         Button {
                             viewModel.isCurrentPasswordVisible.toggle()
                         } label: {
                             Image(systemName: viewModel.isCurrentPasswordVisible ? "eye.slash" : "eye")
-                                .foregroundStyle(.secondary)
+                                .font(.body)
+                                .foregroundStyle(AppTheme.Colors.textSecondary)
+                                .frame(
+                                    width: AppTheme.Metrics.minTouchTarget,
+                                    height: AppTheme.Metrics.minTouchTarget,
+                                    alignment: .trailing
+                                )
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                     }
                 }
+                .padding(.vertical, 2)
 
-                // Password Baru
-                VStack(alignment: .leading, spacing: 6) {
+                // Kata Sandi Baru
+                VStack(alignment: .leading, spacing: AppTheme.Metrics.spacingXXSmall) {
                     Text("Kata Sandi Baru")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(AppTheme.Typography.captionBold)
+                        .foregroundStyle(AppTheme.Colors.textSecondary)
+
                     HStack {
                         if viewModel.isNewPasswordVisible {
                             TextField("Minimal 6 karakter", text: $viewModel.newPassword)
+                                .font(AppTheme.Typography.body)
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
                         } else {
                             SecureField("Minimal 6 karakter", text: $viewModel.newPassword)
+                                .font(AppTheme.Typography.body)
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
                         }
+
                         Button {
                             viewModel.isNewPasswordVisible.toggle()
                         } label: {
                             Image(systemName: viewModel.isNewPasswordVisible ? "eye.slash" : "eye")
-                                .foregroundStyle(.secondary)
+                                .font(.body)
+                                .foregroundStyle(AppTheme.Colors.textSecondary)
+                                .frame(
+                                    width: AppTheme.Metrics.minTouchTarget,
+                                    height: AppTheme.Metrics.minTouchTarget,
+                                    alignment: .trailing
+                                )
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                     }
                 }
+                .padding(.vertical, 2)
 
-                // Konfirmasi Password Baru
-                VStack(alignment: .leading, spacing: 6) {
+                // Konfirmasi Kata Sandi Baru
+                VStack(alignment: .leading, spacing: AppTheme.Metrics.spacingXXSmall) {
                     Text("Konfirmasi Kata Sandi Baru")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(AppTheme.Typography.captionBold)
+                        .foregroundStyle(AppTheme.Colors.textSecondary)
+
                     HStack {
                         if viewModel.isConfirmPasswordVisible {
                             TextField("Ulangi kata sandi baru", text: $viewModel.confirmPassword)
+                                .font(AppTheme.Typography.body)
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
                         } else {
                             SecureField("Ulangi kata sandi baru", text: $viewModel.confirmPassword)
+                                .font(AppTheme.Typography.body)
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
                         }
+
                         Button {
                             viewModel.isConfirmPasswordVisible.toggle()
                         } label: {
                             Image(systemName: viewModel.isConfirmPasswordVisible ? "eye.slash" : "eye")
-                                .foregroundStyle(.secondary)
+                                .font(.body)
+                                .foregroundStyle(AppTheme.Colors.textSecondary)
+                                .frame(
+                                    width: AppTheme.Metrics.minTouchTarget,
+                                    height: AppTheme.Metrics.minTouchTarget,
+                                    alignment: .trailing
+                                )
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                     }
                 }
+                .padding(.vertical, 2)
 
-                // Petunjuk Validasi Inline
-                if let hint = viewModel.passwordValidationMessage {
+                // Checklist Persyaratan Kata Sandi
+                VStack(alignment: .leading, spacing: 6) {
+                    let hasLength = viewModel.newPassword.count >= 6
+                    let matches = !viewModel.newPassword.isEmpty && viewModel.newPassword == viewModel.confirmPassword
+                    let isDiff = !viewModel.currentPassword.isEmpty && !viewModel.newPassword.isEmpty && viewModel.currentPassword != viewModel.newPassword
+
                     HStack(spacing: 6) {
-                        Image(systemName: "info.circle.fill")
-                        Text(hint)
+                        Image(systemName: hasLength ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(hasLength ? AppTheme.Colors.success : AppTheme.Colors.textTertiary)
+                        Text("Panjang minimal 6 karakter")
+                            .font(AppTheme.Typography.caption)
+                            .foregroundStyle(hasLength ? AppTheme.Colors.textPrimary : AppTheme.Colors.textSecondary)
                     }
-                    .font(.caption2)
-                    .foregroundStyle(.orange)
+
+                    HStack(spacing: 6) {
+                        Image(systemName: matches ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(matches ? AppTheme.Colors.success : AppTheme.Colors.textTertiary)
+                        Text("Konfirmasi kata sandi cocok")
+                            .font(AppTheme.Typography.caption)
+                            .foregroundStyle(matches ? AppTheme.Colors.textPrimary : AppTheme.Colors.textSecondary)
+                    }
+
+                    HStack(spacing: 6) {
+                        Image(systemName: isDiff ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(isDiff ? AppTheme.Colors.success : AppTheme.Colors.textTertiary)
+                        Text("Berbeda dari kata sandi saat ini")
+                            .font(AppTheme.Typography.caption)
+                            .foregroundStyle(isDiff ? AppTheme.Colors.textPrimary : AppTheme.Colors.textSecondary)
+                    }
                 }
+                .padding(.vertical, 4)
 
                 // Tombol Submit
                 Button {
-                    guard !viewModel.isLoadingPassword, !viewModel.isOffline else { return }
+                    guard !viewModel.isLoadingPassword, !viewModel.isOffline, viewModel.isPasswordFormValid else { return }
                     Task {
                         let success = await viewModel.savePassword()
                         if success {
@@ -144,37 +204,42 @@ public struct AccountSecurityView: View {
                                 .tint(.white)
                                 .padding(.trailing, 6)
                         }
-                        Text(viewModel.isLoadingPassword ? "Memproses..." : "Perbarui Kata Sandi")
+                        Text(viewModel.isLoadingPassword ? "Memproses Sandi..." : "Perbarui Kata Sandi")
+                            .font(AppTheme.Typography.cardTitle)
                             .fontWeight(.semibold)
                         Spacer()
                     }
+                    .frame(minHeight: AppTheme.Metrics.minTouchTarget)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.indigo)
+                .tint(AppTheme.Colors.brandPrimary)
                 .disabled(!viewModel.isPasswordFormValid || viewModel.isLoadingPassword || viewModel.isOffline)
             } header: {
                 Text("Ubah Kata Sandi")
             } footer: {
                 if viewModel.isOffline {
-                    Text("Perangkat sedang offline. Hubungkan ke internet untuk memperbarui kata sandi.")
-                        .foregroundStyle(.orange)
-                } else {
-                    Text("Gunakan kombinasi minimal 6 karakter. Pastikan kata sandi baru berbeda dari kata sandi saat ini.")
+                    HStack(spacing: 6) {
+                        Image(systemName: "wifi.slash")
+                        Text("Perangkat sedang offline. Hubungkan ke internet untuk memperbarui kata sandi.")
+                    }
+                    .font(AppTheme.Typography.caption)
+                    .foregroundStyle(AppTheme.Colors.warning)
                 }
             }
 
-            // MARK: - Catatan Pemulihan Akun & Layanan
+            // MARK: - Catatan Layanan & Keamanan
             Section {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 8) {
-                        Image(systemName: "questionmark.circle.fill")
-                            .foregroundStyle(.blue)
-                        Text("Pemulihan Akun")
-                            .font(.subheadline.weight(.semibold))
+                        Image(systemName: "info.circle.fill")
+                            .foregroundStyle(AppTheme.Colors.brandPrimary)
+                        Text("Panduan Keamanan")
+                            .font(AppTheme.Typography.cardTitle)
                     }
-                    Text("Jika Anda lupa kata sandi, pemulihan akun dapat dilakukan melalui verifikasi pertanyaan keamanan di web TrackerThings. Autentikasi aplikasi dikelola langsung secara mandiri melalui database PostgreSQL internal.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+
+                    Text("Demi keamanan, hindari menggunakan kata sandi yang sama dengan akun lain. Jika Anda kehilangan akses masuk, hubungi administrator kampus atau gunakan menu pemulihan di portal web TrackerThings.")
+                        .font(AppTheme.Typography.caption)
+                        .foregroundStyle(AppTheme.Colors.textSecondary)
                 }
                 .padding(.vertical, 4)
             } header: {
@@ -186,4 +251,3 @@ public struct AccountSecurityView: View {
         .feedbackToast(toast: $toast)
     }
 }
-

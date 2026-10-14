@@ -7,6 +7,7 @@
 	objects = {
 /* Begin PBXBuildFile section */
 		DE92525CD9603C2168A71D98 /* TrackerThingsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 388E5D3AF8D82735002DE558 /* TrackerThingsApp.swift */; };
+		9FEA94BCC8F758F6211FD8B5 /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD61ECA0F8A8FD8AA5AE4AD1 /* AppTheme.swift */; };
 		FFD747DED8BF93EA62207BB2 /* TrackerThingsIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EC6E51748815E129506B4CF /* TrackerThingsIntents.swift */; };
 		95FFDC973AF66890711C153D /* AdminDashboardData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E06DA6A8E55A1FF65A4BE9D /* AdminDashboardData.swift */; };
 		7CBF285C34BE75F2F9262EDA /* AppError.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9C1AFFC4E120D02F7C53D70 /* AppError.swift */; };
@@ -39,9 +40,12 @@
 		6F901C54DFC9DAFAC6EF686A /* RegisterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A3C4A323DD65CC7CCFA184B /* RegisterView.swift */; };
 		BBDA67606C30FFA9A13CD91A /* ServerSettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94800417661FE016FBDD6250 /* ServerSettingsSheet.swift */; };
 		3CC49B63BAA8B8A92BC523F9 /* BrandLogoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CA7EABE954DDD914BC72F04 /* BrandLogoView.swift */; };
+		759DB13934E98646AD8D0AF8 /* CourseCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2167DC790028B3718F1551B /* CourseCardView.swift */; };
+		39B6B18B9BC2F3B82FA52C7C /* ErrorRetryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2C23BCAA7A333065EAF8FE3 /* ErrorRetryView.swift */; };
 		A0B96E9474D44700C6ED69D7 /* FeedbackToastView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 538E8FEE0DF8686AC8B77346 /* FeedbackToastView.swift */; };
 		E460376C6F3959A5738D0366 /* OfflineBannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6747F2CE3E9319F95B5C392D /* OfflineBannerView.swift */; };
 		93F01E3939AE5A21B7524682 /* ScheduleCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89E3D34A0659435ABB9C9289 /* ScheduleCardView.swift */; };
+		37B3AA7F2CE2ACDCF3205BDF /* SkeletonCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CEB99D8F2CEC4D110450E89 /* SkeletonCardView.swift */; };
 		DB1F2B4821FAFF6F735D90DE /* SplashScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7215C310D0E360B8EF19854 /* SplashScreenView.swift */; };
 		EBA60CDB65E24F1A1C6DD05D /* SubmitButtonLabel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 627F38C28D7C11ABA7FB15D5 /* SubmitButtonLabel.swift */; };
 		8A7E58C9977153B21FEC13D8 /* TaskCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CD62AF98154333932DFE8B6 /* TaskCardView.swift */; };
@@ -60,6 +64,7 @@
 /* Begin PBXFileReference section */
 		EB03E6C925E204FFB33EC9F2 /* TrackerThings.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TrackerThings.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		388E5D3AF8D82735002DE558 /* TrackerThingsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackerThingsApp.swift; sourceTree = "<group>"; };
+		AD61ECA0F8A8FD8AA5AE4AD1 /* AppTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTheme.swift; sourceTree = "<group>"; };
 		7EC6E51748815E129506B4CF /* TrackerThingsIntents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackerThingsIntents.swift; sourceTree = "<group>"; };
 		9E06DA6A8E55A1FF65A4BE9D /* AdminDashboardData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminDashboardData.swift; sourceTree = "<group>"; };
 		C9C1AFFC4E120D02F7C53D70 /* AppError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppError.swift; sourceTree = "<group>"; };
@@ -92,9 +97,12 @@
 		8A3C4A323DD65CC7CCFA184B /* RegisterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegisterView.swift; sourceTree = "<group>"; };
 		94800417661FE016FBDD6250 /* ServerSettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerSettingsSheet.swift; sourceTree = "<group>"; };
 		9CA7EABE954DDD914BC72F04 /* BrandLogoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandLogoView.swift; sourceTree = "<group>"; };
+		D2167DC790028B3718F1551B /* CourseCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseCardView.swift; sourceTree = "<group>"; };
+		F2C23BCAA7A333065EAF8FE3 /* ErrorRetryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorRetryView.swift; sourceTree = "<group>"; };
 		538E8FEE0DF8686AC8B77346 /* FeedbackToastView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackToastView.swift; sourceTree = "<group>"; };
 		6747F2CE3E9319F95B5C392D /* OfflineBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineBannerView.swift; sourceTree = "<group>"; };
 		89E3D34A0659435ABB9C9289 /* ScheduleCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleCardView.swift; sourceTree = "<group>"; };
+		6CEB99D8F2CEC4D110450E89 /* SkeletonCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkeletonCardView.swift; sourceTree = "<group>"; };
 		F7215C310D0E360B8EF19854 /* SplashScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashScreenView.swift; sourceTree = "<group>"; };
 		627F38C28D7C11ABA7FB15D5 /* SubmitButtonLabel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubmitButtonLabel.swift; sourceTree = "<group>"; };
 		6CD62AF98154333932DFE8B6 /* TaskCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskCardView.swift; sourceTree = "<group>"; };
@@ -167,6 +175,7 @@
 		5FB93FDF2867905F5A4F62D3 /* TrackerThings */ = {
 			isa = PBXGroup;
 			children = (
+				E3F3E5AB8235725D55733810 /* Design */,
 				9757FE4FB5260CB11B95D20F /* Intents */,
 				CAD89F13D2C64CEDBF357C16 /* Models */,
 				85FECB52F9F7231B98362216 /* Services */,
@@ -175,6 +184,14 @@
 				388E5D3AF8D82735002DE558 /* TrackerThingsApp.swift */,
 			);
 			path = TrackerThings;
+			sourceTree = "<group>";
+		};
+		E3F3E5AB8235725D55733810 /* Design */ = {
+			isa = PBXGroup;
+			children = (
+				AD61ECA0F8A8FD8AA5AE4AD1 /* AppTheme.swift */,
+			);
+			path = Design;
 			sourceTree = "<group>";
 		};
 		9757FE4FB5260CB11B95D20F /* Intents */ = {
@@ -269,9 +286,12 @@
 			isa = PBXGroup;
 			children = (
 				9CA7EABE954DDD914BC72F04 /* BrandLogoView.swift */,
+				D2167DC790028B3718F1551B /* CourseCardView.swift */,
+				F2C23BCAA7A333065EAF8FE3 /* ErrorRetryView.swift */,
 				538E8FEE0DF8686AC8B77346 /* FeedbackToastView.swift */,
 				6747F2CE3E9319F95B5C392D /* OfflineBannerView.swift */,
 				89E3D34A0659435ABB9C9289 /* ScheduleCardView.swift */,
+				6CEB99D8F2CEC4D110450E89 /* SkeletonCardView.swift */,
 				F7215C310D0E360B8EF19854 /* SplashScreenView.swift */,
 				627F38C28D7C11ABA7FB15D5 /* SubmitButtonLabel.swift */,
 				6CD62AF98154333932DFE8B6 /* TaskCardView.swift */,
@@ -393,6 +413,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				DE92525CD9603C2168A71D98 /* TrackerThingsApp.swift in Sources */,
+				9FEA94BCC8F758F6211FD8B5 /* AppTheme.swift in Sources */,
 				FFD747DED8BF93EA62207BB2 /* TrackerThingsIntents.swift in Sources */,
 				95FFDC973AF66890711C153D /* AdminDashboardData.swift in Sources */,
 				7CBF285C34BE75F2F9262EDA /* AppError.swift in Sources */,
@@ -425,9 +446,12 @@
 				6F901C54DFC9DAFAC6EF686A /* RegisterView.swift in Sources */,
 				BBDA67606C30FFA9A13CD91A /* ServerSettingsSheet.swift in Sources */,
 				3CC49B63BAA8B8A92BC523F9 /* BrandLogoView.swift in Sources */,
+				759DB13934E98646AD8D0AF8 /* CourseCardView.swift in Sources */,
+				39B6B18B9BC2F3B82FA52C7C /* ErrorRetryView.swift in Sources */,
 				A0B96E9474D44700C6ED69D7 /* FeedbackToastView.swift in Sources */,
 				E460376C6F3959A5738D0366 /* OfflineBannerView.swift in Sources */,
 				93F01E3939AE5A21B7524682 /* ScheduleCardView.swift in Sources */,
+				37B3AA7F2CE2ACDCF3205BDF /* SkeletonCardView.swift in Sources */,
 				DB1F2B4821FAFF6F735D90DE /* SplashScreenView.swift in Sources */,
 				EBA60CDB65E24F1A1C6DD05D /* SubmitButtonLabel.swift in Sources */,
 				8A7E58C9977153B21FEC13D8 /* TaskCardView.swift in Sources */,

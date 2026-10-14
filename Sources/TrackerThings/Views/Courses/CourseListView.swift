@@ -1,5 +1,8 @@
 import SwiftUI
 
+/// Tampilan daftar Mata Kuliah TrackerThings V2.
+/// Mengadopsi hierarki visual AppTheme, pencarian cepat, swipe action asli iOS,
+/// penanganan status offline, dan form penambahan/pengubahan kuliah.
 public struct CourseListView: View {
     @Bindable var viewModel: CourseViewModel
     @State private var coursePendingDeletion: JadwalItem? = nil
@@ -20,16 +23,20 @@ public struct CourseListView: View {
                                 await viewModel.fetchCourses()
                             }
                         }
-                        .listRowInsets(EdgeInsets())
+                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                         .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                     }
                 }
 
                 if viewModel.isLoading && viewModel.courses.isEmpty {
                     Section {
-                        SkeletonRowView()
-                        SkeletonRowView()
-                        SkeletonRowView()
+                        ForEach(0..<4, id: \.self) { _ in
+                            SkeletonCardView()
+                                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                                .listRowBackground(Color.clear)
+                                .listRowSeparator(.hidden)
+                        }
                     }
                 } else if let error = viewModel.errorMessage, viewModel.courses.isEmpty {
                     Section {
@@ -39,83 +46,73 @@ public struct CourseListView: View {
                         ) {
                             await viewModel.fetchCourses()
                         }
-                        .listRowInsets(EdgeInsets())
+                        .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
                         .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
                     }
                 } else if viewModel.courses.isEmpty {
-                    ContentUnavailableView(
-                        "Belum Ada Mata Kuliah",
-                        systemImage: "book.closed",
-                        description: Text("Tambahkan mata kuliah untuk semester aktif melalui tombol tambah di atas.")
-                    )
+                    Section {
+                        ContentUnavailableView(
+                            "Belum Ada Mata Kuliah",
+                            systemImage: "book.closed",
+                            description: Text("Tambahkan mata kuliah untuk semester aktif melalui tombol tambah di atas.")
+                        )
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                    }
                 } else if viewModel.filteredCourses.isEmpty {
-                    ContentUnavailableView.search(text: viewModel.searchText)
+                    Section {
+                        ContentUnavailableView.search(text: viewModel.searchText)
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                    }
                 } else {
-                    ForEach(viewModel.filteredCourses) { course in
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Text(course.hari)
-                                    .font(.caption.weight(.bold))
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 3)
-                                    .background(Color.blue.opacity(0.12))
-                                    .foregroundStyle(.blue)
-                                    .clipShape(Capsule())
-
-                                if let kat = course.kategori, !kat.isEmpty {
-                                    Text(kat)
-                                        .font(.caption.weight(.medium))
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 3)
-                                        .background(Color.secondary.opacity(0.12))
-                                        .foregroundStyle(.secondary)
-                                        .clipShape(Capsule())
+                    Section {
+                        ForEach(viewModel.filteredCourses) { course in
+                            CourseCardView(
+                                course: course,
+                                onEdit: {
+                                    viewModel.editingCourse = course
+                                    viewModel.isPresentingSheet = true
+                                },
+                                onDelete: {
+                                    coursePendingDeletion = course
+                                }
+                            )
+                            .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button(role: .destructive) {
+                                    coursePendingDeletion = course
+                                } label: {
+                                    Label("Hapus", systemImage: "trash")
                                 }
 
-                                Spacer()
-                            }
-
-                            Text(course.namaMatkul)
-                                .font(.headline)
-
-                            HStack(spacing: 12) {
-                                Label("\(course.waktuMulai) - \(course.waktuSelesai)", systemImage: "clock")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-
-                                if let room = course.lokasi, !room.isEmpty {
-                                    Label(room, systemImage: "mappin")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
+                                Button {
+                                    viewModel.editingCourse = course
+                                    viewModel.isPresentingSheet = true
+                                } label: {
+                                    Label("Edit", systemImage: "pencil")
                                 }
-                            }
-
-                            if let dos = course.dosen, !dos.isEmpty {
-                                Label("Dosen: \(dos)", systemImage: "person.circle")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                .tint(.orange)
                             }
                         }
-                        .padding(.vertical, 4)
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button(role: .destructive) {
-                                coursePendingDeletion = course
-                            } label: {
-                                Label("Hapus", systemImage: "trash")
+                    } header: {
+                        if !viewModel.filteredCourses.isEmpty {
+                            HStack {
+                                Text("\(viewModel.filteredCourses.count) MATA KULIAH")
+                                    .font(AppTheme.Typography.badge)
+                                    .foregroundStyle(AppTheme.Colors.textTertiary)
+                                Spacer()
                             }
-
-                            Button {
-                                viewModel.editingCourse = course
-                                viewModel.isPresentingSheet = true
-                            } label: {
-                                Label("Edit", systemImage: "pencil")
-                            }
-                            .tint(.orange)
+                            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 4, trailing: 16))
                         }
                     }
                 }
             }
-            .listStyle(.insetGrouped)
+            .listStyle(.plain)
+            .background(AppTheme.Colors.background)
             .navigationTitle("Mata Kuliah")
             .searchable(text: $viewModel.searchText, prompt: "Cari mata kuliah, dosen, atau hari...")
             .toolbar {
@@ -125,6 +122,13 @@ public struct CourseListView: View {
                         viewModel.isPresentingSheet = true
                     } label: {
                         Image(systemName: "plus")
+                            .font(.system(size: 16, weight: .semibold))
+                            .frame(
+                                width: AppTheme.Metrics.minTouchTarget,
+                                height: AppTheme.Metrics.minTouchTarget,
+                                alignment: .trailing
+                            )
+                            .contentShape(Rectangle())
                     }
                 }
             }
@@ -184,13 +188,19 @@ public struct CourseFormSheet: View {
         NavigationStack {
             Form {
                 Section("Informasi Kuliah") {
-                    TextField("Nama Mata Kuliah", text: $namaMatkul)
-                    TextField("Dosen Pengampu", text: $dosen)
-                    TextField("Ruangan / Lokasi", text: $lokasi)
+                    TextField("Nama Mata Kuliah (Wajib)", text: $namaMatkul)
+                        .textContentType(.name)
+                        .autocorrectionDisabled()
+
+                    TextField("Dosen Pengampu (Opsional)", text: $dosen)
+                        .autocorrectionDisabled()
+
+                    TextField("Ruangan / Lokasi (Contoh: Lab 2, R.304)", text: $lokasi)
+                        .autocorrectionDisabled()
                 }
 
                 Section("Jadwal & Kategori") {
-                    Picker("Hari", selection: $hari) {
+                    Picker("Hari Kuliah", selection: $hari) {
                         ForEach(hariOptions, id: \.self) {
                             Text($0).tag($0)
                         }
@@ -203,25 +213,35 @@ public struct CourseFormSheet: View {
                     }
 
                     HStack {
-                        Text("Mulai")
+                        Text("Jam Mulai")
+                            .foregroundStyle(AppTheme.Colors.textPrimary)
                         Spacer()
                         TextField("08:00", text: $waktuMulai)
                             .multilineTextAlignment(.trailing)
+                            .keyboardType(.numbersAndPunctuation)
+                            .frame(minWidth: 80)
                     }
 
                     HStack {
-                        Text("Selesai")
+                        Text("Jam Selesai")
+                            .foregroundStyle(AppTheme.Colors.textPrimary)
                         Spacer()
                         TextField("09:40", text: $waktuSelesai)
                             .multilineTextAlignment(.trailing)
+                            .keyboardType(.numbersAndPunctuation)
+                            .frame(minWidth: 80)
                     }
                 }
 
                 if viewModel.isOffline {
                     Section {
-                        Text("Kamu sedang offline. Hubungkan ke internet untuk menyimpan perubahan mata kuliah ke server.")
-                            .font(.footnote)
-                            .foregroundStyle(.orange)
+                        HStack(spacing: 8) {
+                            Image(systemName: "wifi.slash")
+                                .foregroundStyle(.orange)
+                            Text("Mode offline. Hubungkan ke internet untuk menyimpan ke server.")
+                                .font(AppTheme.Typography.caption)
+                                .foregroundStyle(.orange)
+                        }
                     }
                 }
             }
@@ -232,6 +252,7 @@ public struct CourseFormSheet: View {
                     Button("Batal") {
                         dismiss()
                     }
+                    .frame(minWidth: AppTheme.Metrics.minTouchTarget, minHeight: AppTheme.Metrics.minTouchTarget)
                     .disabled(buttonState.isProcessing)
                 }
 
@@ -260,6 +281,7 @@ public struct CourseFormSheet: View {
                     } label: {
                         SubmitButtonLabel(state: buttonState, idleTitle: "Simpan")
                     }
+                    .frame(minWidth: AppTheme.Metrics.minTouchTarget, minHeight: AppTheme.Metrics.minTouchTarget)
                     .disabled(viewModel.isOffline || namaMatkul.trimmingCharacters(in: .whitespaces).isEmpty || buttonState.isProcessing)
                 }
             }
@@ -277,4 +299,3 @@ public struct CourseFormSheet: View {
         }
     }
 }
-

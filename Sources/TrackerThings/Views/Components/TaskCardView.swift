@@ -41,41 +41,39 @@ public struct TaskCardView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: AppTheme.Metrics.spacingSmall) {
             // Badges & Actions
-            HStack {
-                HStack(spacing: 6) {
-                    Text(task.prioritas.rawValue)
-                        .font(.caption2.weight(.bold))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(priorityColor.opacity(0.15))
-                        .foregroundStyle(priorityColor)
-                        .clipShape(Capsule())
+            HStack(spacing: AppTheme.Metrics.spacingXSmall) {
+                Text(task.prioritas.rawValue)
+                    .font(AppTheme.Typography.badge)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(priorityColor.opacity(0.12))
+                    .foregroundStyle(priorityColor)
+                    .clipShape(Capsule())
 
-                    Text(task.jenis.rawValue)
-                        .font(.caption2.weight(.medium))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Color.secondary.opacity(0.12))
-                        .foregroundStyle(.secondary)
-                        .clipShape(Capsule())
+                Text(task.jenis.rawValue)
+                    .font(AppTheme.Typography.badge)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(AppTheme.Colors.neutralBackground)
+                    .foregroundStyle(AppTheme.Colors.textSecondary)
+                    .clipShape(Capsule())
 
-                    if let course = task.jadwal?.namaMatkul {
-                        Text(course)
-                            .font(.caption2.weight(.semibold))
-                            .lineLimit(1)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(Color.blue.opacity(0.12))
-                            .foregroundStyle(.blue)
-                            .clipShape(Capsule())
-                    }
+                if let course = task.jadwal?.namaMatkul {
+                    Text(course)
+                        .font(AppTheme.Typography.badge)
+                        .lineLimit(1)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(AppTheme.Colors.infoBackground)
+                        .foregroundStyle(AppTheme.Colors.info)
+                        .clipShape(Capsule())
                 }
 
                 Spacer()
 
-                HStack(spacing: 8) {
+                HStack(spacing: 4) {
                     if task.status != .selesai, let onMarkCompleted = onMarkCompleted {
                         Button {
                             guard !isMarkingComplete, !isOffline else { return }
@@ -85,13 +83,14 @@ public struct TaskCardView: View {
                             if isMarkingComplete {
                                 ProgressView()
                                     .controlSize(.small)
-                                    .tint(.green)
+                                    .tint(AppTheme.Colors.success)
                             } else {
                                 Image(systemName: "checkmark.circle.fill")
                                     .font(.body)
-                                    .foregroundStyle(isOffline ? Color.secondary : Color.green)
+                                    .foregroundStyle(isOffline ? AppTheme.Colors.textTertiary : AppTheme.Colors.success)
                             }
                         }
+                        .frame(minWidth: AppTheme.Metrics.minTouchTarget, minHeight: AppTheme.Metrics.minTouchTarget)
                         .disabled(isMarkingComplete || isOffline)
                     }
 
@@ -99,8 +98,9 @@ public struct TaskCardView: View {
                         Button(action: onEdit) {
                             Image(systemName: "pencil.circle.fill")
                                 .font(.body)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(AppTheme.Colors.textTertiary)
                         }
+                        .frame(minWidth: AppTheme.Metrics.minTouchTarget, minHeight: AppTheme.Metrics.minTouchTarget)
                         .disabled(isMarkingComplete || isOffline)
                     }
                 }
@@ -108,49 +108,48 @@ public struct TaskCardView: View {
 
             // Task Name
             Text(task.namaTugas)
-                .font(.headline)
+                .font(AppTheme.Typography.cardTitle)
                 .strikethrough(task.status == .selesai)
-                .foregroundStyle(task.status == .selesai ? .secondary : .primary)
+                .foregroundStyle(task.status == .selesai ? AppTheme.Colors.textTertiary : AppTheme.Colors.textPrimary)
+                .lineLimit(2)
 
             // Deadline Info
-            HStack(spacing: 6) {
+            HStack(spacing: AppTheme.Metrics.spacingXSmall) {
                 Image(systemName: "calendar")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(AppTheme.Typography.caption)
+                    .foregroundStyle(AppTheme.Colors.textSecondary)
 
-                Text("Deadline: \(task.deadline.formatted(date: .abbreviated, time: .omitted))")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text("Tenggat: \(task.deadline.formatted(date: .abbreviated, time: .omitted))")
+                    .font(AppTheme.Typography.caption)
+                    .foregroundStyle(AppTheme.Colors.textSecondary)
 
                 if task.status != .selesai {
                     if daysDifference < 0 {
                         Text("Terlewat")
-                            .font(.caption2.weight(.bold))
-                            .foregroundStyle(.red)
+                            .font(AppTheme.Typography.badge)
+                            .foregroundStyle(AppTheme.Colors.urgent)
                     } else if daysDifference == 0 {
                         Text("Hari Ini!")
-                            .font(.caption2.weight(.bold))
-                            .foregroundStyle(.orange)
+                            .font(AppTheme.Typography.badge)
+                            .foregroundStyle(AppTheme.Colors.warning)
                     } else if daysDifference == 1 {
                         Text("Besok")
-                            .font(.caption2.weight(.bold))
-                            .foregroundStyle(.orange)
+                            .font(AppTheme.Typography.badge)
+                            .foregroundStyle(AppTheme.Colors.warning)
                     }
                 }
             }
 
-            Divider()
-
             // Progress Slider
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 4) {
                 HStack {
-                    Text("Progress Pengerjaan")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Text("Progress")
+                        .font(AppTheme.Typography.caption)
+                        .foregroundStyle(AppTheme.Colors.textSecondary)
                     Spacer()
                     Text("\(Int(localProgress))%")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(isOffline ? Color.secondary : Color.blue)
+                        .font(AppTheme.Typography.captionBold)
+                        .foregroundStyle(isOffline ? AppTheme.Colors.textTertiary : AppTheme.Colors.info)
                 }
 
                 Slider(value: $localProgress, in: 0...100, step: 5) {
@@ -160,16 +159,11 @@ public struct TaskCardView: View {
                         onProgressChanged?(Int(localProgress))
                     }
                 }
-                .tint(isOffline ? .secondary : .blue)
+                .tint(isOffline ? AppTheme.Colors.textTertiary : AppTheme.Colors.info)
                 .disabled(isOffline)
             }
         }
-        .padding(16)
-        .background {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color(uiColor: .secondarySystemGroupedBackground))
-                .shadow(color: .black.opacity(0.04), radius: 6, x: 0, y: 3)
-        }
+        .cardSurface()
         .onChange(of: task.progress) { _, newProgress in
             localProgress = Double(newProgress)
             isMarkingComplete = false

@@ -18,34 +18,34 @@ public struct ScheduleCardView: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: AppTheme.Metrics.spacingSmall) {
             // Header Tags
-            HStack {
+            HStack(spacing: AppTheme.Metrics.spacingXSmall) {
                 if item.tipe == .pengganti {
-                    Label("Kelas Pengganti", systemImage: "sparkles")
-                        .font(.caption2.weight(.bold))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.orange.opacity(0.15))
-                        .foregroundStyle(.orange)
+                    Text("Kelas Pengganti")
+                        .font(AppTheme.Typography.badge)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(AppTheme.Colors.warningBackground)
+                        .foregroundStyle(AppTheme.Colors.warning)
                         .clipShape(Capsule())
                 } else {
                     Text("Reguler")
-                        .font(.caption2.weight(.semibold))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.blue.opacity(0.12))
-                        .foregroundStyle(.blue)
+                        .font(AppTheme.Typography.badge)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(AppTheme.Colors.infoBackground)
+                        .foregroundStyle(AppTheme.Colors.info)
                         .clipShape(Capsule())
                 }
 
                 if let kat = item.kategori, !kat.isEmpty {
                     Text(kat)
-                        .font(.caption2.weight(.medium))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.secondary.opacity(0.15))
-                        .foregroundStyle(.secondary)
+                        .font(AppTheme.Typography.badge)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(AppTheme.Colors.neutralBackground)
+                        .foregroundStyle(AppTheme.Colors.textSecondary)
                         .clipShape(Capsule())
                 }
 
@@ -64,72 +64,69 @@ public struct ScheduleCardView: View {
                             HStack(spacing: 4) {
                                 ProgressView()
                                     .controlSize(.small)
-                                    .tint(.green)
+                                    .tint(AppTheme.Colors.success)
                                 Text("Memproses...")
                             }
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.green)
+                            .font(AppTheme.Typography.badge)
+                            .foregroundStyle(AppTheme.Colors.success)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(Color.green.opacity(0.12))
+                            .background(AppTheme.Colors.successBackground)
                             .clipShape(Capsule())
                         } else {
                             Label("Selesai", systemImage: "checkmark.circle.fill")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(isOffline ? Color.secondary : Color.green)
+                                .font(AppTheme.Typography.badge)
+                                .foregroundStyle(isOffline ? AppTheme.Colors.textTertiary : AppTheme.Colors.success)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
-                                .background(isOffline ? Color.secondary.opacity(0.12) : Color.green.opacity(0.12))
+                                .background(isOffline ? AppTheme.Colors.neutralBackground : AppTheme.Colors.successBackground)
                                 .clipShape(Capsule())
                         }
                     }
                     .buttonStyle(.plain)
+                    .frame(minHeight: AppTheme.Metrics.minTouchTarget)
                     .disabled(isProcessing || isOffline)
                 }
             }
 
             // Course Name
             Text(item.namaMatkul)
-                .font(.headline)
-                .foregroundStyle(.primary)
+                .font(AppTheme.Typography.cardTitle)
+                .foregroundStyle(AppTheme.Colors.textPrimary)
+                .lineLimit(2)
 
-            Divider()
-
-            // Details Grid
-            VStack(alignment: .leading, spacing: 6) {
-                Label("\(item.waktuMulai) - \(item.waktuSelesai)", systemImage: "clock.fill")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.blue)
+            // Time & Location Info
+            HStack(spacing: AppTheme.Metrics.spacingMedium) {
+                Label("\(item.waktuMulai) - \(item.waktuSelesai)", systemImage: "clock")
+                    .font(AppTheme.Typography.captionBold)
+                    .foregroundStyle(AppTheme.Colors.info)
 
                 if let lokasi = item.lokasi, !lokasi.isEmpty {
-                    Label(lokasi, systemImage: "mappin.and.ellipse")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-
-                if let dosen = item.dosen, !dosen.isEmpty {
-                    Label("Dosen: \(dosen)", systemImage: "person.crop.circle.badge.checkmark")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-
-                if let catatan = item.catatan, !catatan.isEmpty {
-                    Text("Catatan: \(catatan)")
-                        .font(.caption)
-                        .padding(8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.orange.opacity(0.08))
-                        .foregroundStyle(.primary)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                    Label(lokasi, systemImage: "mappin")
+                        .font(AppTheme.Typography.caption)
+                        .foregroundStyle(AppTheme.Colors.textSecondary)
+                        .lineLimit(1)
                 }
             }
+
+            if let dosen = item.dosen, !dosen.isEmpty {
+                Label(dosen, systemImage: "person")
+                    .font(AppTheme.Typography.caption)
+                    .foregroundStyle(AppTheme.Colors.textTertiary)
+                    .lineLimit(1)
+            }
+
+            if let catatan = item.catatan, !catatan.isEmpty {
+                Text(catatan)
+                    .font(AppTheme.Typography.caption)
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(AppTheme.Colors.warningBackground)
+                    .foregroundStyle(AppTheme.Colors.textPrimary)
+                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.Metrics.cornerRadiusSmall, style: .continuous))
+            }
         }
-        .padding(16)
-        .background {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color(uiColor: .secondarySystemGroupedBackground))
-                .shadow(color: .black.opacity(0.04), radius: 6, x: 0, y: 3)
-        }
+        .cardSurface()
     }
 }
 
