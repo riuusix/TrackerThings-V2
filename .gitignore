@@ -43,3 +43,9 @@ xcuserdata/
 
 # xtool temporary build artifacts
 xtool/.xtool-tmp/
+
+# TypeScript build info cache
+tsconfig.tsbuildinfo
+
+# Local test & audit artifacts
+artifacts/

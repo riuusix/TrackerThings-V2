@@ -49,7 +49,7 @@ public struct TaskFormSheet: View {
                 }
 
                 Section("Tenggat Waktu") {
-                    DatePicker("Deadline", selection: $deadline, displayedComponents: [.date, .hourAndMinute])
+                    DatePicker("Deadline", selection: $deadline, displayedComponents: [.date])
                 }
 
                 if viewModel.isOffline {

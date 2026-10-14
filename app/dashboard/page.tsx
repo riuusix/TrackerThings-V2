@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { DashboardClient } from "./DashboardClient";
 import { JadwalGabunganItem, NotificationItem, TugasItem } from "@/types";
-import { formatTimeFromDate } from "@/lib/utils";
+import { formatTimeFromDate, getCalendarDayName, formatIndonesianDate, getDaysDifference } from "@/lib/utils";
 
 const DAY_NAMES = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 
@@ -13,11 +13,12 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
+  const yesterdayBuffer = new Date();
+  yesterdayBuffer.setDate(yesterdayBuffer.getDate() - 1);
+  yesterdayBuffer.setHours(0, 0, 0, 0);
 
   // Parallel fetch: Ambil semua data independen secara bersamaan
-  const [userData, regularSchedules, replacementClasses, upcomingExamRaw, allTasks] =
+  const [userData, regularSchedules, replacementClasses, upcomingExamsRaw, allTasks] =
     await Promise.all([
       prisma.user.findUnique({
         where: { id: session.userId },
@@ -39,10 +40,10 @@ export default async function DashboardPage() {
         },
         orderBy: { waktuMulai: "asc" },
       }),
-      prisma.ujian.findFirst({
+      prisma.ujian.findMany({
         where: {
           userId: session.userId,
-          tanggal: { gte: todayStart },
+          tanggal: { gte: yesterdayBuffer },
         },
         include: {
           jadwal: {
@@ -53,6 +54,7 @@ export default async function DashboardPage() {
           { tanggal: "asc" },
           { waktuMulai: "asc" },
         ],
+        take: 5,
       }),
       prisma.tugas.findMany({
         where: {
@@ -116,7 +118,7 @@ export default async function DashboardPage() {
   }
 
   for (const kp of replacementClasses) {
-    const classDay = DAY_NAMES[new Date(kp.tanggal).getDay()];
+    const classDay = getCalendarDayName(kp.tanggal);
     if (schedulesByDay[classDay]) {
       schedulesByDay[classDay].push({
         id: kp.id,
@@ -141,6 +143,7 @@ export default async function DashboardPage() {
   const initialDay = DAYS.includes(currentDayOfWeek) ? currentDayOfWeek : "Senin";
 
   // 4. Process upcoming exam
+  const upcomingExamRaw = upcomingExamsRaw.find((e) => getDaysDifference(e.tanggal) >= 0) || null;
   const upcomingExam = upcomingExamRaw
     ? {
         id: upcomingExamRaw.id,
@@ -186,17 +189,14 @@ export default async function DashboardPage() {
 
   // 7. Calculate urgent notifications
   const notifications: NotificationItem[] = [];
-  const now = new Date();
-  const tomorrow = new Date();
-  tomorrow.setDate(now.getDate() + 2);
-
   for (const t of urgentTasks) {
-    if (t.deadline >= now && t.deadline <= tomorrow) {
+    const daysDiff = getDaysDifference(t.deadline);
+    if (daysDiff >= 0 && daysDiff <= 2) {
       notifications.push({
         id: `task-${t.id}`,
         judul: t.namaTugas,
         namaMatkul: t.jadwal?.namaMatkul || "",
-        waktu: new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" }).format(t.deadline),
+        waktu: formatIndonesianDate(t.deadline),
         tipe: "Tugas",
         isUrgent: true,
       });

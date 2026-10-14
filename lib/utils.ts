@@ -42,6 +42,63 @@ export function formatIndonesianDate(dateInput: Date | string): string {
   }).format(utcDate);
 }
 
+const INDONESIAN_DAY_NAMES = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"] as const;
+
+/**
+ * Mendapatkan nama hari dalam bahasa Indonesia untuk tanggal kalender murni (@db.Date).
+ * Tidak terpengaruh pergeseran zona waktu lokal perangkat/server karena dijangkarkan pada tanggal kalender UTC.
+ */
+export function getCalendarDayName(dateInput: Date | string): string {
+  if (!dateInput) return "";
+
+  let y: number, m: number, d: number;
+  if (typeof dateInput === "string") {
+    const match = dateInput.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      y = parseInt(match[1], 10);
+      m = parseInt(match[2], 10);
+      d = parseInt(match[3], 10);
+    } else {
+      const parsed = new Date(dateInput);
+      if (isNaN(parsed.getTime())) return "";
+      return INDONESIAN_DAY_NAMES[parsed.getDay()];
+    }
+  } else if (dateInput instanceof Date) {
+    if (isNaN(dateInput.getTime())) return "";
+    y = dateInput.getUTCFullYear();
+    m = dateInput.getUTCMonth() + 1;
+    d = dateInput.getUTCDate();
+  } else {
+    return "";
+  }
+
+  const utcDate = new Date(Date.UTC(y, m - 1, d));
+  return INDONESIAN_DAY_NAMES[utcDate.getUTCDay()];
+}
+
+/**
+ * Mengonversi tanggal kalender ke format string "YYYY-MM-DD" yang aman untuk input HTML <input type="date">
+ * atau payload API tanpa pergeseran zona waktu.
+ */
+export function formatCalendarDateInput(dateInput?: Date | string | null): string {
+  if (!dateInput) return "";
+  if (typeof dateInput === "string") {
+    const match = dateInput.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) return match[0];
+    const parsed = new Date(dateInput);
+    if (isNaN(parsed.getTime())) return "";
+    return parsed.toISOString().slice(0, 10);
+  }
+  if (dateInput instanceof Date) {
+    if (isNaN(dateInput.getTime())) return "";
+    const y = dateInput.getUTCFullYear();
+    const m = String(dateInput.getUTCMonth() + 1).padStart(2, "0");
+    const d = String(dateInput.getUTCDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+  return "";
+}
+
 /**
  * Memformat timestamp absolut (seperti createdAt / profileUpdatedAt / audit log)
  * ke format tanggal & waktu lokal pengguna.

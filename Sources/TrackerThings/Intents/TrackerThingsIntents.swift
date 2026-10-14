@@ -112,7 +112,7 @@ public struct GetUrgentTasksIntent: AppIntent {
         let topTasks = pendingTasks.prefix(5)
         let df = DateFormatter()
         df.dateStyle = .medium
-        df.timeStyle = .short
+        df.timeStyle = .none
         df.locale = Locale(identifier: "id_ID")
 
         var lines: [String] = ["Tugas yang perlu diselesaikan:"]
@@ -156,7 +156,8 @@ public struct GetNextExamIntent: AppIntent {
         }
 
         let now = Date()
-        let upcomingExams = exams.filter { $0.tanggal >= now.addingTimeInterval(-86400) }
+        let startOfToday = Calendar.current.startOfDay(for: now)
+        let upcomingExams = exams.filter { $0.tanggal >= startOfToday }
             .sorted { $0.tanggal < $1.tanggal }
 
         if upcomingExams.isEmpty {

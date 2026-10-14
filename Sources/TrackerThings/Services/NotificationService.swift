@@ -504,7 +504,7 @@ public final class NotificationService: Sendable {
 
         // 3. Ujian
         let now = Date()
-        let upcomingExams = exams.filter { $0.tanggal > now.addingTimeInterval(-86400) }
+        let upcomingExams = exams.filter { $0.tanggal >= Calendar.current.startOfDay(for: now) }
         let validExamIds = Set(upcomingExams.map { "exam-\($0.id)" })
         let staleExamIds = pendingRequests
             .filter { $0.identifier.hasPrefix("exam-") && !validExamIds.contains($0.identifier) }

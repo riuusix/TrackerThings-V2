@@ -155,9 +155,12 @@ export function DashboardClient({
                         </span>
                         <span className="text-xs font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-1">
                           <Sparkles className="w-3 h-3" />
-                          {getDaysDifference(upcomingExam.tanggal) <= 0
-                            ? "Hari Ini!"
-                            : `${getDaysDifference(upcomingExam.tanggal)} hari lagi`}
+                          {(() => {
+                            const diff = getDaysDifference(upcomingExam.tanggal);
+                            if (diff === 0) return "Hari Ini!";
+                            if (diff < 0) return "Selesai";
+                            return `${diff} hari lagi`;
+                          })()}
                         </span>
                       </div>
 

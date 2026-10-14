@@ -13,7 +13,14 @@ const assert = require("assert");
 
 // Import utility functions directly from lib/utils.ts
 const utils = require("../lib/utils.ts");
-const { parseDateOnly, formatIndonesianDate, formatIndonesianDateTime, getDaysDifference } = utils;
+const {
+  parseDateOnly,
+  formatIndonesianDate,
+  formatIndonesianDateTime,
+  getDaysDifference,
+  getCalendarDayName,
+  formatCalendarDateInput,
+} = utils;
 
 console.log("================================================================================");
 console.log("RUNNING MULTI-TIMEZONE DATE & SEMANTICS TEST SUITE");
@@ -291,6 +298,64 @@ test("Scenario D: Current time is AFTER deadline (Oct 14, 01:00) -> CANCELS, NEV
   assert.strictEqual(schedule.action, "CANCEL_EXPIRED");
   assert.strictEqual(schedule.triggerDate, null);
   assert.strictEqual(schedule.type, null);
+});
+
+// -----------------------------------------------------------------------------
+// 7. getCalendarDayName & formatCalendarDateInput (No Day Drift)
+// -----------------------------------------------------------------------------
+console.log("\n--- 7. getCalendarDayName & formatCalendarDateInput (No Day Drift) ---");
+
+test("getCalendarDayName for '2026-10-15' correctly outputs 'Kamis'", () => {
+  assert.strictEqual(getCalendarDayName("2026-10-15"), "Kamis");
+});
+
+test("getCalendarDayName for UTC midnight Date instance '2026-10-15T00:00:00.000Z' outputs 'Kamis'", () => {
+  const d = new Date("2026-10-15T00:00:00.000Z");
+  assert.strictEqual(getCalendarDayName(d), "Kamis");
+});
+
+test("getCalendarDayName for legacy Prisma ISO string outputs 'Kamis' (not Rabu)", () => {
+  assert.strictEqual(getCalendarDayName("2026-10-15T00:00:00.000Z"), "Kamis");
+});
+
+test("formatCalendarDateInput preserves 'YYYY-MM-DD' from Date instance without timezone drift", () => {
+  const d = new Date("2026-10-15T00:00:00.000Z");
+  assert.strictEqual(formatCalendarDateInput(d), "2026-10-15");
+});
+
+test("formatCalendarDateInput preserves string '2026-10-15'", () => {
+  assert.strictEqual(formatCalendarDateInput("2026-10-15"), "2026-10-15");
+});
+
+// -----------------------------------------------------------------------------
+// 8. Dashboard Calendar Date Semantics & Urgent Filter Simulation
+// -----------------------------------------------------------------------------
+console.log("\n--- 8. Dashboard Calendar Semantics & Filtering ---");
+
+test("Dashboard urgent task filter includes tasks due today (daysDiff === 0)", () => {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  const todayDateStr = `${y}-${m}-${d}`;
+  const daysDiff = getDaysDifference(todayDateStr);
+
+  assert.strictEqual(daysDiff, 0);
+  const isIncluded = daysDiff >= 0 && daysDiff <= 2;
+  assert.strictEqual(isIncluded, true, "Task due today must be included in urgent notifications");
+});
+
+test("Dashboard upcoming exam badge displays 'Hari Ini!' for diff === 0, 'Selesai' for diff < 0", () => {
+  const formatBadge = (diff) => {
+    if (diff === 0) return "Hari Ini!";
+    if (diff < 0) return "Selesai";
+    return `${diff} hari lagi`;
+  };
+
+  assert.strictEqual(formatBadge(0), "Hari Ini!");
+  assert.strictEqual(formatBadge(-1), "Selesai");
+  assert.strictEqual(formatBadge(-5), "Selesai");
+  assert.strictEqual(formatBadge(2), "2 hari lagi");
 });
 
 // -----------------------------------------------------------------------------
