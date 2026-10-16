@@ -42,6 +42,14 @@ public protocol NetworkServiceProtocol: Sendable {
         body: Data?,
         headers: [String: String]?
     ) async throws -> T
+
+    func uploadMultipart<T: Decodable & Sendable>(
+        endpoint: String,
+        fileData: Data,
+        fileName: String,
+        mimeType: String,
+        fieldName: String
+    ) async throws -> T
 }
 
 public actor NetworkService: NetworkServiceProtocol {
@@ -239,6 +247,72 @@ public actor NetworkService: NetworkServiceProtocol {
             }
             if let envelope = try? jsonDecoder.decode(KelasPenggantiEnvelope<T>.self, from: data) {
                 return envelope.kelasPengganti
+            }
+            throw AppError.decodingError(primaryError.localizedDescription)
+        }
+    }
+
+    public func uploadMultipart<T: Decodable & Sendable>(
+        endpoint: String,
+        fileData: Data,
+        fileName: String = "avatar.jpg",
+        mimeType: String = "image/jpeg",
+        fieldName: String = "file"
+    ) async throws -> T {
+        guard let url = buildURL(for: endpoint) else {
+            throw NetworkError.invalidURL
+        }
+
+        let boundary = "Boundary-\(UUID().uuidString)"
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        if let token = authToken {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
+        var body = Data()
+        body.append(Data("--\(boundary)\r\n".utf8))
+        body.append(Data("Content-Disposition: form-data; name=\"\(fieldName)\"; filename=\"\(fileName)\"\r\n".utf8))
+        body.append(Data("Content-Type: \(mimeType)\r\n\r\n".utf8))
+        body.append(fileData)
+        body.append(Data("\r\n--\(boundary)--\r\n".utf8))
+
+        request.httpBody = body
+
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NetworkError.unknown("Respon tidak valid dari server.")
+        }
+
+        if httpResponse.statusCode == 401 {
+            KeychainHelper.shared.deleteToken()
+            self.authToken = nil
+            Task { @MainActor in
+                NotificationCenter.default.post(name: .sessionDidExpire, object: nil)
+            }
+            if let parsedMessage = extractErrorMessage(from: data) {
+                throw AppError.serverError(code: 401, message: parsedMessage)
+            }
+            throw AppError.unauthorized
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let errorMsg = extractErrorMessage(from: data) ?? "Server mengembalikan status HTTP \(httpResponse.statusCode)"
+            throw AppError.serverError(code: httpResponse.statusCode, message: errorMsg)
+        }
+
+        do {
+            return try jsonDecoder.decode(T.self, from: data)
+        } catch let primaryError {
+            if let envelope = try? jsonDecoder.decode(DataEnvelope<T>.self, from: data) {
+                return envelope.data
+            }
+            if let envelope = try? jsonDecoder.decode(UserEnvelope<T>.self, from: data) {
+                return envelope.user
             }
             throw AppError.decodingError(primaryError.localizedDescription)
         }

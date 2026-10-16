@@ -126,24 +126,28 @@ public final class CourseViewModel {
         }
     }
 
-    public func deleteCourse(id: Int) async {
+    @discardableResult
+    public func deleteCourse(id: Int) async -> Bool {
         guard !isOffline else {
             showToast("Tidak dapat menghapus mata kuliah saat offline.", severity: .warning)
-            return
+            return false
         }
-        guard deletingId == nil else { return }
+        guard deletingId == nil else { return false }
         deletingId = id
         defer { deletingId = nil }
 
         do {
             _ = try await dataService.deleteJadwal(id: id)
             courses.removeAll { $0.id == id }
+            LocalCacheService.shared.save(courses, forKey: LocalCacheService.keyJadwal)
             NotificationService.shared.cancelReminderForCourse(id: id)
             await NotificationService.shared.syncRemindersFromCache()
             showToast("Mata kuliah berhasil dihapus.", severity: .success)
+            return true
         } catch {
             errorMessage = error.localizedDescription
             showToast(error.localizedDescription, severity: .error)
+            return false
         }
     }
 }

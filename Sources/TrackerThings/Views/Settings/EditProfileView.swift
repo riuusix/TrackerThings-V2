@@ -1,13 +1,15 @@
 import SwiftUI
+import PhotosUI
 
 /// Tampilan native SwiftUI untuk mengedit biodata profil pengguna TrackerThings V2.
-/// Membedakan field read-only sistem dengan field yang dapat diedit, dilengkapi validasi instan,
-/// loading state, pencegahan submit berulang, serta toast feedback.
+/// Mendukung pemilihan foto via PhotosPicker dengan kompresi lokal, upload ke server,
+/// input URL opsional, validasi instan, loading state, dan toast feedback.
 public struct EditProfileView: View {
     @Environment(AuthViewModel.self) private var authViewModel
     @Environment(\.dismiss) private var dismiss
     @Bindable var viewModel: SettingsViewModel
     @State private var toast: FeedbackToastData?
+    @State private var selectedPhotoItem: PhotosPickerItem? = nil
 
     public init(viewModel: SettingsViewModel) {
         self.viewModel = viewModel
@@ -15,16 +17,46 @@ public struct EditProfileView: View {
 
     public var body: some View {
         Form {
-            // MARK: - Header Avatar Pratinjau
+            // MARK: - Header Avatar Pratinjau & Pemilih Foto
             Section {
                 VStack(spacing: AppTheme.Metrics.spacingMedium) {
-                    UserAvatarView(
-                        url: viewModel.profilePictureUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                            ? authViewModel.currentUser?.profilePictureUrl
-                            : viewModel.profilePictureUrl,
-                        initials: String((viewModel.fullName.isEmpty ? (authViewModel.currentUser?.username ?? "U") : viewModel.fullName).prefix(1)).uppercased(),
-                        size: 76
-                    )
+                    ZStack(alignment: .bottomTrailing) {
+                        UserAvatarView(
+                            url: viewModel.profilePictureUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                ? authViewModel.currentUser?.profilePictureUrl
+                                : viewModel.profilePictureUrl,
+                            initials: String((viewModel.fullName.isEmpty ? (authViewModel.currentUser?.username ?? "U") : viewModel.fullName).prefix(1)).uppercased(),
+                            size: 84
+                        )
+
+                        if viewModel.isUploadingAvatar {
+                            ProgressView()
+                                .tint(.white)
+                                .frame(width: 84, height: 84)
+                                .background(Color.black.opacity(0.45))
+                                .clipShape(Circle())
+                        }
+
+                        PhotosPicker(
+                            selection: $selectedPhotoItem,
+                            matching: .images,
+                            photoLibrary: .shared()
+                        ) {
+                            Image(systemName: "camera.fill")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(7)
+                                .background(AppTheme.Colors.brandPrimary)
+                                .clipShape(Circle())
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color(uiColor: .systemBackground), lineWidth: 2)
+                                )
+                                .shadow(radius: 2)
+                        }
+                        .disabled(viewModel.isUploadingAvatar || viewModel.isOffline)
+                        .accessibilityLabel("Pilih Foto Profil Baru")
+                    }
 
                     VStack(spacing: 3) {
                         Text(viewModel.fullName.isEmpty ? (authViewModel.currentUser?.fullName ?? "Nama Pengguna") : viewModel.fullName)
@@ -34,6 +66,21 @@ public struct EditProfileView: View {
                         Text("@\(authViewModel.currentUser?.username ?? "user")")
                             .font(AppTheme.Typography.caption)
                             .foregroundStyle(AppTheme.Colors.textSecondary)
+
+                        PhotosPicker(
+                            selection: $selectedPhotoItem,
+                            matching: .images,
+                            photoLibrary: .shared()
+                        ) {
+                            Text(viewModel.isUploadingAvatar ? "Mengunggah..." : "Pilih dari Galeri")
+                                .font(AppTheme.Typography.badge)
+                                .foregroundStyle(viewModel.isOffline ? AppTheme.Colors.textTertiary : AppTheme.Colors.brandPrimary)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .background(AppTheme.Colors.neutralBackground)
+                                .clipShape(Capsule())
+                        }
+                        .disabled(viewModel.isUploadingAvatar || viewModel.isOffline)
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -177,5 +224,63 @@ public struct EditProfileView: View {
         .onAppear {
             viewModel.loadUserData(from: authViewModel.currentUser)
         }
+        .onChange(of: selectedPhotoItem) { _, newItem in
+            guard let item = newItem else { return }
+            Task {
+                await handlePhotoSelection(item)
+            }
+        }
+    }
+
+    private func handlePhotoSelection(_ item: PhotosPickerItem) async {
+        guard !viewModel.isOffline else {
+            toast = FeedbackToastData(message: "Tidak dapat mengunggah foto saat offline.", severity: .warning)
+            selectedPhotoItem = nil
+            return
+        }
+
+        do {
+            guard let rawData = try await item.loadTransferable(type: Data.self) else {
+                toast = FeedbackToastData(message: "Gagal membaca data gambar yang dipilih.", severity: .error)
+                selectedPhotoItem = nil
+                return
+            }
+
+            // Validasi & kompresi ukuran gambar bila diperlukan (target <= 2MB, max dimensi 1024x1024)
+            #if canImport(UIKit)
+            let processedData: Data
+            if let uiImage = UIImage(data: rawData) {
+                let maxDimension: CGFloat = 1024
+                let originalSize = uiImage.size
+                let targetSize: CGSize
+                if originalSize.width > maxDimension || originalSize.height > maxDimension {
+                    let ratio = min(maxDimension / originalSize.width, maxDimension / originalSize.height)
+                    targetSize = CGSize(width: originalSize.width * ratio, height: originalSize.height * ratio)
+                } else {
+                    targetSize = originalSize
+                }
+
+                let renderer = UIGraphicsImageRenderer(size: targetSize)
+                let resizedImage = renderer.image { _ in
+                    uiImage.draw(in: CGRect(origin: .zero, size: targetSize))
+                }
+                processedData = resizedImage.jpegData(compressionQuality: 0.8) ?? rawData
+            } else {
+                processedData = rawData
+            }
+            #else
+            let processedData = rawData
+            #endif
+
+            if let updatedUser = await viewModel.uploadAvatar(data: processedData, mimeType: "image/jpeg", fileName: "avatar.jpg") {
+                authViewModel.currentUser = updatedUser
+                toast = FeedbackToastData(message: "Foto profil berhasil diperbarui!", severity: .success)
+            } else if let errorMsg = viewModel.errorMessage {
+                toast = FeedbackToastData(message: errorMsg, severity: .error)
+            }
+        } catch {
+            toast = FeedbackToastData(message: "Gagal memproses gambar: \(error.localizedDescription)", severity: .error)
+        }
+        selectedPhotoItem = nil
     }
 }

@@ -4,11 +4,21 @@ import SwiftUI
 /// Mengadopsi hierarki visual AppTheme, pencarian cepat, swipe action asli iOS,
 /// penanganan status offline, dan form penambahan/pengubahan kuliah.
 public struct CourseListView: View {
+    @Environment(AuthViewModel.self) private var authViewModel
     @Bindable var viewModel: CourseViewModel
+    @State private var dashboardViewModel: DashboardViewModel
+    @State private var examViewModel: ExamViewModel
     @State private var coursePendingDeletion: JadwalItem? = nil
+    @State private var isShowingAccountSummary: Bool = false
 
-    public init(viewModel: CourseViewModel) {
+    public init(
+        viewModel: CourseViewModel,
+        dashboardViewModel: DashboardViewModel = DashboardViewModel(),
+        examViewModel: ExamViewModel = ExamViewModel()
+    ) {
         self.viewModel = viewModel
+        _dashboardViewModel = State(initialValue: dashboardViewModel)
+        _examViewModel = State(initialValue: examViewModel)
     }
 
     public var body: some View {
@@ -69,16 +79,31 @@ public struct CourseListView: View {
                 } else {
                     Section {
                         ForEach(viewModel.filteredCourses) { course in
-                            CourseCardView(
-                                course: course,
-                                onEdit: {
-                                    viewModel.editingCourse = course
-                                    viewModel.isPresentingSheet = true
-                                },
-                                onDelete: {
-                                    coursePendingDeletion = course
+                            ZStack {
+                                NavigationLink {
+                                    CourseDetailView(
+                                        courseId: course.id,
+                                        initialCourse: course,
+                                        courseViewModel: viewModel,
+                                        dashboardViewModel: dashboardViewModel,
+                                        examViewModel: examViewModel
+                                    )
+                                } label: {
+                                    EmptyView()
                                 }
-                            )
+                                .opacity(0)
+
+                                CourseCardView(
+                                    course: course,
+                                    onEdit: {
+                                        viewModel.editingCourse = course
+                                        viewModel.isPresentingSheet = true
+                                    },
+                                    onDelete: {
+                                        coursePendingDeletion = course
+                                    }
+                                )
+                            }
                             .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
@@ -116,6 +141,22 @@ public struct CourseListView: View {
             .navigationTitle("Mata Kuliah")
             .searchable(text: $viewModel.searchText, prompt: "Cari mata kuliah, dosen, atau hari...")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        isShowingAccountSummary = true
+                    } label: {
+                        UserAccountStatusBadge(size: 30)
+                            .frame(
+                                width: AppTheme.Metrics.minTouchTarget,
+                                height: AppTheme.Metrics.minTouchTarget,
+                                alignment: .leading
+                            )
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Profil dan Status Akun")
+                }
+
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         viewModel.editingCourse = nil
@@ -131,6 +172,9 @@ public struct CourseListView: View {
                             .contentShape(Rectangle())
                     }
                 }
+            }
+            .sheet(isPresented: $isShowingAccountSummary) {
+                UserAccountSummarySheet()
             }
             .sheet(isPresented: $viewModel.isPresentingSheet) {
                 CourseFormSheet(viewModel: viewModel)
@@ -183,6 +227,10 @@ public struct CourseFormSheet: View {
 
     private let hariOptions = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]
     private let kategoriOptions = ["Wajib", "Pilihan", "Praktikum", "Umum"]
+
+    public init(viewModel: CourseViewModel) {
+        self.viewModel = viewModel
+    }
 
     public var body: some View {
         NavigationStack {

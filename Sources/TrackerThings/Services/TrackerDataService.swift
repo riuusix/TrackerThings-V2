@@ -19,7 +19,9 @@ public protocol TrackerDataServiceProtocol: Sendable {
 
     func getKelasPenggantiList() async throws -> [KelasPenggantiItem]
     func createKelasPengganti(_ item: KelasPenggantiItem) async throws -> BaseResponse
+    func updateKelasPengganti(_ item: KelasPenggantiItem) async throws -> BaseResponse
     func selesaiKelasPengganti(id: Int) async throws -> BaseResponse
+    func deleteKelasPengganti(id: Int) async throws -> BaseResponse
 }
 
 public actor TrackerDataService: TrackerDataServiceProtocol {
@@ -153,8 +155,17 @@ public actor TrackerDataService: TrackerDataServiceProtocol {
         return try await network.request(endpoint: "kelas-pengganti", method: "POST", body: body)
     }
 
+    public func updateKelasPengganti(_ item: KelasPenggantiItem) async throws -> BaseResponse {
+        let body = try encoder.encode(item)
+        return try await network.request(endpoint: "kelas-pengganti/\(item.id)", method: "PUT", body: body)
+    }
+
     public func selesaiKelasPengganti(id: Int) async throws -> BaseResponse {
         return try await network.request(endpoint: "kelas-pengganti/\(id)/selesai", method: "POST")
+    }
+
+    public func deleteKelasPengganti(id: Int) async throws -> BaseResponse {
+        return try await network.request(endpoint: "kelas-pengganti/\(id)", method: "DELETE")
     }
 }
 

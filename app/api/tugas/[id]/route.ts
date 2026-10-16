@@ -63,6 +63,19 @@ export async function PUT(
     if (namaTugas) updateData.namaTugas = namaTugas;
     if (!isNaN(parsedJadwalId) && parsedJadwalId > 0) updateData.idJadwal = parsedJadwalId;
     if (deadline) updateData.deadline = parseDateOnly(deadline);
+    if (body.progress !== undefined && body.progress !== null) {
+      const parsedProg = parseInt(body.progress, 10);
+      if (!isNaN(parsedProg)) {
+        const clamped = Math.min(100, Math.max(0, parsedProg));
+        updateData.progress = clamped;
+        updateData.status = clamped >= 100 ? "Selesai" : clamped > 0 ? "Sedang Dikerjakan" : "Belum Dikerjakan";
+      }
+    } else if (
+      typeof body.status === "string" &&
+      ["Belum Dikerjakan", "Sedang Dikerjakan", "Selesai"].includes(body.status)
+    ) {
+      updateData.status = body.status;
+    }
 
     await prisma.tugas.update({
       where: { id: taskId },

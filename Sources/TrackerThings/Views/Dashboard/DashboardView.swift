@@ -2,11 +2,19 @@ import SwiftUI
 
 public struct DashboardView: View {
     @Bindable var viewModel: DashboardViewModel
+    @State private var courseViewModel: CourseViewModel
+    @State private var examViewModel: ExamViewModel
     @State private var isPresentingAddTask = false
     @State private var isPresentingAddReplacement = false
 
-    public init(viewModel: DashboardViewModel) {
+    public init(
+        viewModel: DashboardViewModel,
+        courseViewModel: CourseViewModel = CourseViewModel(),
+        examViewModel: ExamViewModel = ExamViewModel()
+    ) {
         self.viewModel = viewModel
+        _courseViewModel = State(initialValue: courseViewModel)
+        _examViewModel = State(initialValue: examViewModel)
     }
 
     private var indonesianTodayText: String {
@@ -133,8 +141,34 @@ public struct DashboardView: View {
                         } else {
                             LazyVStack(spacing: AppTheme.Metrics.spacingSmall) {
                                 ForEach(viewModel.schedulesForSelectedDay) { schedule in
-                                    ScheduleCardView(item: schedule, isOffline: viewModel.isOffline) {
-                                        await viewModel.markReplacementCompleted(item: schedule)
+                                    if schedule.tipe == .pengganti {
+                                        let matchingKP = viewModel.replacementClasses.first(where: { $0.id == schedule.id })
+                                        NavigationLink {
+                                            ReplacementClassDetailView(
+                                                replacementId: schedule.id,
+                                                initialItem: matchingKP,
+                                                viewModel: viewModel
+                                            )
+                                        } label: {
+                                            ScheduleCardView(item: schedule, isOffline: viewModel.isOffline) {
+                                                await viewModel.markReplacementCompleted(item: schedule)
+                                            }
+                                        }
+                                        .buttonStyle(.plain)
+                                    } else {
+                                        let matchingCourse = viewModel.courses.first(where: { $0.id == schedule.idJadwal })
+                                        NavigationLink {
+                                            CourseDetailView(
+                                                courseId: schedule.idJadwal,
+                                                initialCourse: matchingCourse,
+                                                courseViewModel: courseViewModel,
+                                                dashboardViewModel: viewModel,
+                                                examViewModel: examViewModel
+                                            )
+                                        } label: {
+                                            ScheduleCardView(item: schedule, isOffline: viewModel.isOffline)
+                                        }
+                                        .buttonStyle(.plain)
                                     }
                                 }
                             }
@@ -171,69 +205,87 @@ public struct DashboardView: View {
                             VStack(spacing: AppTheme.Metrics.spacingSmall) {
                                 // Tampilkan tugas yang butuh perhatian
                                 ForEach(tasksNeedingAttention) { task in
-                                    HStack(spacing: AppTheme.Metrics.spacingMedium) {
-                                        Circle()
-                                            .fill(AppTheme.Colors.urgent)
-                                            .frame(width: 8, height: 8)
+                                    NavigationLink {
+                                        TaskDetailView(
+                                            taskId: task.id,
+                                            initialTask: task,
+                                            viewModel: viewModel
+                                        )
+                                    } label: {
+                                        HStack(spacing: AppTheme.Metrics.spacingMedium) {
+                                            Circle()
+                                                .fill(AppTheme.Colors.urgent)
+                                                .frame(width: 8, height: 8)
 
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text(task.namaTugas)
-                                                .font(AppTheme.Typography.cardTitle)
-                                                .foregroundStyle(AppTheme.Colors.textPrimary)
-                                                .lineLimit(1)
-                                            Text("\(task.jadwal?.namaMatkul ?? "Tugas") • Tenggat: \(task.deadline.formatted(date: .abbreviated, time: .omitted))")
-                                                .font(AppTheme.Typography.caption)
-                                                .foregroundStyle(AppTheme.Colors.textSecondary)
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(task.namaTugas)
+                                                    .font(AppTheme.Typography.cardTitle)
+                                                    .foregroundStyle(AppTheme.Colors.textPrimary)
+                                                    .lineLimit(1)
+                                                Text("\(task.jadwal?.namaMatkul ?? "Tugas") • Tenggat: \(task.deadline.formatted(date: .abbreviated, time: .omitted))")
+                                                    .font(AppTheme.Typography.caption)
+                                                    .foregroundStyle(AppTheme.Colors.textSecondary)
+                                            }
+
+                                            Spacer()
+
+                                            Text(task.prioritas.rawValue)
+                                                .font(AppTheme.Typography.badge)
+                                                .padding(.horizontal, 6)
+                                                .padding(.vertical, 2)
+                                                .background(AppTheme.Colors.urgentBackground)
+                                                .foregroundStyle(AppTheme.Colors.urgent)
+                                                .clipShape(Capsule())
                                         }
-
-                                        Spacer()
-
-                                        Text(task.prioritas.rawValue)
-                                            .font(AppTheme.Typography.badge)
-                                            .padding(.horizontal, 6)
-                                            .padding(.vertical, 2)
-                                            .background(AppTheme.Colors.urgentBackground)
-                                            .foregroundStyle(AppTheme.Colors.urgent)
-                                            .clipShape(Capsule())
+                                        .cardSurface(strokeColor: AppTheme.Colors.urgent.opacity(0.3))
                                     }
-                                    .cardSurface(strokeColor: AppTheme.Colors.urgent.opacity(0.3))
+                                    .buttonStyle(.plain)
                                 }
 
                                 // Tampilkan ujian terdekat di section Perlu Perhatian jika ada
                                 if let exam = viewModel.upcomingExam {
-                                    HStack(spacing: AppTheme.Metrics.spacingMedium) {
-                                        Image(systemName: "graduationcap.fill")
-                                            .font(AppTheme.Typography.captionBold)
-                                            .foregroundStyle(AppTheme.Colors.warning)
+                                    NavigationLink {
+                                        ExamDetailView(
+                                            examId: exam.id,
+                                            initialExam: exam,
+                                            viewModel: examViewModel
+                                        )
+                                    } label: {
+                                        HStack(spacing: AppTheme.Metrics.spacingMedium) {
+                                            Image(systemName: "graduationcap.fill")
+                                                .font(AppTheme.Typography.captionBold)
+                                                .foregroundStyle(AppTheme.Colors.warning)
 
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text("\(exam.jenisUjian): \(exam.jadwal?.namaMatkul ?? "Ujian Akademik")")
-                                                .font(AppTheme.Typography.cardTitle)
-                                                .foregroundStyle(AppTheme.Colors.textPrimary)
-                                                .lineLimit(1)
-                                            Text("\(exam.tanggal.formatted(date: .abbreviated, time: .omitted))\(exam.ruangan.map { " • R: " + $0 } ?? "")")
-                                                .font(AppTheme.Typography.caption)
-                                                .foregroundStyle(AppTheme.Colors.textSecondary)
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text("\(exam.jenisUjian): \(exam.jadwal?.namaMatkul ?? "Ujian Akademik")")
+                                                    .font(AppTheme.Typography.cardTitle)
+                                                    .foregroundStyle(AppTheme.Colors.textPrimary)
+                                                    .lineLimit(1)
+                                                Text("\(exam.tanggal.formatted(date: .abbreviated, time: .omitted))\(exam.ruangan.map { " • R: " + $0 } ?? "")")
+                                                    .font(AppTheme.Typography.caption)
+                                                    .foregroundStyle(AppTheme.Colors.textSecondary)
+                                            }
+
+                                            Spacer()
+
+                                            Text("Ujian")
+                                                .font(AppTheme.Typography.badge)
+                                                .padding(.horizontal, 6)
+                                                .padding(.vertical, 2)
+                                                .background(AppTheme.Colors.warningBackground)
+                                                .foregroundStyle(AppTheme.Colors.warning)
+                                                .clipShape(Capsule())
                                         }
-
-                                        Spacer()
-
-                                        Text("Ujian")
-                                            .font(AppTheme.Typography.badge)
-                                            .padding(.horizontal, 6)
-                                            .padding(.vertical, 2)
-                                            .background(AppTheme.Colors.warningBackground)
-                                            .foregroundStyle(AppTheme.Colors.warning)
-                                            .clipShape(Capsule())
+                                        .cardSurface(strokeColor: AppTheme.Colors.warning.opacity(0.3))
                                     }
-                                    .cardSurface(strokeColor: AppTheme.Colors.warning.opacity(0.3))
+                                    .buttonStyle(.plain)
                                 }
                             }
                             .padding(.horizontal)
                         }
                     }
 
-                    // 5. Tugas & Deadline (Semua Tugas Aktif, terhindar duplikasi tampilan penuh jika diperlukan)
+                    // 5. Tugas & Deadline (Semua Tugas Aktif)
                     VStack(alignment: .leading, spacing: AppTheme.Metrics.spacingSmall) {
                         HStack {
                             Label("Daftar Tugas Aktif", systemImage: "checklist")
@@ -270,11 +322,99 @@ public struct DashboardView: View {
                         } else {
                             LazyVStack(spacing: AppTheme.Metrics.spacingSmall) {
                                 ForEach(viewModel.urgentTasks) { task in
-                                    TaskCardView(task: task, isOffline: viewModel.isOffline) { newProg in
-                                        Task {
-                                            await viewModel.updateTaskProgress(task: task, progress: newProg)
-                                        }
+                                    NavigationLink {
+                                        TaskDetailView(
+                                            taskId: task.id,
+                                            initialTask: task,
+                                            viewModel: viewModel
+                                        )
+                                    } label: {
+                                        TaskCardView(
+                                            task: task,
+                                            isOffline: viewModel.isOffline,
+                                            onProgressChanged: { newProg in
+                                                Task {
+                                                    await viewModel.updateTaskProgress(task: task, progress: newProg)
+                                                }
+                                            },
+                                            onEdit: {
+                                                viewModel.editingTask = task
+                                                isPresentingAddTask = true
+                                            },
+                                            onMarkCompleted: {
+                                                Task {
+                                                    await viewModel.updateTaskProgress(task: task, progress: 100)
+                                                }
+                                            }
+                                        )
                                     }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(.horizontal)
+                        }
+                    }
+
+                    // 6. Kelas Pengganti Terdaftar (Jika Ada)
+                    if !viewModel.replacementClasses.isEmpty {
+                        VStack(alignment: .leading, spacing: AppTheme.Metrics.spacingSmall) {
+                            HStack {
+                                Label("Kelas Pengganti", systemImage: "sparkles")
+                                    .font(AppTheme.Typography.sectionHeader)
+                                    .foregroundStyle(AppTheme.Colors.textPrimary)
+                                Spacer()
+                                Text("\(viewModel.replacementClasses.count) Jadwal")
+                                    .font(AppTheme.Typography.caption)
+                                    .foregroundStyle(AppTheme.Colors.textSecondary)
+                            }
+                            .padding(.horizontal)
+
+                            LazyVStack(spacing: AppTheme.Metrics.spacingSmall) {
+                                ForEach(viewModel.replacementClasses) { kp in
+                                    let isDone = kp.status.caseInsensitiveCompare("Selesai") == .orderedSame
+                                    NavigationLink {
+                                        ReplacementClassDetailView(
+                                            replacementId: kp.id,
+                                            initialItem: kp,
+                                            viewModel: viewModel
+                                        )
+                                    } label: {
+                                        HStack(spacing: AppTheme.Metrics.spacingMedium) {
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                HStack(spacing: 6) {
+                                                    Text(isDone ? "Selesai" : "Belum Selesai")
+                                                        .font(AppTheme.Typography.badge)
+                                                        .padding(.horizontal, 6)
+                                                        .padding(.vertical, 2)
+                                                        .background(isDone ? AppTheme.Colors.successBackground : AppTheme.Colors.warningBackground)
+                                                        .foregroundStyle(isDone ? AppTheme.Colors.success : AppTheme.Colors.warning)
+                                                        .clipShape(Capsule())
+
+                                                    if let kategori = kp.jadwal?.kategori, !kategori.isEmpty {
+                                                        Text(kategori)
+                                                            .font(AppTheme.Typography.badge)
+                                                            .foregroundStyle(AppTheme.Colors.textSecondary)
+                                                    }
+                                                }
+
+                                                Text(kp.jadwal?.namaMatkul ?? "Kelas Pengganti")
+                                                    .font(AppTheme.Typography.cardTitle)
+                                                    .foregroundStyle(AppTheme.Colors.textPrimary)
+
+                                                Text("\(kp.tanggal.formatted(date: .abbreviated, time: .omitted)) • \(kp.waktuMulai) - \(kp.waktuSelesai)")
+                                                    .font(AppTheme.Typography.caption)
+                                                    .foregroundStyle(AppTheme.Colors.textSecondary)
+                                            }
+
+                                            Spacer()
+
+                                            Image(systemName: "chevron.right")
+                                                .font(.caption.weight(.semibold))
+                                                .foregroundStyle(AppTheme.Colors.textTertiary)
+                                        }
+                                        .cardSurface()
+                                    }
+                                    .buttonStyle(.plain)
                                 }
                             }
                             .padding(.horizontal)
@@ -289,12 +429,14 @@ public struct DashboardView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button {
+                            viewModel.editingTask = nil
                             isPresentingAddTask = true
                         } label: {
                             Label("Tambah Tugas", systemImage: "plus.circle")
                         }
 
                         Button {
+                            viewModel.editingReplacement = nil
                             isPresentingAddReplacement = true
                         } label: {
                             Label("Kelas Pengganti", systemImage: "sparkles")

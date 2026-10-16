@@ -23,6 +23,7 @@ public protocol AuthServiceProtocol: Sendable {
     func updatePassword(currentPassword: String, newPassword: String) async throws -> BaseResponse
     func updateUserSettings(fullName: String?, phoneNumber: String?, profilePictureUrl: String?) async throws -> UserProfile
     func changeUserPassword(currentPassword: String, newPassword: String, confirmPassword: String) async throws -> BaseResponse
+    func uploadAvatar(data: Data, mimeType: String, fileName: String) async throws -> UserProfile
 }
 
 public extension AuthServiceProtocol {
@@ -230,6 +231,18 @@ public actor AuthService: AuthServiceProtocol {
         ]
         let data = try JSONSerialization.data(withJSONObject: payload)
         return try await network.request(endpoint: "user/password", method: "PUT", body: data)
+    }
+
+    public func uploadAvatar(data: Data, mimeType: String = "image/jpeg", fileName: String = "avatar.jpg") async throws -> UserProfile {
+        let updatedUser: UserProfile = try await network.uploadMultipart(
+            endpoint: "user/avatar",
+            fileData: data,
+            fileName: fileName,
+            mimeType: mimeType,
+            fieldName: "file"
+        )
+        LocalCacheService.shared.save(updatedUser, forKey: LocalCacheService.keyUserProfile)
+        return updatedUser
     }
 }
 

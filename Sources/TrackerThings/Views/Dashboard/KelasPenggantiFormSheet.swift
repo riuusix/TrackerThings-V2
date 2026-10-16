@@ -4,6 +4,7 @@ import SwiftUI
 /// state submit yang terlindungi dari double tap, dan transisi animasi loading -> checkmark.
 public struct KelasPenggantiFormSheet: View {
     @Bindable var viewModel: DashboardViewModel
+    public var defaultCourseId: Int? = nil
     @Environment(\.dismiss) private var dismiss
 
     @State private var idJadwal: Int = 0
@@ -14,8 +15,9 @@ public struct KelasPenggantiFormSheet: View {
     @State private var catatan: String = ""
     @State private var buttonState: SubmitButtonState = .idle
 
-    public init(viewModel: DashboardViewModel) {
+    public init(viewModel: DashboardViewModel, defaultCourseId: Int? = nil) {
         self.viewModel = viewModel
+        self.defaultCourseId = defaultCourseId
     }
 
     public var body: some View {
@@ -61,17 +63,18 @@ public struct KelasPenggantiFormSheet: View {
 
                 if viewModel.isOffline {
                     Section {
-                        Text("Kamu sedang offline. Hubungkan ke internet untuk menambahkan kelas pengganti baru ke server.")
+                        Text("Kamu sedang offline. Hubungkan ke internet untuk menyimpan kelas pengganti ke server.")
                             .font(.footnote)
                             .foregroundStyle(.orange)
                     }
                 }
             }
-            .navigationTitle("Kelas Pengganti")
+            .navigationTitle(viewModel.editingReplacement == nil ? "Kelas Pengganti" : "Edit Kelas Pengganti")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Batal") {
+                        viewModel.editingReplacement = nil
                         dismiss()
                     }
                     .disabled(buttonState.isProcessing)
@@ -111,7 +114,16 @@ public struct KelasPenggantiFormSheet: View {
                 }
             }
             .onAppear {
-                if idJadwal == 0, let firstCourse = viewModel.courses.first {
+                if let kp = viewModel.editingReplacement {
+                    idJadwal = kp.idJadwal
+                    tanggal = kp.tanggal
+                    waktuMulai = kp.waktuMulai
+                    waktuSelesai = kp.waktuSelesai
+                    lokasi = kp.lokasi ?? ""
+                    catatan = kp.catatan ?? ""
+                } else if let defaultId = defaultCourseId, defaultId > 0 {
+                    idJadwal = defaultId
+                } else if idJadwal == 0, let firstCourse = viewModel.courses.first {
                     idJadwal = firstCourse.id
                 }
             }

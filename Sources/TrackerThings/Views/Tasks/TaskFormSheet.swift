@@ -2,6 +2,7 @@ import SwiftUI
 
 public struct TaskFormSheet: View {
     @Bindable var viewModel: DashboardViewModel
+    public var defaultCourseId: Int? = nil
     @Environment(\.dismiss) private var dismiss
 
     @State private var namaTugas: String = ""
@@ -11,8 +12,9 @@ public struct TaskFormSheet: View {
     @State private var jenis: TugasItem.JenisTugas = .individu
     @State private var buttonState: SubmitButtonState = .idle
 
-    public init(viewModel: DashboardViewModel) {
+    public init(viewModel: DashboardViewModel, defaultCourseId: Int? = nil) {
         self.viewModel = viewModel
+        self.defaultCourseId = defaultCourseId
     }
 
     public var body: some View {
@@ -54,17 +56,18 @@ public struct TaskFormSheet: View {
 
                 if viewModel.isOffline {
                     Section {
-                        Text("Kamu sedang offline. Hubungkan ke internet untuk menambahkan tugas baru ke server.")
+                        Text("Kamu sedang offline. Hubungkan ke internet untuk menyimpan tugas ke server.")
                             .font(.footnote)
                             .foregroundStyle(.orange)
                     }
                 }
             }
-            .navigationTitle("Tambah Tugas")
+            .navigationTitle(viewModel.editingTask == nil ? "Tambah Tugas" : "Edit Tugas")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Batal") {
+                        viewModel.editingTask = nil
                         dismiss()
                     }
                     .disabled(buttonState.isProcessing)
@@ -97,7 +100,15 @@ public struct TaskFormSheet: View {
                 }
             }
             .onAppear {
-                if idJadwal == 0, let firstCourse = viewModel.courses.first {
+                if let task = viewModel.editingTask {
+                    namaTugas = task.namaTugas
+                    idJadwal = task.idJadwal
+                    deadline = task.deadline
+                    prioritas = task.prioritas
+                    jenis = task.jenis
+                } else if let defaultId = defaultCourseId, defaultId > 0 {
+                    idJadwal = defaultId
+                } else if idJadwal == 0, let firstCourse = viewModel.courses.first {
                     idJadwal = firstCourse.id
                 }
             }

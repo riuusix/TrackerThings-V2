@@ -400,7 +400,7 @@ public struct SettingsView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             BrandWordmarkView(size: 18, onDarkBackground: false)
 
-                            Text("Versi 1.0.0 (Native iOS)")
+                            Text(appVersionText)
                                 .font(AppTheme.Typography.caption)
                                 .foregroundStyle(AppTheme.Colors.textSecondary)
                         }
@@ -477,6 +477,21 @@ public struct SettingsView: View {
         @unknown default:
             isNotificationAuthorized = false
             notificationStatusText = "Tidak Diketahui"
+        }
+    }
+
+    private var appVersionText: String {
+        let info = Bundle.main.infoDictionary
+        let version = (info?["CFBundleShortVersionString"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let build = (info?["CFBundleVersion"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        switch (version, build) {
+        case let (v?, b?) where !v.isEmpty && !b.isEmpty:
+            return "Versi \(v) (Build \(b))"
+        case let (v?, _) where !v.isEmpty:
+            return "Versi \(v)"
+        default:
+            return "Versi 1.0.0 (Native iOS)"
         }
     }
 }

@@ -58,64 +58,72 @@ public struct ExamListView: View {
                 } else {
                     ForEach(viewModel.exams) { exam in
                         let diff = daysDifference(to: exam.tanggal)
-                        VStack(alignment: .leading, spacing: 10) {
-                            HStack {
-                                Text(exam.jenisUjian)
-                                    .font(.caption2.weight(.bold))
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 3)
-                                    .background(Color.red.opacity(0.12))
-                                    .foregroundStyle(.red)
-                                    .clipShape(Capsule())
-
-                                Spacer()
-
-                                if diff < 0 {
-                                    Text("Selesai")
-                                        .font(.caption2.weight(.semibold))
-                                        .foregroundStyle(.secondary)
-                                } else if diff == 0 {
-                                    Text("Hari Ini!")
+                        NavigationLink {
+                            ExamDetailView(
+                                examId: exam.id,
+                                initialExam: exam,
+                                viewModel: viewModel
+                            )
+                        } label: {
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack {
+                                    Text(exam.jenisUjian)
                                         .font(.caption2.weight(.bold))
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 3)
+                                        .background(Color.red.opacity(0.12))
                                         .foregroundStyle(.red)
-                                } else {
-                                    Text("\(diff) hari lagi")
-                                        .font(.caption2.weight(.semibold))
-                                        .foregroundStyle(.orange)
+                                        .clipShape(Capsule())
+
+                                    Spacer()
+
+                                    if diff < 0 {
+                                        Text("Selesai")
+                                            .font(.caption2.weight(.semibold))
+                                            .foregroundStyle(.secondary)
+                                    } else if diff == 0 {
+                                        Text("Hari Ini!")
+                                            .font(.caption2.weight(.bold))
+                                            .foregroundStyle(.red)
+                                    } else {
+                                        Text("\(diff) hari lagi")
+                                            .font(.caption2.weight(.semibold))
+                                            .foregroundStyle(.orange)
+                                    }
                                 }
-                            }
 
-                            Text(exam.jadwal?.namaMatkul ?? "Ujian Akademik")
-                                .font(.headline)
+                                Text(exam.jadwal?.namaMatkul ?? "Ujian Akademik")
+                                    .font(.headline)
 
-                            HStack(spacing: 12) {
-                                Label(exam.tanggal.formatted(date: .abbreviated, time: .omitted), systemImage: "calendar")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-
-                                if let start = exam.waktuMulai {
-                                    Label("\(start)\(exam.waktuSelesai.map { " - " + $0 } ?? "")", systemImage: "clock")
+                                HStack(spacing: 12) {
+                                    Label(exam.tanggal.formatted(date: .abbreviated, time: .omitted), systemImage: "calendar")
                                         .font(.subheadline)
                                         .foregroundStyle(.secondary)
+
+                                    if let start = exam.waktuMulai {
+                                        Label("\(start)\(exam.waktuSelesai.map { " - " + $0 } ?? "")", systemImage: "clock")
+                                            .font(.subheadline)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+
+                                if let room = exam.ruangan, !room.isEmpty {
+                                    Label("Ruangan: \(room)", systemImage: "mappin")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                if let note = exam.catatan, !note.isEmpty {
+                                    Text("Catatan: \(note)")
+                                        .font(.caption)
+                                        .padding(8)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .background(Color.secondary.opacity(0.08))
+                                        .clipShape(RoundedRectangle(cornerRadius: 8))
                                 }
                             }
-
-                            if let room = exam.ruangan, !room.isEmpty {
-                                Label("Ruangan: \(room)", systemImage: "mappin")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            if let note = exam.catatan, !note.isEmpty {
-                                Text("Catatan: \(note)")
-                                    .font(.caption)
-                                    .padding(8)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(Color.secondary.opacity(0.08))
-                                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                            }
+                            .padding(.vertical, 4)
                         }
-                        .padding(.vertical, 4)
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button(role: .destructive) {
                                 examPendingDeletion = exam
@@ -185,6 +193,7 @@ public struct ExamListView: View {
 
 public struct ExamFormSheet: View {
     @Bindable var viewModel: ExamViewModel
+    public var defaultCourseId: Int? = nil
     @Environment(\.dismiss) private var dismiss
 
     @State private var idJadwal: Int = 0
@@ -197,6 +206,11 @@ public struct ExamFormSheet: View {
     @State private var buttonState: SubmitButtonState = .idle
 
     private let jenisOptions = ["UTS", "UAS", "Kuis", "Responsi", "Praktikum"]
+
+    public init(viewModel: ExamViewModel, defaultCourseId: Int? = nil) {
+        self.viewModel = viewModel
+        self.defaultCourseId = defaultCourseId
+    }
 
     public var body: some View {
         NavigationStack {
@@ -254,8 +268,11 @@ public struct ExamFormSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Batal") { dismiss() }
-                        .disabled(buttonState.isProcessing)
+                    Button("Batal") {
+                        viewModel.editingExam = nil
+                        dismiss()
+                    }
+                    .disabled(buttonState.isProcessing)
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
@@ -295,6 +312,8 @@ public struct ExamFormSheet: View {
                     waktuSelesai = exam.waktuSelesai ?? "10:00"
                     ruangan = exam.ruangan ?? ""
                     catatan = exam.catatan ?? ""
+                } else if let defaultId = defaultCourseId, defaultId > 0 {
+                    idJadwal = defaultId
                 } else if let firstCourse = viewModel.courses.first {
                     idJadwal = firstCourse.id
                 }

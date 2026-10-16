@@ -14,13 +14,22 @@ public struct RootTabView: View {
 
     public var body: some View {
         TabView(selection: $selectedTab) {
-            DashboardView(viewModel: dashboardViewModel)
+            DashboardView(
+                viewModel: dashboardViewModel,
+                courseViewModel: courseViewModel,
+                examViewModel: examViewModel
+            )
                 .tabItem {
                     Label("Home", systemImage: "house.fill")
                 }
                 .tag(0)
 
-            CourseListView(viewModel: courseViewModel)
+            CourseListView(
+                viewModel: courseViewModel,
+                dashboardViewModel: dashboardViewModel,
+                examViewModel: examViewModel
+            )
+                .environment(authViewModel)
                 .tabItem {
                     Label("Mata Kuliah", systemImage: "book.fill")
                 }

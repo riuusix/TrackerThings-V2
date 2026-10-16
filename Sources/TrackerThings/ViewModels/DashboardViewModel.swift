@@ -7,6 +7,7 @@ public final class DashboardViewModel {
     public var courses: [JadwalItem] = []
     public var urgentTasks: [TugasItem] = []
     public var completedTasks: [TugasItem] = []
+    public var allExams: [UjianItem] = []
     public var upcomingExam: UjianItem?
     public var replacementClasses: [KelasPenggantiItem] = []
     public var notifications: [NotificationItem] = []
@@ -14,6 +15,10 @@ public final class DashboardViewModel {
     public var isLoading: Bool = false
     public var errorMessage: String?
     public var toast: FeedbackToastData?
+
+    // MARK: - Editing State for Forms
+    public var editingTask: TugasItem? = nil
+    public var editingReplacement: KelasPenggantiItem? = nil
 
     // MARK: - In-Flight Request Guards & Race Condition Mitigation
     public private(set) var isSavingTask: Bool = false
@@ -107,6 +112,7 @@ public final class DashboardViewModel {
             courses = loadedCourses
             urgentTasks = loadedTasks.filter { $0.status != .selesai }.sorted { $0.deadline < $1.deadline }
             completedTasks = loadedTasks.filter { $0.status == .selesai }.sorted { $0.deadline > $1.deadline }
+            allExams = loadedExams.sorted { $0.tanggal < $1.tanggal }
             replacementClasses = loadedKP
 
             // Find closest upcoming exam
@@ -177,14 +183,17 @@ public final class DashboardViewModel {
     }
 
     public func saveTask(
+        id: Int? = nil,
         namaTugas: String,
         idJadwal: Int,
         deadline: Date,
         prioritas: TugasItem.PrioritasTugas,
-        jenis: TugasItem.JenisTugas
+        jenis: TugasItem.JenisTugas,
+        progress: Int? = nil,
+        status: TugasItem.StatusTugas? = nil
     ) async -> Bool {
         guard !isOffline else {
-            showToast("Tidak dapat menambah tugas saat offline. Hubungkan ke internet untuk menyimpan ke server.", severity: .warning)
+            showToast("Tidak dapat menyimpan tugas saat offline. Hubungkan ke internet untuk menyimpan ke server.", severity: .warning)
             return false
         }
 
@@ -192,22 +201,48 @@ public final class DashboardViewModel {
         isSavingTask = true
         defer { isSavingTask = false }
 
-        let newTask = TugasItem(
-            id: 0,
-            idJadwal: idJadwal,
-            namaTugas: namaTugas,
-            deadline: deadline,
-            prioritas: prioritas,
-            jenis: jenis,
-            status: .belumDikerjakan,
-            progress: 0
-        )
+        let targetId = id ?? editingTask?.id
 
         do {
-            _ = try await dataService.createTugas(newTask)
-            await loadDashboardData()
-            showToast("Tugas baru berhasil ditambahkan!", severity: .success)
-            return true
+            if let existingId = targetId, existingId > 0 {
+                let currentProgress = progress ?? editingTask?.progress ?? 0
+                let resolvedStatus: TugasItem.StatusTugas = status ?? (
+                    currentProgress >= 100
+                        ? .selesai
+                        : (currentProgress > 0 ? .sedangDikerjakan : .belumDikerjakan)
+                )
+                let updatedTask = TugasItem(
+                    id: existingId,
+                    idJadwal: idJadwal,
+                    namaTugas: namaTugas,
+                    deadline: deadline,
+                    prioritas: prioritas,
+                    jenis: jenis,
+                    status: resolvedStatus,
+                    progress: currentProgress
+                )
+                _ = try await dataService.updateTugas(updatedTask)
+                editingTask = nil
+                await loadDashboardData()
+                showToast("Tugas berhasil diperbarui!", severity: .success)
+                return true
+            } else {
+                let newTask = TugasItem(
+                    id: 0,
+                    idJadwal: idJadwal,
+                    namaTugas: namaTugas,
+                    deadline: deadline,
+                    prioritas: prioritas,
+                    jenis: jenis,
+                    status: .belumDikerjakan,
+                    progress: 0
+                )
+                _ = try await dataService.createTugas(newTask)
+                editingTask = nil
+                await loadDashboardData()
+                showToast("Tugas baru berhasil ditambahkan!", severity: .success)
+                return true
+            }
         } catch {
             errorMessage = error.localizedDescription
             showToast(error.localizedDescription, severity: .error)
@@ -215,13 +250,14 @@ public final class DashboardViewModel {
         }
     }
 
-    public func deleteTask(id: Int) async {
+    @discardableResult
+    public func deleteTask(id: Int) async -> Bool {
         guard !isOffline else {
             showToast("Tidak dapat menghapus tugas saat offline.", severity: .warning)
-            return
+            return false
         }
 
-        guard !inFlightTaskIds.contains(id) else { return }
+        guard !inFlightTaskIds.contains(id) else { return false }
         inFlightTaskIds.insert(id)
         defer { inFlightTaskIds.remove(id) }
 
@@ -230,22 +266,26 @@ public final class DashboardViewModel {
             NotificationService.shared.cancelReminderForTask(id: id)
             showToast("Tugas berhasil dihapus.", severity: .success)
             await loadDashboardData()
+            return true
         } catch {
             errorMessage = error.localizedDescription
             showToast(error.localizedDescription, severity: .error)
+            return false
         }
     }
 
     public func saveKelasPengganti(
+        id: Int? = nil,
         idJadwal: Int,
         tanggal: Date,
         waktuMulai: String,
         waktuSelesai: String,
         lokasi: String?,
-        catatan: String?
+        catatan: String?,
+        status: String? = nil
     ) async -> Bool {
         guard !isOffline else {
-            showToast("Tidak dapat menambah kelas pengganti saat offline.", severity: .warning)
+            showToast("Tidak dapat menyimpan kelas pengganti saat offline.", severity: .warning)
             return false
         }
 
@@ -253,22 +293,43 @@ public final class DashboardViewModel {
         isSavingReplacement = true
         defer { isSavingReplacement = false }
 
-        let newKP = KelasPenggantiItem(
-            id: 0,
-            idJadwal: idJadwal,
-            tanggal: tanggal,
-            waktuMulai: waktuMulai,
-            waktuSelesai: waktuSelesai,
-            lokasi: lokasi,
-            catatan: catatan,
-            status: "Belum Selesai"
-        )
+        let targetId = id ?? editingReplacement?.id
 
         do {
-            _ = try await dataService.createKelasPengganti(newKP)
-            await loadDashboardData()
-            showToast("Kelas pengganti berhasil ditambahkan!", severity: .success)
-            return true
+            if let existingId = targetId, existingId > 0 {
+                let resolvedStatus = status ?? editingReplacement?.status ?? "Belum Selesai"
+                let updatedKP = KelasPenggantiItem(
+                    id: existingId,
+                    idJadwal: idJadwal,
+                    tanggal: tanggal,
+                    waktuMulai: waktuMulai,
+                    waktuSelesai: waktuSelesai,
+                    lokasi: lokasi,
+                    catatan: catatan,
+                    status: resolvedStatus
+                )
+                _ = try await dataService.updateKelasPengganti(updatedKP)
+                editingReplacement = nil
+                await loadDashboardData()
+                showToast("Kelas pengganti berhasil diperbarui!", severity: .success)
+                return true
+            } else {
+                let newKP = KelasPenggantiItem(
+                    id: 0,
+                    idJadwal: idJadwal,
+                    tanggal: tanggal,
+                    waktuMulai: waktuMulai,
+                    waktuSelesai: waktuSelesai,
+                    lokasi: lokasi,
+                    catatan: catatan,
+                    status: "Belum Selesai"
+                )
+                _ = try await dataService.createKelasPengganti(newKP)
+                editingReplacement = nil
+                await loadDashboardData()
+                showToast("Kelas pengganti berhasil ditambahkan!", severity: .success)
+                return true
+            }
         } catch {
             errorMessage = error.localizedDescription
             showToast(error.localizedDescription, severity: .error)
@@ -278,22 +339,52 @@ public final class DashboardViewModel {
 
     public func markReplacementCompleted(item: JadwalGabunganItem) async {
         guard item.tipe == .pengganti else { return }
+        _ = await markReplacementCompletedById(item.id)
+    }
+
+    @discardableResult
+    public func markReplacementCompletedById(_ id: Int) async -> Bool {
         guard !isOffline else {
             showToast("Tidak dapat mengubah status saat offline.", severity: .warning)
-            return
+            return false
         }
 
-        guard !inFlightReplacementIds.contains(item.id) else { return }
-        inFlightReplacementIds.insert(item.id)
-        defer { inFlightReplacementIds.remove(item.id) }
+        guard !inFlightReplacementIds.contains(id) else { return false }
+        inFlightReplacementIds.insert(id)
+        defer { inFlightReplacementIds.remove(id) }
 
         do {
-            _ = try await dataService.selesaiKelasPengganti(id: item.id)
+            _ = try await dataService.selesaiKelasPengganti(id: id)
             showToast("Kelas pengganti berhasil diselesaikan!", severity: .success)
             await loadDashboardData()
+            return true
         } catch {
             errorMessage = error.localizedDescription
             showToast(error.localizedDescription, severity: .error)
+            return false
+        }
+    }
+
+    @discardableResult
+    public func deleteKelasPengganti(id: Int) async -> Bool {
+        guard !isOffline else {
+            showToast("Tidak dapat menghapus kelas pengganti saat offline.", severity: .warning)
+            return false
+        }
+
+        guard !inFlightReplacementIds.contains(id) else { return false }
+        inFlightReplacementIds.insert(id)
+        defer { inFlightReplacementIds.remove(id) }
+
+        do {
+            _ = try await dataService.deleteKelasPengganti(id: id)
+            showToast("Kelas pengganti berhasil dihapus.", severity: .success)
+            await loadDashboardData()
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            showToast(error.localizedDescription, severity: .error)
+            return false
         }
     }
 

@@ -117,24 +117,28 @@ public final class ExamViewModel {
         }
     }
 
-    public func deleteExam(id: Int) async {
+    @discardableResult
+    public func deleteExam(id: Int) async -> Bool {
         guard !isOffline else {
             showToast("Tidak dapat menghapus jadwal ujian saat offline.", severity: .warning)
-            return
+            return false
         }
-        guard deletingId == nil else { return }
+        guard deletingId == nil else { return false }
         deletingId = id
         defer { deletingId = nil }
 
         do {
             _ = try await dataService.deleteUjian(id: id)
             exams.removeAll { $0.id == id }
+            LocalCacheService.shared.save(exams, forKey: LocalCacheService.keyUjian)
             NotificationService.shared.cancelReminderForExam(id: id)
             await NotificationService.shared.syncRemindersFromCache()
             showToast("Jadwal ujian berhasil dihapus.", severity: .success)
+            return true
         } catch {
             errorMessage = error.localizedDescription
             showToast(error.localizedDescription, severity: .error)
+            return false
         }
     }
 }

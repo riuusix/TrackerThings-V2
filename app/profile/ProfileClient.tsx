@@ -43,6 +43,52 @@ export function ProfileClient({ user, stats }: ProfileClientProps) {
       ? Math.round((stats.completedTasks / stats.totalTasks) * 100)
       : 0;
 
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      showError("Ukuran file melebihi batas maksimal 2 MB.");
+      e.target.value = "";
+      return;
+    }
+
+    const allowed = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowed.includes(file.type)) {
+      showError("Format file tidak didukung. Harap pilih gambar JPEG, PNG, atau WebP.");
+      e.target.value = "";
+      return;
+    }
+
+    setIsUploadingPhoto(true);
+    setError(null);
+
+    const fd = new FormData();
+    fd.append("file", file);
+
+    try {
+      const res = await fetch("/api/user/avatar", {
+        method: "POST",
+        body: fd,
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showSuccess("Foto profil berhasil diperbarui!");
+        router.refresh();
+      } else {
+        const msg = data.error || data.message || "Gagal mengunggah foto profil.";
+        showError(classifyApiError(msg, "Gagal mengunggah foto profil."));
+      }
+    } catch (uploadErr) {
+      showError(classifyApiError(uploadErr, "Gagal menghubungi server saat mengunggah foto."));
+    } finally {
+      setIsUploadingPhoto(false);
+      e.target.value = "";
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (isPending) return;
@@ -90,17 +136,37 @@ export function ProfileClient({ user, stats }: ProfileClientProps) {
 
         {/* User Card */}
         <div className="glass-card rounded-3xl p-6 sm:p-8 flex flex-col sm:flex-row items-center sm:items-start gap-6 border border-white/60 dark:border-white/10">
-          <div className="w-24 h-24 rounded-2xl bg-gradient-to-tr from-indigo-500 to-violet-600 flex items-center justify-center text-white text-3xl font-extrabold shadow-xl shadow-indigo-500/25 shrink-0 overflow-hidden">
-            {user.profilePictureUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={user.profilePictureUrl}
-                alt={user.username}
-                className="w-full h-full object-cover"
+          <div className="relative group shrink-0">
+            <div className="w-24 h-24 rounded-2xl bg-gradient-to-tr from-indigo-500 to-violet-600 flex items-center justify-center text-white text-3xl font-extrabold shadow-xl shadow-indigo-500/25 overflow-hidden">
+              {user.profilePictureUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={user.profilePictureUrl}
+                  alt={user.username}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                user.username.charAt(0).toUpperCase()
+              )}
+            </div>
+
+            <label className="absolute inset-0 bg-black/50 text-white rounded-2xl opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center cursor-pointer transition-opacity text-xs font-semibold">
+              {isUploadingPhoto ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <>
+                  <Edit2 className="w-4 h-4 mb-1" />
+                  <span>Ubah</span>
+                </>
+              )}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                disabled={isUploadingPhoto}
+                onChange={handlePhotoUpload}
               />
-            ) : (
-              user.username.charAt(0).toUpperCase()
-            )}
+            </label>
           </div>
 
           <div className="flex-1 text-center sm:text-left">

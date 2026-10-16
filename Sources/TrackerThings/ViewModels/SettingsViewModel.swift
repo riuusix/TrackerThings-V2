@@ -34,6 +34,7 @@ public final class SettingsViewModel {
 
     // MARK: - UI States
     public var isLoadingProfile: Bool = false
+    public var isUploadingAvatar: Bool = false
     public var isLoadingPassword: Bool = false
     public var errorMessage: String? = nil
     public var successMessage: String? = nil
@@ -169,6 +170,50 @@ public final class SettingsViewModel {
             return nil
         } catch {
             isLoadingProfile = false
+            let msg = error.localizedDescription
+            self.errorMessage = msg
+            self.activeAlert = .error(msg)
+            return nil
+        }
+    }
+
+    /// Mengunggah file avatar biner langsung ke endpoint server (maks 2MB)
+    public func uploadAvatar(data: Data, mimeType: String = "image/jpeg", fileName: String = "avatar.jpg") async -> UserProfile? {
+        guard !isUploadingAvatar else { return nil }
+        guard !isOffline else {
+            let msg = "Tidak dapat mengunggah foto profil saat offline. Hubungkan ke internet terlebih dahulu."
+            self.errorMessage = msg
+            self.activeAlert = .error(msg)
+            return nil
+        }
+
+        guard data.count <= 2 * 1024 * 1024 else {
+            let msg = "Ukuran gambar melebihi batas maksimal 2 MB."
+            self.errorMessage = msg
+            self.activeAlert = .error(msg)
+            return nil
+        }
+
+        isUploadingAvatar = true
+        errorMessage = nil
+        successMessage = nil
+
+        do {
+            let updated = try await authService.uploadAvatar(data: data, mimeType: mimeType, fileName: fileName)
+            isUploadingAvatar = false
+            self.profilePictureUrl = updated.profilePictureUrl ?? ""
+            let successMsg = "Foto profil berhasil diperbarui!"
+            self.successMessage = successMsg
+            self.activeAlert = .success(successMsg)
+            return updated
+        } catch let err as AppError {
+            isUploadingAvatar = false
+            let msg = err.errorDescription ?? "Gagal mengunggah foto profil."
+            self.errorMessage = msg
+            self.activeAlert = .error(msg)
+            return nil
+        } catch {
+            isUploadingAvatar = false
             let msg = error.localizedDescription
             self.errorMessage = msg
             self.activeAlert = .error(msg)
