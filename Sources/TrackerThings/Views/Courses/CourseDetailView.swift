@@ -99,7 +99,7 @@ public struct CourseDetailView: View {
                     }
                     .padding(.horizontal)
                 } else if let course = liveCourse ?? (isCourseDeletedOrMissingAfterLoad ? nil : initialCourse) {
-                    let isDeleting = courseViewModel.deletingCourseIds.contains(course.id)
+                    let isDeleting = courseViewModel.deletingId == course.id
 
                     // 1. Kartu Informasi Mata Kuliah
                     VStack(alignment: .leading, spacing: AppTheme.Metrics.spacingMedium) {

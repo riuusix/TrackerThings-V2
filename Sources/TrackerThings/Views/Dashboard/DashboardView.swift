@@ -156,10 +156,11 @@ public struct DashboardView: View {
                                         }
                                         .buttonStyle(.plain)
                                     } else {
-                                        let matchingCourse = viewModel.courses.first(where: { $0.id == schedule.idJadwal })
+                                        let courseId = schedule.idJadwal ?? schedule.id
+                                        let matchingCourse = viewModel.courses.first(where: { $0.id == courseId })
                                         NavigationLink {
                                             CourseDetailView(
-                                                courseId: schedule.idJadwal,
+                                                courseId: courseId,
                                                 initialCourse: matchingCourse,
                                                 courseViewModel: courseViewModel,
                                                 dashboardViewModel: viewModel,

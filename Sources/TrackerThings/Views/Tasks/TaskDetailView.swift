@@ -45,7 +45,11 @@ public struct TaskDetailView: View {
 
     private var relatedCourse: JadwalItem? {
         guard let task = currentTask else { return nil }
-        return viewModel.courses.first(where: { $0.id == task.idJadwal }) ?? task.jadwal
+        return viewModel.courses.first(where: { $0.id == task.idJadwal })
+    }
+
+    private var courseTitle: String {
+        relatedCourse?.namaMatkul ?? currentTask?.jadwal?.namaMatkul ?? "Mata Kuliah Terkait"
     }
 
     private func priorityColor(for prioritas: TugasItem.PrioritasTugas) -> Color {
@@ -156,7 +160,7 @@ public struct TaskDetailView: View {
                                 Text("Mata Kuliah")
                                     .font(AppTheme.Typography.caption)
                                     .foregroundStyle(AppTheme.Colors.textTertiary)
-                                Text(relatedCourse?.namaMatkul ?? "Mata Kuliah Terkait")
+                                Text(courseTitle)
                                     .font(AppTheme.Typography.cardTitle)
                                     .foregroundStyle(AppTheme.Colors.textPrimary)
                                 if let dosen = relatedCourse?.dosen, !dosen.isEmpty {

@@ -36,7 +36,15 @@ public struct ExamDetailView: View {
 
     private var relatedCourse: JadwalItem? {
         guard let exam = currentExam else { return nil }
-        return viewModel.courses.first(where: { $0.id == exam.idJadwal }) ?? exam.jadwal
+        return viewModel.courses.first(where: { $0.id == exam.idJadwal })
+    }
+
+    private var courseTitle: String {
+        relatedCourse?.namaMatkul ?? currentExam?.jadwal?.namaMatkul ?? "Ujian Akademik"
+    }
+
+    private var courseCategory: String? {
+        relatedCourse?.kategori
     }
 
     private func daysDifference(to target: Date) -> Int {
@@ -80,7 +88,7 @@ public struct ExamDetailView: View {
                     }
                     .padding(.horizontal)
                 } else if let exam = liveExam ?? (isExamDeletedOrMissingAfterLoad ? nil : initialExam) {
-                    let isDeleting = viewModel.deletingExamIds.contains(exam.id)
+                    let isDeleting = viewModel.deletingId == exam.id
                     let diff = daysDifference(to: exam.tanggal)
 
                     // 1. Kartu Utama Ujian
@@ -94,7 +102,7 @@ public struct ExamDetailView: View {
                                 .foregroundStyle(AppTheme.Colors.urgent)
                                 .clipShape(Capsule())
 
-                            if let kategori = relatedCourse?.kategori, !kategori.isEmpty {
+                            if let kategori = courseCategory, !kategori.isEmpty {
                                 Text(kategori)
                                     .font(AppTheme.Typography.badge)
                                     .padding(.horizontal, 10)
@@ -133,7 +141,7 @@ public struct ExamDetailView: View {
                             }
                         }
 
-                        Text(relatedCourse?.namaMatkul ?? "Ujian Akademik")
+                        Text(courseTitle)
                             .font(AppTheme.Typography.pageTitle)
                             .foregroundStyle(AppTheme.Colors.textPrimary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -348,7 +356,7 @@ public struct ExamDetailView: View {
             }
             Button("Batal", role: .cancel) {}
         } message: {
-            let courseName = relatedCourse?.namaMatkul ?? "Mata Kuliah"
+            let courseName = courseTitle
             Text("Jadwal \(currentExam?.jenisUjian ?? "Ujian") untuk \(courseName) akan dihapus secara permanen.")
         }
         .task {

@@ -37,7 +37,15 @@ public struct ReplacementClassDetailView: View {
 
     private var relatedCourse: JadwalItem? {
         guard let item = currentItem else { return nil }
-        return viewModel.courses.first(where: { $0.id == item.idJadwal }) ?? item.jadwal
+        return viewModel.courses.first(where: { $0.id == item.idJadwal })
+    }
+
+    private var courseTitle: String {
+        relatedCourse?.namaMatkul ?? currentItem?.jadwal?.namaMatkul ?? "Kelas Pengganti"
+    }
+
+    private var courseCategory: String? {
+        relatedCourse?.kategori ?? currentItem?.jadwal?.kategori
     }
 
     private func formattedFullDate(_ date: Date) -> String {
@@ -88,7 +96,7 @@ public struct ReplacementClassDetailView: View {
                                 .foregroundStyle(AppTheme.Colors.warning)
                                 .clipShape(Capsule())
 
-                            if let kategori = relatedCourse?.kategori, !kategori.isEmpty {
+                            if let kategori = courseCategory, !kategori.isEmpty {
                                 Text(kategori)
                                     .font(AppTheme.Typography.badge)
                                     .padding(.horizontal, 10)
@@ -112,7 +120,7 @@ public struct ReplacementClassDetailView: View {
                             .clipShape(Capsule())
                         }
 
-                        Text(relatedCourse?.namaMatkul ?? "Kelas Pengganti")
+                        Text(courseTitle)
                             .font(AppTheme.Typography.pageTitle)
                             .foregroundStyle(AppTheme.Colors.textPrimary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -362,7 +370,7 @@ public struct ReplacementClassDetailView: View {
             }
             Button("Batal", role: .cancel) {}
         } message: {
-            let courseName = relatedCourse?.namaMatkul ?? "Mata Kuliah"
+            let courseName = courseTitle
             Text("Jadwal kelas pengganti untuk \(courseName) akan dihapus secara permanen.")
         }
         .feedbackToast(toast: $viewModel.toast)
