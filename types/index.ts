@@ -3,6 +3,7 @@ export interface UserSession {
   username: string;
   email: string;
   role?: string;
+  tokenTimeMs?: number;
 }
 
 export interface UserProfile {

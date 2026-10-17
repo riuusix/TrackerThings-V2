@@ -3,17 +3,21 @@
 import { prisma } from "@/lib/prisma";
 import { createSession, destroySession, hashPassword, verifyPassword, getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { resolvePostLoginRedirect } from "@/lib/utils";
 
 export interface ActionResult {
   success: boolean;
   message?: string;
   error?: string;
+  role?: string;
+  redirectUrl?: string;
 }
 
 export async function loginAction(formData: FormData): Promise<ActionResult> {
   const reqId = `req_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`;
   const username = (formData.get("username") as string)?.trim();
   const password = formData.get("password") as string;
+  const fromParam = (formData.get("from") as string)?.trim() || null;
 
   if (!username || !password) {
     console.warn(`[Auth][${reqId}][VALIDATION_ERROR] Missing credentials payload`);
@@ -52,15 +56,23 @@ export async function loginAction(formData: FormData): Promise<ActionResult> {
       return { success: false, error: "Username atau password salah." };
     }
 
+    const userRole = (user.role || "user").trim().toLowerCase();
+
     await createSession({
       id: user.id,
       username: user.username,
       email: user.email,
-      role: user.role || "user",
+      role: userRole,
     });
 
-    console.info(`[Auth][${reqId}][SUCCESS] Authentication succeeded`);
-    return { success: true };
+    const redirectUrl = resolvePostLoginRedirect(userRole, fromParam);
+
+    console.info(`[Auth][${reqId}][SUCCESS] Authentication succeeded for ${user.username} (role: ${userRole}) -> ${redirectUrl}`);
+    return {
+      success: true,
+      role: userRole,
+      redirectUrl,
+    };
   } catch {
     console.error(`[Auth][${reqId}][SERVER_ERROR] Internal login error`);
     return { success: false, error: "Terjadi kesalahan server saat login." };
@@ -144,6 +156,10 @@ export async function updatePasswordAction(formData: FormData): Promise<ActionRe
     return { success: false, error: "Kata sandi baru minimal 6 karakter." };
   }
 
+  if (currentPassword === newPassword) {
+    return { success: false, error: "Kata sandi baru tidak boleh sama dengan kata sandi lama." };
+  }
+
   try {
     const user = await prisma.user.findUnique({
       where: { id: session.userId },
@@ -158,13 +174,22 @@ export async function updatePasswordAction(formData: FormData): Promise<ActionRe
     }
 
     const hashedNew = await hashPassword(newPassword);
+    const passwordChangedAt = new Date();
 
     await prisma.user.update({
       where: { id: session.userId },
       data: {
         password: hashedNew,
-        passwordChangedAt: new Date(),
+        passwordChangedAt,
       },
+    });
+
+    // Terbitkan sesi baru untuk browser saat ini sehingga pengguna tetap masuk tanpa gangguan
+    await createSession({
+      id: session.userId,
+      username: session.username,
+      email: session.email,
+      role: session.role,
     });
 
     return { success: true, message: "Kata sandi berhasil diperbarui!" };
