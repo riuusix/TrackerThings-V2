@@ -25,6 +25,7 @@ const protectedRoutes = [
   "/history",
   "/profile",
   "/settings",
+  "/admin",
 ];
 
 const authRoutes = ["/login", "/register", "/recovery"];
@@ -40,13 +41,15 @@ export async function middleware(request: NextRequest) {
   const token = request.cookies.get("auth_session")?.value;
 
   let isAuthenticated = false;
+  let userRole: string | undefined = undefined;
   const key = getMiddlewareJwtKey();
 
   if (token) {
     if (key) {
       try {
-        await jwtVerify(token, key, { algorithms: ["HS256"] });
+        const { payload } = await jwtVerify(token, key, { algorithms: ["HS256"] });
         isAuthenticated = true;
+        userRole = typeof payload.role === "string" ? payload.role.toLowerCase() : undefined;
       } catch {
         isAuthenticated = false;
       }
@@ -61,6 +64,9 @@ export async function middleware(request: NextRequest) {
   // Handle root "/" path
   if (pathname === "/") {
     if (isAuthenticated) {
+      if (userRole === "admin") {
+        return NextResponse.redirect(new URL("/admin", request.url));
+      }
       return NextResponse.redirect(new URL("/dashboard", request.url));
     } else {
       return NextResponse.redirect(new URL("/login", request.url));
@@ -75,9 +81,17 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
+  // If user is accessing admin routes and NOT an admin
+  if (pathname.startsWith("/admin") && userRole !== "admin") {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
+
   // If user is accessing auth routes and ALREADY authenticated
   const isAuthRoute = authRoutes.some((route) => pathname.startsWith(route));
   if (isAuthRoute && isAuthenticated) {
+    if (userRole === "admin") {
+      return NextResponse.redirect(new URL("/admin", request.url));
+    }
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
@@ -93,6 +107,7 @@ export const config = {
     "/history/:path*",
     "/profile/:path*",
     "/settings/:path*",
+    "/admin/:path*",
     "/login",
     "/register",
     "/recovery",

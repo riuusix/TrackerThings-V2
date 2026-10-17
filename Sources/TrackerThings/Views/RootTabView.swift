@@ -46,14 +46,6 @@ public struct RootTabView: View {
                     Label("Pengaturan", systemImage: "gearshape.fill")
                 }
                 .tag(3)
-
-            if authViewModel.currentUser?.role?.lowercased() == "admin" {
-                AdminDashboardView()
-                    .tabItem {
-                        Label("Admin", systemImage: "shield.checkerboard")
-                    }
-                    .tag(4)
-            }
         }
         .tint(.blue)
         .onAppear {
@@ -92,7 +84,9 @@ public struct RootTabView: View {
             selectedTab = 3
         case "admin":
             if authViewModel.currentUser?.role?.lowercased() == "admin" {
-                selectedTab = 4
+                UIApplication.shared.open(AppConfig.shared.adminWebURL)
+            } else {
+                selectedTab = 0
             }
         default:
             selectedTab = 0

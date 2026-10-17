@@ -48,8 +48,28 @@ public protocol NetworkServiceProtocol: Sendable {
         fileData: Data,
         fileName: String,
         mimeType: String,
-        fieldName: String
+        fieldName: String,
+        extraFields: [String: String]
     ) async throws -> T
+}
+
+public extension NetworkServiceProtocol {
+    func uploadMultipart<T: Decodable & Sendable>(
+        endpoint: String,
+        fileData: Data,
+        fileName: String,
+        mimeType: String,
+        fieldName: String
+    ) async throws -> T {
+        try await uploadMultipart(
+            endpoint: endpoint,
+            fileData: fileData,
+            fileName: fileName,
+            mimeType: mimeType,
+            fieldName: fieldName,
+            extraFields: [:]
+        )
+    }
 }
 
 public actor NetworkService: NetworkServiceProtocol {
@@ -257,7 +277,8 @@ public actor NetworkService: NetworkServiceProtocol {
         fileData: Data,
         fileName: String = "avatar.jpg",
         mimeType: String = "image/jpeg",
-        fieldName: String = "file"
+        fieldName: String = "file",
+        extraFields: [String: String] = [:]
     ) async throws -> T {
         guard let url = buildURL(for: endpoint) else {
             throw NetworkError.invalidURL
@@ -274,6 +295,11 @@ public actor NetworkService: NetworkServiceProtocol {
         }
 
         var body = Data()
+        for (key, val) in extraFields {
+            body.append(Data("--\(boundary)\r\n".utf8))
+            body.append(Data("Content-Disposition: form-data; name=\"\(key)\"\r\n\r\n".utf8))
+            body.append(Data("\(val)\r\n".utf8))
+        }
         body.append(Data("--\(boundary)\r\n".utf8))
         body.append(Data("Content-Disposition: form-data; name=\"\(fieldName)\"; filename=\"\(fileName)\"\r\n".utf8))
         body.append(Data("Content-Type: \(mimeType)\r\n\r\n".utf8))

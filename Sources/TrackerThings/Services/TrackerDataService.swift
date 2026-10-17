@@ -22,6 +22,11 @@ public protocol TrackerDataServiceProtocol: Sendable {
     func updateKelasPengganti(_ item: KelasPenggantiItem) async throws -> BaseResponse
     func selesaiKelasPengganti(id: Int) async throws -> BaseResponse
     func deleteKelasPengganti(id: Int) async throws -> BaseResponse
+
+    // MARK: - Schedule Import (OCR & AI Vision)
+    func previewScheduleImport(fileData: Data, fileName: String, mimeType: String) async throws -> ScheduleImportPreviewResponse
+    func visionScheduleImport(fileData: Data, fileName: String, mimeType: String, localItemsJson: String?) async throws -> ScheduleImportPreviewResponse
+    func confirmScheduleImport(items: [ImportScheduleItem], learnCorrections: Bool) async throws -> ScheduleImportConfirmResponse
 }
 
 public actor TrackerDataService: TrackerDataServiceProtocol {
@@ -166,6 +171,49 @@ public actor TrackerDataService: TrackerDataServiceProtocol {
 
     public func deleteKelasPengganti(id: Int) async throws -> BaseResponse {
         return try await network.request(endpoint: "kelas-pengganti/\(id)", method: "DELETE")
+    }
+
+    // MARK: - Schedule Import (OCR & AI Vision)
+    public func previewScheduleImport(fileData: Data, fileName: String, mimeType: String) async throws -> ScheduleImportPreviewResponse {
+        return try await network.uploadMultipart(
+            endpoint: "jadwal/import/preview",
+            fileData: fileData,
+            fileName: fileName,
+            mimeType: mimeType,
+            fieldName: "file"
+        )
+    }
+
+    public func visionScheduleImport(fileData: Data, fileName: String, mimeType: String, localItemsJson: String? = nil) async throws -> ScheduleImportPreviewResponse {
+        var extra: [String: String] = ["userConsent": "true"]
+        if let localJson = localItemsJson, !localJson.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            extra["localItems"] = localJson
+        }
+        return try await network.uploadMultipart(
+            endpoint: "jadwal/import/vision",
+            fileData: fileData,
+            fileName: fileName,
+            mimeType: mimeType,
+            fieldName: "file",
+            extraFields: extra
+        )
+    }
+
+    public func confirmScheduleImport(items: [ImportScheduleItem], learnCorrections: Bool = true) async throws -> ScheduleImportConfirmResponse {
+        struct ConfirmPayload: Encodable {
+            let items: [ImportScheduleItem]
+            let learnCorrections: Bool
+        }
+        let payload = ConfirmPayload(items: items, learnCorrections: learnCorrections)
+        let body = try encoder.encode(payload)
+        let response: ScheduleImportConfirmResponse = try await network.request(
+            endpoint: "jadwal/import/confirm",
+            method: "POST",
+            body: body
+        )
+        // Refresh local cache with latest schedule list after successful import
+        _ = try? await getJadwalList()
+        return response
     }
 }
 

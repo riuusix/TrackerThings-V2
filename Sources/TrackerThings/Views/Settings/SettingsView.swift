@@ -86,6 +86,41 @@ public struct SettingsView: View {
                     Text("Ketuk profil untuk memperbarui nama lengkap, nomor telepon, atau foto profil Anda.")
                 }
 
+                // MARK: - Akses Administrator Web
+                if authViewModel.currentUser?.role?.lowercased() == "admin" {
+                    Section {
+                        Link(destination: AppConfig.shared.adminWebURL) {
+                            HStack {
+                                Label {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Dashboard Admin (Web)")
+                                            .font(AppTheme.Typography.body)
+                                            .foregroundStyle(AppTheme.Colors.textPrimary)
+                                        Text("Buka portal manajemen sistem & pengguna di Safari")
+                                            .font(AppTheme.Typography.caption)
+                                            .foregroundStyle(AppTheme.Colors.textSecondary)
+                                    }
+                                } icon: {
+                                    Image(systemName: "shield.checkerboard")
+                                        .font(.body)
+                                        .foregroundStyle(Color.purple)
+                                }
+
+                                Spacer()
+
+                                Image(systemName: "arrow.up.right.square")
+                                    .font(.footnote)
+                                    .foregroundStyle(AppTheme.Colors.textTertiary)
+                            }
+                            .frame(minHeight: AppTheme.Metrics.minTouchTarget)
+                        }
+                    } header: {
+                        Text("Akses Administrator")
+                    } footer: {
+                        Text("Dasbor administratif web diakses secara terpusat melalui peramban Safari. Tautan ini tidak menyertakan kata sandi atau token sesi demi menjaga keamanan.")
+                    }
+                }
+
                 // MARK: - Notifikasi & Pengingat
                 Section {
                     HStack {

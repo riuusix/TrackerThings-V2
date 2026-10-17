@@ -10,6 +10,7 @@ public struct CourseListView: View {
     @State private var examViewModel: ExamViewModel
     @State private var coursePendingDeletion: JadwalItem? = nil
     @State private var isShowingAccountSummary: Bool = false
+    @State private var isShowingImportSchedule: Bool = false
 
     public init(
         viewModel: CourseViewModel,
@@ -158,9 +159,19 @@ public struct CourseListView: View {
                 }
 
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        viewModel.editingCourse = nil
-                        viewModel.isPresentingSheet = true
+                    Menu {
+                        Button {
+                            viewModel.editingCourse = nil
+                            viewModel.isPresentingSheet = true
+                        } label: {
+                            Label("Tambah Manual", systemImage: "plus")
+                        }
+
+                        Button {
+                            isShowingImportSchedule = true
+                        } label: {
+                            Label("Impor Jadwal (Foto/PDF)", systemImage: "doc.viewfinder")
+                        }
                     } label: {
                         Image(systemName: "plus")
                             .font(.system(size: 16, weight: .semibold))
@@ -171,6 +182,7 @@ public struct CourseListView: View {
                             )
                             .contentShape(Rectangle())
                     }
+                    .accessibilityLabel("Opsi Tambah atau Impor Mata Kuliah")
                 }
             }
             .sheet(isPresented: $isShowingAccountSummary) {
@@ -180,6 +192,9 @@ public struct CourseListView: View {
                 CourseFormSheet(viewModel: viewModel)
                     .presentationDetents([.medium, .large])
                     .presentationDragIndicator(.visible)
+            }
+            .sheet(isPresented: $isShowingImportSchedule) {
+                ImportScheduleView(courseViewModel: viewModel)
             }
             .confirmationDialog(
                 "Hapus Mata Kuliah?",

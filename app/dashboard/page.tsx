@@ -82,10 +82,6 @@ export default async function DashboardPage() {
     }
   }
 
-  if (session.username.toLowerCase() === "admin" || username.toLowerCase() === "admin") {
-    role = "admin";
-  }
-
   // 2. Distinct courses for dropdowns
   const uniqueCoursesMap = new Map<string, { id: number; namaMatkul: string }>();
   for (const item of regularSchedules) {

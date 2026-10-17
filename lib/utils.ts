@@ -211,6 +211,50 @@ export function sanitizeRedirectPath(path?: string | null, fallback = "/dashboar
 }
 
 /**
+ * Menentukan path redirect yang aman dan tepat setelah login berhasil
+ * berdasarkan role tepercaya dari database.
+ * - Admin secara default diarahkan ke '/admin'
+ * - Pengguna biasa secara default diarahkan ke '/dashboard'
+ * - Jika ada requestedFrom (misal dari middleware redirect):
+ *   - Admin diarahkan ke requestedFrom jika valid dan aman (misal /admin/users). Jika requestedFrom adalah /dashboard, /, atau rute auth, admin diarahkan ke /admin.
+ *   - Pengguna biasa diarahkan ke requestedFrom jika valid dan BUKAN rute admin (/admin atau /admin/*). Jika mencoba mengakses rute admin, diarahkan ke /dashboard.
+ */
+export function resolvePostLoginRedirect(role?: string | null, requestedFrom?: string | null): string {
+  const normalizedRole = (role || "user").trim().toLowerCase();
+  const isAdmin = normalizedRole === "admin";
+  const defaultFallback = isAdmin ? "/admin" : "/dashboard";
+
+  if (!requestedFrom || typeof requestedFrom !== "string") {
+    return defaultFallback;
+  }
+
+  const safePath = sanitizeRedirectPath(requestedFrom, defaultFallback);
+
+  // Jika tujuan adalah root atau auth routes, arahkan ke default sesuai role
+  if (
+    safePath === "/" ||
+    safePath === "/login" ||
+    safePath === "/register" ||
+    safePath === "/recovery"
+  ) {
+    return defaultFallback;
+  }
+
+  // Pengguna non-admin tidak boleh diarahkan ke area admin (/admin atau /admin/*)
+  if (!isAdmin && (safePath === "/admin" || safePath.startsWith("/admin/"))) {
+    return "/dashboard";
+  }
+
+  // Jika admin login dengan requestedFrom /dashboard (misal redirect generic middleware),
+  // default admin harus tetap ke /admin
+  if (isAdmin && safePath === "/dashboard") {
+    return "/admin";
+  }
+
+  return safePath;
+}
+
+/**
  * Mengonversi string waktu "HH:mm" atau "HH:mm:ss" menjadi objek Date dummy (1970-01-01T[time]Z)
  * yang kompatibel dengan kolom PostgreSQL 'time without time zone' (@db.Time di Prisma).
  */

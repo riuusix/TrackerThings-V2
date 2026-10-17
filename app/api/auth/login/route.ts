@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword, signSessionToken, createSession } from "@/lib/auth";
 import { apiSuccess, apiError } from "@/lib/apiResponse";
+import { resolvePostLoginRedirect } from "@/lib/utils";
 
 export async function POST(req: NextRequest) {
   const reqId = `req_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`;
@@ -99,10 +100,14 @@ export async function POST(req: NextRequest) {
       password_changed_at: user.passwordChangedAt ? user.passwordChangedAt.toISOString() : null,
     };
 
-    console.info(`[Auth][${reqId}][SUCCESS] API authentication succeeded`);
+    const redirectUrl = resolvePostLoginRedirect(role, typeof body.from === "string" ? body.from : null);
+
+    console.info(`[Auth][${reqId}][SUCCESS] API authentication succeeded for ${user.username} (role: ${role}) -> ${redirectUrl}`);
     return apiSuccess("Login berhasil!", safeUser, 200, {
       user: safeUser,
       token,
+      redirect_url: redirectUrl,
+      redirectUrl,
     });
   } catch {
     console.error(`[Auth][${reqId}][SERVER_ERROR] Unexpected error in /api/auth/login`);

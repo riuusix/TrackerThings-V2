@@ -17,9 +17,6 @@ import {
   ChevronDown,
   Clock,
   CheckCircle2,
-  Users,
-  Megaphone,
-  FileText,
 } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
 import { logoutAction } from "@/app/actions/auth";
@@ -215,7 +212,7 @@ export function Navbar({
                     {username}
                   </span>
                   <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium capitalize">
-                    {isAdmin ? "Administrator" : "Mahasiswa"}
+                    Mahasiswa
                   </span>
                 </div>
                 <ChevronDown className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 hidden sm:block" />
@@ -225,16 +222,9 @@ export function Navbar({
               {profileDropdownOpen && (
                 <div className="absolute right-0 mt-2 w-64 rounded-2xl p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl z-50 animate-in fade-in-50 zoom-in-95 duration-150">
                   <div className="px-3 py-2.5 border-b border-slate-100 dark:border-slate-800 mb-1">
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="text-[10px] text-blue-600 dark:text-blue-400 uppercase font-bold tracking-wider">
-                        Profil Akun
-                      </p>
-                      {isAdmin && (
-                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-blue-600 text-white uppercase tracking-wider">
-                          ADMIN
-                        </span>
-                      )}
-                    </div>
+                    <p className="text-[10px] text-blue-600 dark:text-blue-400 uppercase font-bold tracking-wider mb-1">
+                      Profil Akun
+                    </p>
                     <p className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">
                       {username}
                     </p>
@@ -244,41 +234,6 @@ export function Navbar({
                       </p>
                     )}
                   </div>
-
-                  {/* ADMIN SPECIFIC MENU ITEMS (Clean link to dedicated admin pages) */}
-                  {isAdmin && (
-                    <div className="py-1 mb-1 border-b border-slate-100 dark:border-slate-800">
-                      <p className="px-3 py-1 text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
-                        Panel Administrator
-                      </p>
-                      <Link
-                        href="/admin/users"
-                        onClick={() => setProfileDropdownOpen(false)}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                      >
-                        <Users className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                        <span>Manajemen User</span>
-                      </Link>
-
-                      <Link
-                        href="/admin/announcements"
-                        onClick={() => setProfileDropdownOpen(false)}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                      >
-                        <Megaphone className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                        <span>Kelola Pengumuman</span>
-                      </Link>
-
-                      <Link
-                        href="/admin/announcements#logs"
-                        onClick={() => setProfileDropdownOpen(false)}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                      >
-                        <FileText className="w-4 h-4 text-slate-500" />
-                        <span>Admin Logs</span>
-                      </Link>
-                    </div>
-                  )}
 
                   <Link
                     href="/profile"
@@ -348,30 +303,6 @@ export function Navbar({
                 </Link>
               );
             })}
-
-            {isAdmin && (
-              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1">
-                <span className="block px-4 py-1 text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
-                  Panel Admin
-                </span>
-                <Link
-                  href="/admin/users"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-3 px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-                >
-                  <Users className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                  <span>Manajemen User</span>
-                </Link>
-                <Link
-                  href="/admin/announcements"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center gap-3 px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-                >
-                  <Megaphone className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                  <span>Kelola Pengumuman</span>
-                </Link>
-              </div>
-            )}
           </div>
         )}
       </div>

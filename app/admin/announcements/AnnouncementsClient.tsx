@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Navbar } from "@/components/Navbar";
 import {
   Megaphone,
   Plus,
@@ -69,17 +68,22 @@ const INITIAL_LOGS = [
 ];
 
 interface AnnouncementsClientProps {
+  initialAnnouncements?: Announcement[];
+  initialLogs?: { id: string; action: string; waktu: string; tipe: string }[];
   currentUsername: string;
   currentUserEmail: string;
   role: string;
 }
 
 export function AnnouncementsClient({
+  initialAnnouncements,
+  initialLogs,
   currentUsername,
   currentUserEmail,
   role,
 }: AnnouncementsClientProps) {
-  const [announcements, setAnnouncements] = useState<Announcement[]>(INITIAL_ANNOUNCEMENTS);
+  const [announcements, setAnnouncements] = useState<Announcement[]>(initialAnnouncements || INITIAL_ANNOUNCEMENTS);
+  const [logs] = useState(initialLogs || INITIAL_LOGS);
   const [searchTerm, setSearchTerm] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -96,66 +100,110 @@ export function AnnouncementsClient({
       a.kategori.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleCreateAnnouncement = (e: React.FormEvent) => {
+  const handleCreateAnnouncement = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!judul.trim() || !isi.trim()) return;
 
-    const newItem: Announcement = {
-      id: Date.now(),
-      judul,
-      isi,
-      kategori,
-      target,
-      tanggal: new Date().toISOString().slice(0, 10),
-      status: "Aktif",
-      penulis: currentUsername,
-    };
+    try {
+      const res = await fetch("/api/admin/announcements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: judul,
+          content: isi,
+          isActive: true,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || "Gagal menerbitkan pengumuman.");
+      }
 
-    setAnnouncements([newItem, ...announcements]);
-    setIsModalOpen(false);
-    setJudul("");
-    setIsi("");
-    setFeedback("Pengumuman resmi baru berhasil dipublikasikan ke seluruh mahasiswa!");
-    setTimeout(() => setFeedback(null), 4000);
+      const created = data.data;
+      const newItem: Announcement = {
+        id: created.id,
+        judul: created.title,
+        isi: created.content,
+        kategori,
+        target,
+        tanggal: new Date().toISOString().slice(0, 10),
+        status: created.isActive ? "Aktif" : "Arsip",
+        penulis: currentUsername,
+      };
+
+      setAnnouncements([newItem, ...announcements]);
+      setIsModalOpen(false);
+      setJudul("");
+      setIsi("");
+      setFeedback("Pengumuman resmi baru berhasil dipublikasikan ke seluruh mahasiswa!");
+    } catch (err: any) {
+      setFeedback(`Error: ${err.message}`);
+    } finally {
+      setTimeout(() => setFeedback(null), 4000);
+    }
   };
 
-  const handleToggleStatus = (id: number) => {
-    setAnnouncements((prev) =>
-      prev.map((a) =>
-        a.id === id ? { ...a, status: a.status === "Aktif" ? "Arsip" : "Aktif" } : a
-      )
-    );
+  const handleToggleStatus = async (id: number) => {
+    const target = announcements.find((a) => a.id === id);
+    if (!target) return;
+    const newIsActive = target.status !== "Aktif";
+
+    try {
+      const res = await fetch(`/api/admin/announcements/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: newIsActive }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || "Gagal mengubah status pengumuman.");
+      }
+
+      setAnnouncements((prev) =>
+        prev.map((a) =>
+          a.id === id ? { ...a, status: newIsActive ? "Aktif" : "Arsip" } : a
+        )
+      );
+    } catch (err: any) {
+      setFeedback(`Error: ${err.message}`);
+      setTimeout(() => setFeedback(null), 3000);
+    }
   };
 
-  const handleDelete = (id: number, title: string) => {
+  const handleDelete = async (id: number, title: string) => {
     if (!confirm(`Hapus pengumuman "${title}"?`)) return;
-    setAnnouncements((prev) => prev.filter((a) => a.id !== id));
-    setFeedback("Pengumuman telah dihapus.");
-    setTimeout(() => setFeedback(null), 3000);
+
+    try {
+      const res = await fetch(`/api/admin/announcements/${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || "Gagal menghapus pengumuman.");
+      }
+
+      setAnnouncements((prev) => prev.filter((a) => a.id !== id));
+      setFeedback("Pengumuman telah dihapus.");
+    } catch (err: any) {
+      setFeedback(`Error: ${err.message}`);
+    } finally {
+      setTimeout(() => setFeedback(null), 3000);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 transition-colors pb-20">
-      <Navbar
-        username={currentUsername}
-        userEmail={currentUserEmail}
-        role={role}
-      />
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 space-y-6">
-        {/* Navigation Breadcrumbs & Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200 dark:border-slate-800">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
-              <Link href="/dashboard" className="hover:text-blue-600 transition-colors flex items-center gap-1">
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Dashboard</span>
-              </Link>
-              <span>/</span>
-              <span className="text-blue-600 dark:text-blue-400">Panel Administrator</span>
-              <span>/</span>
-              <span className="text-slate-800 dark:text-slate-200">Kelola Pengumuman</span>
-            </div>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 space-y-6 pb-20">
+      {/* Navigation Breadcrumbs & Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200 dark:border-slate-800">
+        <div>
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
+            <Link href="/admin" className="hover:text-purple-400 transition-colors flex items-center gap-1">
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Admin Console</span>
+            </Link>
+            <span>/</span>
+            <span className="text-slate-800 dark:text-slate-200">Kelola Pengumuman</span>
+          </div>
 
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white flex items-center gap-2.5">
               <Megaphone className="w-7 h-7 text-blue-600 dark:text-blue-400" />
@@ -311,7 +359,7 @@ export function AnnouncementsClient({
           </div>
 
           <div className="rounded-2xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm p-4 divide-y divide-slate-100 dark:divide-slate-800">
-            {INITIAL_LOGS.map((log) => (
+            {logs.map((log) => (
               <div key={log.id} className="py-2.5 flex items-center justify-between text-xs sm:text-sm">
                 <div className="flex items-center gap-2.5">
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
@@ -324,7 +372,6 @@ export function AnnouncementsClient({
             ))}
           </div>
         </div>
-      </main>
 
       {/* Modal Buat Pengumuman Baru */}
       {isModalOpen && (

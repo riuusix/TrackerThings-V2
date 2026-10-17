@@ -117,6 +117,18 @@ public final class AppConfig {
         URL(string: serverURLString) ?? URL(string: Self.defaultServerURL)!
     }
 
+    /// URL web admin dashboard resmi untuk diakses melalui Safari tanpa mengekspos token/rahasia di query parameter.
+    public var adminWebURL: URL {
+        var base = serverURLString.trimmingCharacters(in: .whitespacesAndNewlines)
+        if base.lowercased().hasSuffix("/api") {
+            base = String(base.dropLast(4))
+        }
+        while base.hasSuffix("/") {
+            base.removeLast()
+        }
+        return URL(string: "\(base)/admin") ?? URL(string: "https://trackerthings.vercel.app/admin")!
+    }
+
     public func resetToDefault() {
         #if DEBUG
         UserDefaults.standard.removeObject(forKey: Self.serverURLKey)

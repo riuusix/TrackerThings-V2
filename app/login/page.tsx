@@ -6,27 +6,30 @@ import { useSearchParams } from "next/navigation";
 import { loginAction } from "@/app/actions/auth";
 import { GraduationCap, Lock, User, ArrowRight, Loader2, AlertCircle } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { sanitizeRedirectPath } from "@/lib/utils";
 
 function LoginForm() {
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const safeRedirectPath = sanitizeRedirectPath(searchParams.get("from"));
+  const fromParam = searchParams.get("from");
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (isPending) return;
     setError(null);
     const formData = new FormData(e.currentTarget);
+    if (fromParam) {
+      formData.set("from", fromParam);
+    }
 
     startTransition(async () => {
       const res = await loginAction(formData);
       if (res.success) {
         // Full browser navigation avoids concurrent router.push() and router.refresh() race condition
         // and guarantees auth_session cookie is attached cleanly across all RSC layouts.
-        window.location.assign(safeRedirectPath);
+        const targetUrl = res.redirectUrl || (res.role === "admin" ? "/admin" : "/dashboard");
+        window.location.assign(targetUrl);
       } else {
         setError(res.error || "Gagal masuk, periksa kembali username dan sandi.");
       }

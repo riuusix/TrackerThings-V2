@@ -29,12 +29,9 @@ export default async function AdminUsersPage() {
     }),
   ]);
 
-  const userRole =
-    currentUserData?.role ||
-    session.role ||
-    (session.username.toLowerCase() === "admin" ? "admin" : "user");
+  const userRole = (currentUserData?.role || "").toLowerCase();
 
-  if (userRole.toLowerCase() !== "admin") {
+  if (userRole !== "admin") {
     redirect("/dashboard");
   }
 

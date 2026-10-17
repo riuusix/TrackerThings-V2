@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Navbar } from "@/components/Navbar";
 import {
   Users,
   Search,
@@ -65,67 +64,81 @@ export function UsersManagementClient({
   const totalAdmin = users.filter((u) => u.role?.toLowerCase() === "admin").length;
   const totalStudents = users.length - totalAdmin;
 
-  const handleToggleRole = (userId: number, currentRole?: string | null) => {
+  const handleToggleRole = async (userId: number, currentRole?: string | null) => {
     if (processingUserId !== null) return;
     const newRole = currentRole?.toLowerCase() === "admin" ? "user" : "admin";
-    if (!confirm(`Ubah role user ini menjadi ${newRole.toUpperCase()}?`)) return;
+    if (!confirm(`Ubah role pengguna ini menjadi ${newRole.toUpperCase()}?`)) return;
 
     setProcessingUserId(userId);
-    setUsers((prev) =>
-      prev.map((u) => (u.id === userId ? { ...u, role: newRole } : u))
-    );
-    setActionMessage(`Role pengguna ID #${userId} berhasil diperbarui menjadi ${newRole.toUpperCase()}.`);
-    setTimeout(() => {
+    setActionMessage(null);
+
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/role`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: newRole }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || "Gagal memperbarui peran pengguna.");
+      }
+
+      setUsers((prev) =>
+        prev.map((u) => (u.id === userId ? { ...u, role: newRole } : u))
+      );
+      setActionMessage(`Hak akses pengguna ID #${userId} berhasil diperbarui menjadi ${newRole.toUpperCase()}.`);
+    } catch (err: any) {
+      setActionMessage(`Error: ${err.message}`);
+    } finally {
       setProcessingUserId(null);
-      setActionMessage(null);
-    }, 1500);
+      setTimeout(() => setActionMessage(null), 3500);
+    }
   };
 
-  const handleResetPassword = (username: string, userId: number) => {
-    if (processingUserId !== null) return;
-    if (!confirm(`Kirim instruksi reset password darurat untuk user @${username}?`)) return;
-    setProcessingUserId(userId);
-    setActionMessage(`Instruksi reset password darurat telah dikirimkan ke email terdaftar @${username}.`);
-    setTimeout(() => {
-      setProcessingUserId(null);
-      setActionMessage(null);
-    }, 1500);
+  const handleResetPassword = (username: string, userId?: number) => {
+    setActionMessage(`Fitur reset kata sandi email dinonaktifkan sementara sesuai konfigurasi sistem.`);
+    setTimeout(() => setActionMessage(null), 3500);
   };
 
-  const handleDeleteUser = (userId: number, username: string) => {
+  const handleDeleteUser = async (userId: number, username: string) => {
     if (processingUserId !== null) return;
-    if (!confirm(`PERINGATAN: Hapus permanen akun @${username}? Seluruh data jadwal dan tugas akan terhapus.`)) return;
+    if (!confirm(`PERINGATAN: Hapus permanen akun @${username}? Seluruh data jadwal, tugas, dan ujian akan terhapus secara permanen.`)) return;
+
     setProcessingUserId(userId);
-    setUsers((prev) => prev.filter((u) => u.id !== userId));
-    setActionMessage(`Akun pengguna @${username} berhasil dihapus dari sistem.`);
-    setTimeout(() => {
+    setActionMessage(null);
+
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || "Gagal menghapus akun pengguna.");
+      }
+
+      setUsers((prev) => prev.filter((u) => u.id !== userId));
+      setActionMessage(`Akun pengguna @${username} berhasil dihapus dari sistem.`);
+    } catch (err: any) {
+      setActionMessage(`Error: ${err.message}`);
+    } finally {
       setProcessingUserId(null);
-      setActionMessage(null);
-    }, 1500);
+      setTimeout(() => setActionMessage(null), 3500);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 transition-colors pb-20">
-      <Navbar
-        username={currentUsername}
-        userEmail={currentUserEmail}
-        role={role}
-      />
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 space-y-6">
-        {/* Navigation Breadcrumbs & Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200 dark:border-slate-800">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
-              <Link href="/dashboard" className="hover:text-blue-600 transition-colors flex items-center gap-1">
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Dashboard</span>
-              </Link>
-              <span>/</span>
-              <span className="text-blue-600 dark:text-blue-400">Panel Administrator</span>
-              <span>/</span>
-              <span className="text-slate-800 dark:text-slate-200">Manajemen User</span>
-            </div>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 space-y-6 pb-20">
+      {/* Navigation Breadcrumbs & Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200 dark:border-slate-800">
+        <div>
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
+            <Link href="/admin" className="hover:text-purple-400 transition-colors flex items-center gap-1">
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Admin Console</span>
+            </Link>
+            <span>/</span>
+            <span className="text-slate-800 dark:text-slate-200">Manajemen User</span>
+          </div>
 
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white flex items-center gap-2.5">
               <Users className="w-7 h-7 text-blue-600 dark:text-blue-400" />
@@ -344,7 +357,6 @@ export function UsersManagementClient({
             </table>
           </div>
         </div>
-      </main>
     </div>
   );
 }
