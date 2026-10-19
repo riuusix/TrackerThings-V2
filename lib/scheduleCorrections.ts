@@ -1,7 +1,7 @@
 import { prisma } from './prisma'
 import {
-  UserScheduleMapping,
-  MappingFieldType,
+  type UserScheduleMapping,
+  type MappingFieldType,
   upsertUserMapping,
   removeUserMapping
 } from './scheduleParser'

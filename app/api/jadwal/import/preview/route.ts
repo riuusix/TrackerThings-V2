@@ -7,8 +7,8 @@ import {
   extractOcrFromImage,
   parseTsvToWords,
   recognizeScheduleData,
-  ParsedScheduleItem,
-  OcrWord,
+  type ParsedScheduleItem,
+  type OcrWord,
 } from "@/lib/scheduleParser";
 import { getUserScheduleMappings } from "@/lib/scheduleCorrections";
 
@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
       extractedWords = parseTsvToWords(ocrTsvParam);
     }
 
-    if (typeof rawTextParam === "string" && rawTextParam.trim().length > 0) {
+    if (typeof rawTextParam === "string") {
       extractedText = rawTextParam.trim();
       extractionSource = "client_ocr";
     } else {
@@ -82,11 +82,21 @@ export async function POST(req: NextRequest) {
         return apiError("Ukuran file melebihi batas maksimal 10MB.", 400);
       }
 
-      const mimeType = file.type.toLowerCase();
+      let mimeType = file.type.toLowerCase();
+      if (!mimeType || mimeType === "application/octet-stream") {
+        const ext = file.name.split(".").pop()?.toLowerCase();
+        if (ext === "pdf") mimeType = "application/pdf";
+        else if (ext === "png") mimeType = "image/png";
+        else if (ext === "jpg" || ext === "jpeg") mimeType = "image/jpeg";
+        else if (ext === "webp") mimeType = "image/webp";
+      }
+
       if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
         return apiError(
           "Format file tidak didukung. Harap unggah dokumen PDF atau gambar (PNG, JPG, WebP).",
-          400
+          400,
+          "UNSUPPORTED_FORMAT",
+          { supported_formats: ALLOWED_MIME_TYPES }
         );
       }
 
@@ -105,29 +115,67 @@ export async function POST(req: NextRequest) {
           extractionSource = "server_ocr";
         }
       } catch (extractErr: any) {
+        ocrDurationMs = Date.now() - ocrStartTime;
         const errMsg = extractErr?.message || "";
         if (errMsg.includes("sedang memproses")) {
-          return apiError("Server OCR sedang sibuk. Silakan coba kembali dalam beberapa detik.", 429);
+          return apiError("Server OCR sedang sibuk. Silakan coba kembali dalam beberapa detik.", 429, "OCR_BUSY");
         }
         if (errMsg.includes("timeout") || errMsg.includes("batas waktu")) {
           return apiError(
             "Waktu pemrosesan gambar melebihi batas waktu. Disarankan menggunakan file PDF atau gambar beresolusi lebih ringkas.",
-            504
+            504,
+            "EXTRACTION_TIMEOUT"
           );
         }
-        console.error("Error during file text extraction:", extractErr);
+        if (errMsg.includes("PDF_PASSWORD_PROTECTED")) {
+          console.warn(`[ImportPreview] PDF password-protected (duration: ${ocrDurationMs}ms, size: ${file.size})`);
+          return apiError(
+            "Dokumen PDF diproteksi oleh kata sandi (password). Harap unggah dokumen yang tidak terkunci.",
+            422,
+            "PDF_PASSWORD_PROTECTED",
+            { file_type: "pdf" }
+          );
+        }
+
+        console.error(`[ImportPreview] Extraction failure (mime: ${mimeType}, size: ${file.size}, duration: ${ocrDurationMs}ms):`, errMsg);
         return apiError(
           "Gagal memproses file jadwal. Pastikan gambar/PDF jelas dan tidak rusak.",
-          422
+          422,
+          "CORRUPTED_DOCUMENT",
+          {
+            file_type: mimeType === "application/pdf" ? "pdf" : "image",
+            vision_fallback_eligible: mimeType !== "application/pdf",
+          }
         );
       }
       ocrDurationMs = Date.now() - ocrStartTime;
     }
 
     if ((!extractedText || extractedText.trim().length === 0) && extractedWords.length === 0) {
+      if (extractionSource === "pdf_stream") {
+        console.warn(`[ImportPreview] Scanned PDF with no digital text (duration: ${ocrDurationMs}ms)`);
+        return apiError(
+          "Tidak dapat mengekstrak teks dari file PDF yang diunggah. Dokumen tampaknya merupakan hasil scan/gambar tanpa lapisan teks digital. Silakan unggah tangkapan layar (screenshot) atau foto dokumen dalam format gambar (PNG/JPG) agar dapat dibaca oleh OCR atau dianalisis oleh Vision AI.",
+          422,
+          "SCANNED_PDF_NO_TEXT",
+          {
+            file_type: "pdf",
+            recovery_action: "CONVERT_TO_IMAGE",
+            vision_fallback_eligible: false,
+          }
+        );
+      }
+
+      console.warn(`[ImportPreview] Empty OCR extraction on image (duration: ${ocrDurationMs}ms)`);
       return apiError(
-        "Tidak dapat mengekstrak teks dari file yang diunggah. Pastikan file memuat informasi jadwal kuliah yang jelas.",
-        422
+        "OCR lokal tidak berhasil mengenali teks pada gambar jadwal. Gambar mungkin beresolusi rendah atau memiliki kontras redup. Anda dapat mencoba bantuan Vision AI untuk membaca jadwal.",
+        422,
+        "EMPTY_OCR_IMAGE",
+        {
+          file_type: "image",
+          recovery_action: "TRY_VISION_AI",
+          vision_fallback_eligible: true,
+        }
       );
     }
 

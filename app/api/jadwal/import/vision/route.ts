@@ -9,7 +9,7 @@ import {
 } from "@/lib/visionProvider";
 import {
   mergeVisionWithOcrSchedule,
-  ParsedScheduleItem,
+  type ParsedScheduleItem,
   detectScheduleLayout,
 } from "@/lib/scheduleParser";
 import { getUserScheduleMappings } from "@/lib/scheduleCorrections";

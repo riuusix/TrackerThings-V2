@@ -48,8 +48,12 @@ public final class ImportScheduleViewModel {
     }
 
     public var visionEligible: Bool {
-        guard let prev = previewResponse else { return false }
-        return prev.visionFallbackEligible && !isDocumentPdf
+        guard !isDocumentPdf, selectedFileData != nil else { return false }
+        if let prev = previewResponse {
+            return prev.visionFallbackEligible
+        }
+        // If local OCR preview failed or returned empty items on an image, allow user to trigger Vision AI
+        return errorMessage != nil && items.isEmpty
     }
 
     // MARK: - Pemilihan File

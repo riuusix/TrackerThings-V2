@@ -53,12 +53,20 @@ export interface UserScheduleMapping {
   sourceKey: string;
   /** User-confirmed target value */
   targetValue: string;
-  /** Optional contextual metadata for courseByCode */
+  /** Optional contextual metadata for courseByCode and Phase 7B conflict/rejection guard */
   metadata?: {
     namaMatkul?: string;
     lokasi?: string;
     sks?: number;
     kelas?: string;
+    contextQualifier?: string;
+    isAmbiguous?: boolean;
+    alternateTargets?: string[];
+    hasConflict?: boolean;
+    revertedByTarget?: string;
+    isUserDisabled?: boolean;
+    usageCount?: number;
+    lastUsedAt?: string;
   };
   createdAt: string;
   updatedAt: string;
@@ -735,6 +743,8 @@ function classifyHeaderPhrase(phrase: string): TableColumnField | null {
     clean === "waktu" ||
     clean === "jam kuliah" ||
     clean === "waktu kuliah" ||
+    clean === "jam pelajaran" ||
+    clean === "waktu pelajaran" ||
     clean === "pukul" ||
     clean === "time"
   ) {
@@ -769,14 +779,30 @@ function classifyHeaderPhrase(phrase: string): TableColumnField | null {
     clean === "matakuliah" ||
     clean === "nama mata kuliah" ||
     clean === "nama matkul" ||
-    clean === "nama"
+    clean === "nama" ||
+    clean === "kegiatan kursus" ||
+    clean === "kegiatan" ||
+    clean === "kursus" ||
+    clean === "mata pelajaran" ||
+    clean === "mapel" ||
+    clean === "subject" ||
+    clean === "course"
   ) {
     return "namaMatkul";
   }
   if (clean === "sks" || clean === "kredit" || clean === "credit" || clean === "bobot") {
     return "sks";
   }
-  if (clean === "dosen" || clean === "pengajar" || clean === "nama dosen" || clean === "lecturer") {
+  if (
+    clean === "dosen" ||
+    clean === "pengajar" ||
+    clean === "nama dosen" ||
+    clean === "guru" ||
+    clean === "nama guru" ||
+    clean === "lecturer" ||
+    clean === "instructor" ||
+    clean === "instruktur"
+  ) {
     return "dosen";
   }
   return null;
@@ -1897,9 +1923,9 @@ function isHeaderTextLine(line: string): boolean {
   if (/\b(ruang|ruangan|lokasi)\b/.test(clean)) matches++;
   if (/\b(kode\s*mk|kodemk|kode)\b/.test(clean)) matches++;
   if (/\b(kls|kelas)\b/.test(clean)) matches++;
-  if (/\b(nama\s*mk|mata\s*kuliah|matakuliah)\b/.test(clean)) matches++;
+  if (/\b(nama\s*mk|mata\s*kuliah|matakuliah|kegiatan|kursus|mata\s*pelajaran|mapel)\b/.test(clean)) matches++;
   if (/\bsks\b/.test(clean)) matches++;
-  if (/\b(dosen|pengajar)\b/.test(clean)) matches++;
+  if (/\b(dosen|pengajar|guru|instruktur)\b/.test(clean)) matches++;
   return matches >= 3;
 }
 
@@ -2523,7 +2549,52 @@ function parseTraditionalKrsLines(
       }
 
       let title = "";
-      if (hariMatch) {
+      let extractedSks: number | null = null;
+      let extractedRuang: string | null = null;
+
+      const sksMatch = line.match(sksRegex);
+      if (sksMatch) {
+        extractedSks = parseInt(sksMatch[1], 10);
+      }
+
+      const ruangMatch = line.match(ruangRegex);
+
+      if (hariMatch && timeMatch) {
+        const hariIdx = line.indexOf(hariMatch[0]);
+        const timeIdx = line.indexOf(timeMatch[0]);
+        const timeEndIdx = timeIdx + timeMatch[0].length;
+
+        // Extract prefix before the day name
+        let prefix = line.slice(0, hariIdx).trim();
+
+        // Check standalone SKS digit right before the day name (e.g. "...Diskrit  2  Senin")
+        const standaloneSksMatch = prefix.match(/\s+([1-8])\s*$/);
+        if (standaloneSksMatch && extractedSks === null) {
+          extractedSks = parseInt(standaloneSksMatch[1], 10);
+          prefix = prefix.slice(0, prefix.length - standaloneSksMatch[0].length).trim();
+        }
+
+        // Strip leading numbering from prefix (e.g. "1   Matematika Diskrit" -> "Matematika Diskrit")
+        prefix = prefix.replace(/^\d+[\s.)-]+\s*/, "").trim();
+        if (prefix.length >= 2) {
+          title = prefix;
+        }
+
+        // Extract room / location after the time range
+        const suffix = line.slice(timeEndIdx).trim();
+        if (suffix) {
+          const candidateRoom = suffix.replace(/^[|;,\s-]+/, "").trim();
+          if (candidateRoom && !/^(?:teori|praktek|wajib|pilihan)$/i.test(candidateRoom)) {
+            extractedRuang = candidateRoom;
+          }
+        }
+      }
+
+      if (!extractedRuang && ruangMatch) {
+        extractedRuang = ruangMatch[0].trim();
+      }
+
+      if (!title && hariMatch) {
         const stripped = line
           .replace(timeRangeRegex, "")
           .replace(hariRegex, "")
@@ -2531,6 +2602,7 @@ function parseTraditionalKrsLines(
           .replace(dosenPrefixRegex, "")
           .replace(ruangRegex, "")
           .replace(/[,;|]/g, " ")
+          .replace(/^\d+[\s.)-]+\s*/, "")
           .replace(/^[:.\s-]+/, "")
           .trim();
         if (stripped.length > 2 && !/^(?:sks|ruang|lab|dosen|gedung|teori|praktek)$/i.test(stripped)) {
@@ -2547,15 +2619,13 @@ function parseTraditionalKrsLines(
             !prev.match(/^(?:kartu\s+rencana\s+studi|jadwal\s+kuliah)/i) &&
             prev.length > 3
           ) {
-            title = prev;
+            title = prev.replace(/^\d+[\s.)-]+\s*/, "").trim();
             break;
           }
         }
       }
 
       const hari = hariMatch ? normalizeHari(hariMatch[1], userMappings) : null;
-      const sksMatch = line.match(sksRegex);
-      const ruangMatch = line.match(ruangRegex);
       const dosenMatch = line.match(/\b(?:Dosen|Pengajar|Lecturer)\s*:\s*([^,;|]+)/i);
 
       currentItem = {
@@ -2563,8 +2633,8 @@ function parseTraditionalKrsLines(
         hari: hari || "",
         waktuMulai: startTime || "",
         waktuSelesai: endTime || "",
-        sks: sksMatch ? parseInt(sksMatch[1], 10) : null,
-        lokasi: ruangMatch ? ruangMatch[0].trim() : null,
+        sks: extractedSks,
+        lokasi: extractedRuang ? cleanRoomName(extractedRuang) : null,
         dosen: dosenMatch ? dosenMatch[1].trim() : null,
         kategori: "Wajib",
         rawText: title ? `${title} | ${line}` : line,
@@ -2573,8 +2643,8 @@ function parseTraditionalKrsLines(
           hari: hariMatch ? hariMatch[1] : "",
           waktuMulai: timeMatch[1],
           waktuSelesai: timeMatch[2],
-          sks: sksMatch ? sksMatch[0] : "",
-          lokasi: ruangMatch ? ruangMatch[0].trim() : "",
+          sks: extractedSks ? String(extractedSks) : "",
+          lokasi: extractedRuang || "",
           dosen: dosenMatch ? dosenMatch[1].trim() : "",
         },
         layoutKind: "traditional_krs_text",
@@ -2757,9 +2827,45 @@ export function applyConfirmedMappings(
     if (!currentVal || !currentVal.trim()) return currentVal || null;
     const normCurrent = normalizeMappingKey(currentVal);
 
-    // Exact match first -> always confirmed
+    // Exact match first
     for (const m of userMappings) {
       if (m.field === field && normalizeMappingKey(m.sourceKey) === normCurrent) {
+        // Phase 7B: Check if mapping is flagged as ambiguous, in conflict, or user-disabled
+        if (m.metadata?.isAmbiguous || m.metadata?.hasConflict || m.metadata?.isUserDisabled) {
+          tentativeSuggestions[scheduleKey] = m.targetValue;
+          updated.needsReview = true;
+          const altMsg = m.metadata?.alternateTargets && m.metadata.alternateTargets.length > 0
+            ? ` (alternatif lain: ${m.metadata.alternateTargets.join(', ')})`
+            : '';
+          const warn = `Koreksi tersimpan (${field}) memiliki variasi nilai: '${currentVal}' vs '${m.targetValue}'${altMsg}. Harap tinjau.`;
+          if (!warnings.includes(warn)) warnings.push(warn);
+          return currentVal;
+        }
+
+        // Phase 7B: Short token guard (< 3 chars, or location <= 3 chars like 'LAB') without context qualifier
+        const isShort = normCurrent.length < 3 || (field === "lokasi" && normCurrent.length <= 3);
+        if (isShort) {
+          if (m.metadata?.contextQualifier) {
+            const currentKode = (updated.kodeMatkul || updated.rawFields?.kodeMatkul || "").toLowerCase();
+            const currentTitle = (updated.namaMatkul || updated.rawFields?.namaMatkul || "").toLowerCase();
+            const q = m.metadata.contextQualifier.toLowerCase();
+            const matchesContext =
+              (currentKode && (currentKode.includes(q) || q.includes(currentKode))) ||
+              (currentTitle && (currentTitle.includes(q) || q.includes(currentTitle)));
+            if (!matchesContext) {
+              tentativeSuggestions[scheduleKey] = m.targetValue;
+              updated.needsReview = true;
+              return currentVal;
+            }
+          } else {
+            tentativeSuggestions[scheduleKey] = m.targetValue;
+            updated.needsReview = true;
+            const warn = `Token singkat '${currentVal}' (${field}) disarankan sebagai '${m.targetValue}'. Harap tinjau.`;
+            if (!warnings.includes(warn)) warnings.push(warn);
+            return currentVal;
+          }
+        }
+
         confirmedFields.add(scheduleKey);
         if (m.targetValue !== currentVal) {
           applied.push(`Koreksi tersimpan (${field}): '${currentVal}' → '${m.targetValue}'`);
@@ -2782,6 +2888,11 @@ export function applyConfirmedMappings(
         }
       }
       if (bestMatch) {
+        if (bestMatch.metadata?.isAmbiguous || bestMatch.metadata?.hasConflict || bestMatch.metadata?.isUserDisabled) {
+          tentativeSuggestions[scheduleKey] = bestMatch.targetValue;
+          updated.needsReview = true;
+          return currentVal;
+        }
         if (bestScore >= minConfirmedSimilarity) {
           confirmedFields.add(scheduleKey);
           if (bestMatch.targetValue !== currentVal) {
@@ -3371,6 +3482,10 @@ export function deriveMappingsFromConfirmedItems(
         field: "namaMatkul",
         sourceKey: rawFields.namaMatkul.trim(),
         targetValue: confirmedNama,
+        metadata: {
+          contextQualifier: confirmedKode || undefined,
+          namaMatkul: confirmedNama,
+        },
       });
     }
 
@@ -3386,6 +3501,10 @@ export function deriveMappingsFromConfirmedItems(
         field: "lokasi",
         sourceKey: rawFields.lokasi.trim(),
         targetValue: confirmedLokasi,
+        metadata: {
+          contextQualifier: confirmedKode || confirmedNama || undefined,
+          lokasi: confirmedLokasi,
+        },
       });
     }
 
@@ -3401,6 +3520,9 @@ export function deriveMappingsFromConfirmedItems(
         field: "kodeMatkul",
         sourceKey: rawFields.kodeMatkul.trim(),
         targetValue: confirmedKode,
+        metadata: {
+          contextQualifier: confirmedNama || undefined,
+        },
       });
     }
 
@@ -3418,6 +3540,40 @@ export function deriveMappingsFromConfirmedItems(
         },
       });
     }
+
+    // 5. If user corrected OCR weekday, store hari mapping
+    const confirmedHari = typeof item.hari === "string" ? item.hari.trim() : "";
+    if (
+      rawFields.hari &&
+      typeof rawFields.hari === "string" &&
+      rawFields.hari.trim().length >= 3 &&
+      confirmedHari.length >= 3 &&
+      normalizeMappingKey(rawFields.hari) !== normalizeMappingKey(confirmedHari)
+    ) {
+      mappings = upsertUserMapping(mappings, {
+        field: "hari",
+        sourceKey: rawFields.hari.trim(),
+        targetValue: confirmedHari,
+      });
+    }
+
+    // 6. If user corrected OCR class label, store kelas mapping
+    if (
+      rawFields.kelas &&
+      typeof rawFields.kelas === "string" &&
+      rawFields.kelas.trim().length >= 2 &&
+      confirmedKelas.length >= 2 &&
+      normalizeMappingKey(rawFields.kelas) !== normalizeMappingKey(confirmedKelas)
+    ) {
+      mappings = upsertUserMapping(mappings, {
+        field: "kelas",
+        sourceKey: rawFields.kelas.trim(),
+        targetValue: confirmedKelas,
+        metadata: {
+          contextQualifier: confirmedKode || confirmedNama || undefined,
+        },
+      });
+    }
   }
 
   return mappings;
@@ -3425,6 +3581,8 @@ export function deriveMappingsFromConfirmedItems(
 
 /**
  * Adds or updates a single user-confirmed mapping deterministically.
+ * Phase 7B: Prevents blind-overwrite of conflicting target values,
+ * detects ambiguity, guards short tokens, and maintains backward compatibility.
  */
 export function upsertUserMapping(
   existingMappings: UserScheduleMapping[],
@@ -3440,6 +3598,7 @@ export function upsertUserMapping(
   const normKey = normalizeMappingKey(input.sourceKey);
   if (!normKey || !input.targetValue.trim()) return existingMappings;
 
+  const isShortToken = normKey.length < 3 || (input.field === "lokasi" && normKey.length <= 3);
   const list = [...existingMappings];
   const idx = list.findIndex(
     (m) =>
@@ -3448,20 +3607,81 @@ export function upsertUserMapping(
   );
 
   if (idx !== -1) {
-    list[idx] = {
-      ...list[idx],
-      sourceKey: input.sourceKey.trim(),
-      targetValue: input.targetValue.trim(),
-      metadata: input.metadata || list[idx].metadata,
-      updatedAt: now,
-    };
+    const existing = list[idx];
+    const isExplicitIdEdit = Boolean(input.id && existing.id === input.id);
+    const existingNormTarget = normalizeMappingKey(existing.targetValue);
+    const inputNormTarget = normalizeMappingKey(input.targetValue);
+
+    // Case 1: Identical target value (re-confirming consistent mapping)
+    if (existingNormTarget === inputNormTarget) {
+      const existingMeta = existing.metadata || {};
+      const newUsage = (existingMeta.usageCount || 1) + 1;
+      list[idx] = {
+        ...existing,
+        sourceKey: input.sourceKey.trim(),
+        targetValue: input.targetValue.trim(),
+        metadata: {
+          ...existingMeta,
+          ...(input.metadata || {}),
+          usageCount: newUsage,
+          lastUsedAt: now,
+        },
+        updatedAt: now,
+      };
+    }
+    // Case 2: Explicit ID edit (user intentionally edited this mapping in settings)
+    else if (isExplicitIdEdit) {
+      list[idx] = {
+        ...existing,
+        sourceKey: input.sourceKey.trim(),
+        targetValue: input.targetValue.trim(),
+        metadata: {
+          ...(existing.metadata || {}),
+          ...(input.metadata || {}),
+          hasConflict: false,
+          isAmbiguous: false,
+        },
+        updatedAt: now,
+      };
+    }
+    // Case 3: Target value conflict during auto-learning (different targetValue for same sourceKey)
+    else {
+      // PREVENT SILENT OVERWRITE! Preserve existing valid mapping while flagging ambiguity & conflict
+      const existingMeta = existing.metadata || {};
+      const alternates = new Set(existingMeta.alternateTargets || []);
+      alternates.add(input.targetValue.trim());
+
+      list[idx] = {
+        ...existing,
+        // Retain existing.targetValue so user does not lose previous mapping!
+        metadata: {
+          ...existingMeta,
+          isAmbiguous: true,
+          hasConflict: true,
+          alternateTargets: Array.from(alternates),
+          contextQualifier: input.metadata?.contextQualifier || existingMeta.contextQualifier,
+        },
+        updatedAt: now,
+      };
+    }
   } else {
+    // New mapping entry
+    const newMeta = { ...(input.metadata || {}) };
+    newMeta.usageCount = newMeta.usageCount || 1;
+    newMeta.lastUsedAt = now;
+
+    // Check if short token without contextQualifier
+    if (isShortToken && !newMeta.contextQualifier) {
+      newMeta.isAmbiguous = true;
+      newMeta.hasConflict = true;
+    }
+
     list.push({
       id: input.id || `map_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       field: input.field,
       sourceKey: input.sourceKey.trim(),
       targetValue: input.targetValue.trim(),
-      metadata: input.metadata,
+      metadata: Object.keys(newMeta).length > 0 ? newMeta : undefined,
       createdAt: now,
       updatedAt: now,
     });
@@ -3532,7 +3752,7 @@ export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
       // If digital text is empty (scanned PDF), attempt to extract embedded page images and run OCR
       if (typeof parser.getImage === "function") {
         try {
-          const imgResult = await parser.getImage();
+          const imgResult = await parser.getImage({ imageBuffer: true });
           const pages = imgResult?.pages || [];
           for (const page of pages) {
             const images = page?.images || [];
@@ -3549,6 +3769,13 @@ export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
       }
 
       return "";
+    } catch (parseErr: any) {
+      const errName = parseErr?.name || "";
+      const errMsg = parseErr?.message || "";
+      if (errName === "PasswordException" || errMsg.toLowerCase().includes("password")) {
+        throw new Error("PDF_PASSWORD_PROTECTED: Dokumen PDF diproteksi oleh kata sandi.");
+      }
+      throw parseErr;
     } finally {
       if (typeof parser.destroy === "function") {
         await parser.destroy();

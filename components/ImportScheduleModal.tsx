@@ -280,6 +280,9 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
       const json = await res.json();
 
       if (!res.ok) {
+        if (json.extra?.vision_fallback_eligible || json.vision_fallback_eligible || (isImage && file)) {
+          setIsVisionEligible(true);
+        }
         throw new Error(json.message || "Gagal mengekstrak dokumen.");
       }
 
@@ -727,9 +730,27 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
     >
       <div className="space-y-4">
         {errorMsg && (
-          <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/40 flex items-start gap-2.5 text-xs text-rose-700 dark:text-rose-300">
-            <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400 mt-0.5" />
-            <div className="flex-1 font-medium">{errorMsg}</div>
+          <div className="space-y-2">
+            <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/40 flex items-start gap-2.5 text-xs text-rose-700 dark:text-rose-300">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400 mt-0.5" />
+              <div className="flex-1 font-medium">{errorMsg}</div>
+            </div>
+            {isVisionEligible && file && file.type.startsWith("image/") && !isVisionLoading && (
+              <div className="p-3 rounded-xl bg-purple-50/80 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/50 flex items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-1.5 text-purple-900 dark:text-purple-200 font-semibold">
+                  <Sparkles className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+                  <span>Gambar tidak terbaca OCR lokal? Coba gunakan bantuan Gemini Vision AI</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowConsentModal(true)}
+                  className="shrink-0 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold transition-all shadow-xs flex items-center gap-1.5"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  <span>Coba Vision AI</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
 

@@ -593,8 +593,18 @@ public struct ImportScheduleView: View {
             }
 
             let fileName = url.lastPathComponent
-            let isPdf = fileName.lowercased().hasSuffix(".pdf")
-            let mime = isPdf ? "application/pdf" : "image/jpeg"
+            let lower = fileName.lowercased()
+            let isPdf = lower.hasSuffix(".pdf")
+            let mime: String
+            if isPdf {
+                mime = "application/pdf"
+            } else if lower.hasSuffix(".png") {
+                mime = "image/png"
+            } else if lower.hasSuffix(".webp") {
+                mime = "image/webp"
+            } else {
+                mime = "image/jpeg"
+            }
             viewModel.handleFileSelected(data: data, fileName: fileName, mimeType: mime)
 
         case .failure(let err):
