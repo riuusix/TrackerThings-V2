@@ -9,39 +9,18 @@
  * 6. Reminder timing simulation (H-1, H-2h, near-deadline fallback, and expired cancellation)
  */
 
-const assert = require("assert");
+import test, { describe, it } from "node:test";
+import assert from "node:assert/strict";
 
 // Import utility functions directly from lib/utils.ts
-const utils = require("../lib/utils.ts");
-const {
+import {
   parseDateOnly,
   formatIndonesianDate,
   formatIndonesianDateTime,
   getDaysDifference,
   getCalendarDayName,
   formatCalendarDateInput,
-} = utils;
-
-console.log("================================================================================");
-console.log("RUNNING MULTI-TIMEZONE DATE & SEMANTICS TEST SUITE");
-console.log("Target Timezones: Asia/Jakarta (UTC+7), Asia/Tokyo (UTC+9), America/New_York (UTC-5/EDT)");
-console.log("================================================================================\n");
-
-let passed = 0;
-let total = 0;
-
-function test(name, fn) {
-  total++;
-  try {
-    fn();
-    console.log(`[PASS] ${name}`);
-    passed++;
-  } catch (err) {
-    console.error(`[FAIL] ${name}`);
-    console.error("       Error:", err.message);
-    process.exitCode = 1;
-  }
-}
+} from "../lib/utils.ts";
 
 // -----------------------------------------------------------------------------
 // 1. parseDateOnly: Calendar Date Extraction
@@ -357,17 +336,3 @@ test("Dashboard upcoming exam badge displays 'Hari Ini!' for diff === 0, 'Selesa
   assert.strictEqual(formatBadge(-5), "Selesai");
   assert.strictEqual(formatBadge(2), "2 hari lagi");
 });
-
-// -----------------------------------------------------------------------------
-// Summary
-// -----------------------------------------------------------------------------
-console.log("\n================================================================================");
-console.log(`TEST RESULTS: ${passed}/${total} PASSED`);
-if (passed === total) {
-  console.log("ALL TESTS COMPLETED SUCCESSFULLY WITH ZERO FAILURES!");
-} else {
-  console.error("SOME TESTS FAILED!");
-  process.exit(1);
-}
-console.log("================================================================================");
-
