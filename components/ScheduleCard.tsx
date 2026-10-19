@@ -36,9 +36,9 @@ export function ScheduleCard({ item }: ScheduleCardProps) {
 
   return (
     <div
-      className={`group relative rounded-2xl p-5 sm:p-6 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-md dark:hover:border-slate-700 ${
+      className={`group relative rounded-2xl p-5 sm:p-6 bg-surface-elevated border border-line shadow-xs transition-all duration-200 hover:border-line-strong ${
         isPengganti
-          ? "border-amber-200/90 dark:border-amber-800/60 bg-gradient-to-r from-amber-50/40 dark:from-amber-950/20 to-white dark:to-slate-900/60"
+          ? "border-amber-300 dark:border-amber-700/60 bg-amber-50/20 dark:bg-amber-950/10"
           : ""
       }`}
     >
@@ -51,19 +51,19 @@ export function ScheduleCard({ item }: ScheduleCardProps) {
                 Kelas Pengganti
               </span>
             ) : (
-              <span className="text-[11px] px-2.5 py-0.5 rounded-full font-semibold bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/50">
+              <span className="text-[11px] px-2.5 py-0.5 rounded-full font-semibold bg-accent-muted text-accent border border-line-subtle">
                 Reguler
               </span>
             )}
 
             {item.kategori && (
-              <span className="text-[11px] px-2.5 py-0.5 rounded-full font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200/80 dark:border-slate-700">
+              <span className="text-[11px] px-2.5 py-0.5 rounded-full font-medium bg-surface text-content-secondary border border-line-subtle">
                 {item.kategori}
               </span>
             )}
           </div>
 
-          <h4 className="text-base sm:text-lg font-bold text-slate-800 dark:text-slate-100 tracking-tight group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+          <h4 className="text-base sm:text-lg font-bold text-content-primary tracking-tight group-hover:text-accent transition-colors">
             {item.namaMatkul}
           </h4>
         </div>
@@ -93,25 +93,25 @@ export function ScheduleCard({ item }: ScheduleCardProps) {
       </div>
 
       {/* Course Details */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm text-content-secondary mt-3 pt-3 border-t border-line">
         <div className="flex items-center gap-2">
-          <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
-          <span className="font-semibold text-slate-700 dark:text-slate-200">
+          <Clock className="w-4 h-4 text-accent shrink-0" />
+          <span className="font-semibold text-content-primary">
             {item.waktuMulai} - {item.waktuSelesai}
           </span>
         </div>
 
         {item.lokasi && (
           <div className="flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-rose-500 shrink-0" />
-            <span className="truncate text-slate-600 dark:text-slate-300">{item.lokasi}</span>
+            <MapPin className="w-4 h-4 text-content-muted shrink-0" />
+            <span className="truncate text-content-secondary">{item.lokasi}</span>
           </div>
         )}
 
         {item.dosen && (
           <div className="flex items-center gap-2 sm:col-span-2">
-            <UserCheck className="w-4 h-4 text-emerald-500 shrink-0" />
-            <span className="truncate text-slate-600 dark:text-slate-300">Dosen: {item.dosen}</span>
+            <UserCheck className="w-4 h-4 text-content-muted shrink-0" />
+            <span className="truncate text-content-secondary">Dosen: {item.dosen}</span>
           </div>
         )}
 

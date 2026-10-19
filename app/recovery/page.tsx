@@ -67,25 +67,25 @@ export default function RecoveryPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-center items-center p-4 relative">
+    <div className="min-h-screen bg-canvas text-content-primary flex flex-col justify-center items-center p-4 relative">
       <div className="absolute top-5 right-5">
         <ThemeToggle />
       </div>
 
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex w-14 h-14 rounded-2xl bg-gradient-to-tr from-amber-500 to-indigo-600 items-center justify-center text-white shadow-xl shadow-indigo-500/25 mb-3">
+          <div className="inline-flex w-14 h-14 rounded-2xl bg-accent items-center justify-center text-accent-text shadow-xs mb-3">
             <KeyRound className="w-8 h-8" />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-content-primary tracking-tight">
             Pemulihan Akun
           </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-sm text-content-secondary mt-1">
             Reset kata sandi melalui verifikasi pertanyaan keamanan
           </p>
         </div>
 
-        <div className="glass-card rounded-3xl p-6 sm:p-8 backdrop-blur-2xl">
+        <div className="bg-surface-elevated border border-line rounded-3xl p-6 sm:p-8 shadow-xs">
           {error && (
             <div className="mb-5 p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-400 text-sm flex items-start gap-2.5">
               <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
@@ -103,17 +103,17 @@ export default function RecoveryPage() {
           {step === 1 ? (
             <form onSubmit={handleCheckUsername} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-content-secondary mb-1.5">
                   Masukkan Username Akun
                 </label>
                 <div className="relative">
-                  <User className="w-5 h-5 absolute left-3.5 top-3 text-slate-400" />
+                  <User className="w-5 h-5 absolute left-3.5 top-3 text-content-muted" />
                   <input
                     type="text"
                     name="username"
                     required
                     placeholder="Contoh: budysetiawan"
-                    className="w-full pl-11 pr-4 py-3 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-white text-sm"
+                    className="w-full pl-11 pr-4 py-3 rounded-xl bg-surface border border-line focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent text-content-primary placeholder:text-content-muted text-sm transition-colors"
                   />
                 </div>
               </div>
@@ -122,7 +122,7 @@ export default function RecoveryPage() {
                 type="submit"
                 disabled={isPending}
                 aria-busy={isPending}
-                className="w-full py-3.5 px-4 min-h-[50px] rounded-xl font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full py-3.5 px-4 min-h-[50px] rounded-xl font-semibold text-accent-text bg-accent hover:bg-accent-hover shadow-xs active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 {isPending ? (
                   <>
@@ -139,17 +139,17 @@ export default function RecoveryPage() {
             </form>
           ) : (
             <form onSubmit={handleResetPassword} className="space-y-4">
-              <div className="p-3.5 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-900">
-                <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
+              <div className="p-3.5 rounded-2xl bg-accent-muted/60 border border-line-subtle">
+                <p className="text-xs font-semibold text-accent uppercase tracking-wider">
                   Pertanyaan Keamanan:
                 </p>
-                <p className="text-sm font-bold text-slate-800 dark:text-slate-100 mt-1">
+                <p className="text-sm font-bold text-content-primary mt-1">
                   &ldquo;{prompt}&rdquo;
                 </p>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-content-secondary mb-1.5">
                   Jawaban Anda
                 </label>
                 <input
@@ -157,22 +157,22 @@ export default function RecoveryPage() {
                   name="security_answer"
                   required
                   placeholder="Jawaban pertanyaan keamanan"
-                  className="w-full px-4 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-white text-sm"
+                  className="w-full px-4 py-2.5 rounded-xl bg-surface border border-line focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent text-content-primary placeholder:text-content-muted text-sm transition-colors"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-content-secondary mb-1.5">
                   Kata Sandi Baru
                 </label>
                 <div className="relative">
-                  <Lock className="w-5 h-5 absolute left-3.5 top-3 text-slate-400" />
+                  <Lock className="w-5 h-5 absolute left-3.5 top-3 text-content-muted" />
                   <input
                     type="password"
                     name="new_password"
                     required
                     placeholder="Minimal 6 karakter"
-                    className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-white text-sm"
+                    className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-surface border border-line focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent text-content-primary placeholder:text-content-muted text-sm transition-colors"
                   />
                 </div>
               </div>
@@ -181,7 +181,7 @@ export default function RecoveryPage() {
                 type="submit"
                 disabled={isPending}
                 aria-busy={isPending}
-                className="w-full py-3.5 px-4 min-h-[50px] rounded-xl font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-500/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full py-3.5 px-4 min-h-[50px] rounded-xl font-semibold text-accent-text bg-accent hover:bg-accent-hover shadow-xs active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 {isPending ? (
                   <>
@@ -196,17 +196,17 @@ export default function RecoveryPage() {
               <button
                 type="button"
                 onClick={() => setStep(1)}
-                className="w-full text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 text-center mt-2"
+                className="w-full text-xs text-content-secondary hover:text-content-primary text-center mt-2 transition-colors"
               >
                 Kembali ke pencarian username
               </button>
             </form>
           )}
 
-          <div className="mt-6 pt-6 border-t border-slate-200/60 dark:border-slate-800 text-center">
+          <div className="mt-6 pt-6 border-t border-line text-center">
             <Link
               href="/login"
-              className="text-sm font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
+              className="text-sm font-semibold text-accent hover:underline"
             >
               Kembali ke Login
             </Link>

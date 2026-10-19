@@ -131,7 +131,7 @@ export async function registerAction(formData: FormData): Promise<ActionResult> 
   }
 }
 
-export async function logoutAction() {
+export async function logoutAction(_formData?: FormData) {
   await destroySession();
   redirect("/login");
 }

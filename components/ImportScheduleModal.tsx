@@ -741,7 +741,7 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
             className="w-full px-3.5 py-2.5 flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-800/50 transition-colors"
           >
             <div className="flex items-center gap-2">
-              <BookMarked className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              <BookMarked className="w-3.5 h-3.5 text-accent" />
               <span>Kamus Koreksi Otomatis Anda ({userMappings.length})</span>
             </div>
             {showMappingsPanel ? (
@@ -766,7 +766,7 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
                       targetValue: "",
                     })
                   }
-                  className="shrink-0 px-2.5 py-1 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors flex items-center gap-1"
+                  className="shrink-0 px-2.5 py-1 rounded-lg bg-accent text-accent-text font-semibold hover:bg-accent-hover transition-colors flex items-center gap-1 shadow-xs"
                 >
                   <Plus className="w-3 h-3" />
                   <span>Tambah</span>
@@ -774,7 +774,7 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
               </div>
 
               {editingMapping && (
-                <div className="p-2.5 rounded-lg bg-white dark:bg-slate-950 border border-blue-200 dark:border-blue-800 space-y-2">
+                <div className="p-2.5 rounded-lg bg-surface border border-accent/40 space-y-2">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <select
                       value={editingMapping.field}
@@ -861,7 +861,7 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
                               targetValue: m.targetValue,
                             })
                           }
-                          className="p-1 text-slate-400 hover:text-blue-600"
+                          className="p-1 text-slate-400 hover:text-accent"
                           title="Edit koreksi"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
@@ -891,7 +891,7 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
               onDragOver={(e) => e.preventDefault()}
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-500 dark:hover:border-blue-400 rounded-2xl p-6 sm:p-8 text-center cursor-pointer transition-all bg-slate-50/50 dark:bg-slate-900/40 hover:bg-blue-50/30 dark:hover:bg-blue-950/20 group"
+              className="border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-accent rounded-2xl p-6 sm:p-8 text-center cursor-pointer transition-all bg-slate-50/50 dark:bg-slate-900/40 hover:bg-accent-muted/20 group"
             >
               <input
                 ref={fileInputRef}
@@ -901,7 +901,7 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
                 onChange={handleFileChange}
               />
 
-              <div className="w-14 h-14 mx-auto mb-3.5 rounded-2xl bg-blue-100 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:scale-105 transition-transform shadow-xs">
+              <div className="w-14 h-14 mx-auto mb-3.5 rounded-2xl bg-accent-muted text-accent flex items-center justify-center group-hover:scale-105 transition-transform shadow-xs">
                 {file ? (
                   file.type === "application/pdf" ? (
                     <FileText className="w-7 h-7" />
@@ -924,7 +924,7 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
                 <div>
                   <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
                     Tarik file ke sini atau{" "}
-                    <span className="text-blue-600 dark:text-blue-400 font-bold">
+                    <span className="text-accent font-bold">
                       pilih dari perangkat
                     </span>
                   </p>
@@ -937,15 +937,15 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
 
             {/* Progress indicator during loading */}
             {isLoading && (
-              <div className="p-4 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200/60 dark:border-blue-900/40 space-y-2">
-                <div className="flex items-center gap-2.5 text-xs font-semibold text-blue-700 dark:text-blue-300">
-                  <Loader2 className="w-4 h-4 animate-spin shrink-0 text-blue-600 dark:text-blue-400" />
+              <div className="p-4 rounded-xl bg-accent-muted/50 border border-line-subtle space-y-2">
+                <div className="flex items-center gap-2.5 text-xs font-semibold text-accent">
+                  <Loader2 className="w-4 h-4 animate-spin shrink-0 text-accent" />
                   <span>{ocrStatus || "Memproses dokumen jadwal..."}</span>
                 </div>
                 {ocrProgress > 0 && ocrProgress < 100 && (
-                  <div className="w-full bg-blue-200/60 dark:bg-blue-900/50 h-1.5 rounded-full overflow-hidden">
+                  <div className="w-full bg-accent-muted h-1.5 rounded-full overflow-hidden">
                     <div
-                      className="bg-blue-600 dark:bg-blue-400 h-full rounded-full transition-all duration-300"
+                      className="bg-accent h-full rounded-full transition-all duration-300"
                       style={{ width: `${ocrProgress}%` }}
                     />
                   </div>
@@ -966,7 +966,7 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
                 type="button"
                 disabled={!file || isLoading}
                 onClick={handleUploadAndPreview}
-                className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 transition-all shadow-md shadow-blue-500/20 flex items-center gap-2"
+                className="px-5 py-2.5 rounded-xl text-xs font-bold text-accent-text bg-accent hover:bg-accent-hover disabled:opacity-50 transition-all shadow-xs flex items-center gap-2"
               >
                 {isLoading ? (
                   <>
@@ -991,7 +991,7 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
                 className={`px-3 py-2 rounded-xl border text-xs flex flex-col gap-1 ${
                   detectedLayout.limitationReason
                     ? "bg-amber-50/70 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/50 text-amber-800 dark:text-amber-300"
-                    : "bg-blue-50/60 dark:bg-blue-950/30 border-blue-200/70 dark:border-blue-800/40 text-blue-800 dark:text-blue-200"
+                    : "bg-accent-muted/40 border-line-subtle text-content-primary"
                 }`}
               >
                 <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -1105,7 +1105,7 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
               <button
                 type="button"
                 onClick={handleAddNewItem}
-                className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline font-semibold"
+                className="flex items-center gap-1 text-accent hover:underline font-semibold"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Tambah Baris</span>
@@ -1126,12 +1126,12 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
                     className={`p-3.5 rounded-xl border transition-all text-xs space-y-2.5 ${
                       item.needsReview
                         ? "bg-amber-50/40 dark:bg-amber-950/15 border-amber-300 dark:border-amber-800/80"
-                        : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
+                        : "bg-surface-elevated border-line shadow-xs"
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 flex-1">
-                        <span className="font-bold text-slate-400 dark:text-slate-500 w-5">
+                        <span className="font-bold text-content-muted w-5">
                           #{idx + 1}
                         </span>
                         <input
@@ -1139,17 +1139,17 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
                           value={item.namaMatkul}
                           onChange={(e) => handleItemChange(item.id, "namaMatkul", e.target.value)}
                           placeholder="Nama Mata Kuliah (Wajib diisi)"
-                          className={`flex-1 font-bold bg-transparent border-b border-dashed focus:border-blue-500 focus:outline-none px-1 py-0.5 ${
+                          className={`flex-1 font-bold bg-transparent border-b border-dashed focus:border-accent focus:outline-none px-1 py-0.5 ${
                             !item.namaMatkul || isFieldUncertain(item, "namaMatkul")
                               ? "border-amber-500 bg-amber-100/50 dark:bg-amber-950/40 rounded text-amber-900 dark:text-amber-200 placeholder:text-amber-500"
-                              : "border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100"
+                              : "border-line text-content-primary"
                           }`}
                         />
                       </div>
 
                       <div className="flex items-center gap-1.5 shrink-0">
                         {item.recognitionStatus === "confirmed_assisted" && !item.needsReview && (
-                          <span className="px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/60 text-[10px] font-bold text-blue-700 dark:text-blue-300 flex items-center gap-1">
+                          <span className="px-2 py-0.5 rounded-md bg-accent-muted text-[10px] font-bold text-accent flex items-center gap-1 border border-line-subtle">
                             <BookMarked className="w-2.5 h-2.5" />
                             Kamus Pengguna
                           </span>
@@ -1415,7 +1415,7 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
                 type="checkbox"
                 checked={learnCorrections}
                 onChange={(e) => setLearnCorrections(e.target.checked)}
-                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                className="rounded border-line text-accent focus:ring-accent"
               />
               <span>
                 Ingat koreksi nama mata kuliah, kode MK, dan ruangan yang saya perbaiki untuk impor berikutnya

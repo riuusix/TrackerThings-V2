@@ -46,15 +46,15 @@ export function Modal({
 
       {/* Modal Dialog */}
       <div
-        className={`relative w-full ${maxWidth} rounded-3xl p-6 sm:p-7 bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-[0_20px_50px_rgba(0,0,0,0.18)] z-10 animate-in zoom-in-95 duration-150`}
+        className={`relative w-full ${maxWidth} rounded-3xl p-6 sm:p-7 bg-surface-elevated border border-line shadow-xl z-10 animate-in zoom-in-95 duration-150`}
       >
-        <div className="flex items-start justify-between mb-4 border-b border-slate-100 dark:border-zinc-800 pb-3.5">
+        <div className="flex items-start justify-between mb-4 border-b border-line pb-3.5">
           <div>
-            <h3 className="text-xl font-bold text-slate-800 dark:text-zinc-100 tracking-tight">
+            <h3 className="text-xl font-bold text-content-primary tracking-tight">
               {title}
             </h3>
             {description && (
-              <p className="text-xs sm:text-sm text-slate-500 dark:text-zinc-400 mt-1">
+              <p className="text-xs sm:text-sm text-content-secondary mt-1">
                 {description}
               </p>
             )}
@@ -62,7 +62,8 @@ export function Modal({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-xl text-slate-400 dark:text-zinc-500 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+            aria-label="Tutup"
+            className="p-1.5 rounded-xl text-content-muted hover:text-content-primary hover:bg-surface transition-colors"
           >
             <X className="w-5 h-5" />
           </button>

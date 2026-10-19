@@ -682,15 +682,20 @@ startxref
       assert.ok(code.includes("fullName"), "must return camelCase fullName");
     });
 
-    test("User Navbar.tsx completely strips all admin links and Panel Administrator sections", () => {
+    test("User Navbar.tsx strictly guards /admin access within profile dropdown based on verified admin role", () => {
       const navbarPath = path.resolve("components/Navbar.tsx");
       const navbarCode = fs.readFileSync(navbarPath, "utf-8");
 
-      assert.ok(!navbarCode.includes('href="/admin"'), "Navbar must NOT contain link to /admin");
+      // Verify that primary desktop and mobile navigation links do not include /admin
+      assert.ok(!navbarCode.includes('{ href: "/admin"'), "Primary navLinks must NOT contain /admin");
       assert.ok(!navbarCode.includes('href="/admin/users"'), "Navbar must NOT contain link to /admin/users");
       assert.ok(!navbarCode.includes('href="/admin/announcements"'), "Navbar must NOT contain link to /admin/announcements");
-      assert.ok(!navbarCode.includes("Panel Administrator"), "Navbar must NOT contain Panel Administrator text");
-      assert.ok(!navbarCode.includes("Panel Admin"), "Navbar mobile menu must NOT contain Panel Admin text");
+      assert.ok(!navbarCode.includes("Panel Administrator"), "Navbar must NOT contain legacy Panel Administrator section");
+
+      // Verify role-based guard for Panel Admin link in user dropdown
+      assert.ok(navbarCode.includes("isAdmin &&"), "Admin access link must be guarded by isAdmin check");
+      assert.ok(navbarCode.includes('href="/admin"'), "Navbar profile dropdown must contain conditional /admin link for admin role");
+      assert.ok(navbarCode.includes("Panel Admin"), "Navbar profile dropdown must label admin access as Panel Admin");
     });
 
     test("Admin Web Console uses dedicated AdminLayout and AdminNavbar with user portal link", () => {

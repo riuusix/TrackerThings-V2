@@ -62,7 +62,7 @@ public struct UserAvatarView: View {
                 .stroke(Color.primary.opacity(0.08), lineWidth: 1)
         )
         .shadow(
-            color: showShadow ? Color.blue.opacity(0.2) : .clear,
+            color: showShadow ? AppTheme.Colors.accent.opacity(0.18) : .clear,
             radius: size * 0.1,
             x: 0,
             y: size * 0.05
@@ -76,7 +76,7 @@ public struct UserAvatarView: View {
             Circle()
                 .fill(
                     LinearGradient(
-                        colors: [Color.blue, Color.indigo],
+                        colors: [AppTheme.Colors.accent, AppTheme.Colors.accentPressed],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )

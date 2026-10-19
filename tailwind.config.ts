@@ -22,6 +22,28 @@ const config: Config = {
           800: "#3730a3",
           900: "#312e81",
         },
+        canvas: "var(--canvas)",
+        surface: {
+          DEFAULT: "var(--surface)",
+          elevated: "var(--surface-elevated)",
+          hover: "var(--surface-hover)",
+        },
+        content: {
+          primary: "var(--text-primary)",
+          secondary: "var(--text-secondary)",
+          muted: "var(--text-muted)",
+        },
+        line: {
+          DEFAULT: "var(--border-subtle)",
+          subtle: "var(--border-subtle)",
+          strong: "var(--border-strong)",
+        },
+        accent: {
+          DEFAULT: "var(--accent)",
+          hover: "var(--accent-hover)",
+          muted: "var(--accent-muted)",
+          text: "var(--accent-text)",
+        },
       },
       fontFamily: {
         sans: ["var(--font-inter)", "Inter", "system-ui", "sans-serif"],

@@ -1,40 +1,106 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
-/// Semantic Design System Tokens for TrackerThings V2
-/// Enforces consistent Apple Human Interface Guidelines, cohesive light/dark mode adaptation,
-/// restrained academic visual hierarchy, and 44x44pt accessibility touch targets.
+// MARK: - Hex & Dynamic Adaptive Color Initializers
+
+public extension Color {
+    init(hex: String) {
+        let cleanHex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var hexNumber: UInt64 = 0
+        if Scanner(string: cleanHex).scanHexInt64(&hexNumber) {
+            let r = Double((hexNumber & 0xff0000) >> 16) / 255.0
+            let g = Double((hexNumber & 0x00ff00) >> 8) / 255.0
+            let b = Double(hexNumber & 0x0000ff) / 255.0
+            self.init(red: r, green: g, blue: b)
+            return
+        }
+        self.init(.clear)
+    }
+
+    init(lightHex: String, darkHex: String) {
+        #if canImport(UIKit)
+        self.init(uiColor: UIColor { traitCollection in
+            let chosenHex = traitCollection.userInterfaceStyle == .dark ? darkHex : lightHex
+            let cleanHex = chosenHex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+            var hexNumber: UInt64 = 0
+            if Scanner(string: cleanHex).scanHexInt64(&hexNumber) {
+                let r = CGFloat((hexNumber & 0xff0000) >> 16) / 255.0
+                let g = CGFloat((hexNumber & 0x00ff00) >> 8) / 255.0
+                let b = CGFloat(hexNumber & 0x0000ff) / 255.0
+                return UIColor(red: r, green: g, blue: b, alpha: 1.0)
+            }
+            return .clear
+        })
+        #else
+        self.init(hex: lightHex)
+        #endif
+    }
+}
+
+/// Semantic Design System Tokens for TrackerThings V2 (iOS Native)
+/// Aligned with the canonical Soft Blue design system:
+/// - Editorial Distinctive, Soft Contrast, Intentional Hierarchy
+/// - Canvas: Light #F1F2F5, Dark #242831
+/// - Surface: Light #E6E9EF, Dark #2D323D
+/// - Elevated Surface: Light #FFFFFF, Dark #373E4B
+/// - Primary Accent: Light #5879B8, Dark #91ADE5
+/// - Text: Light #343944 / Dark #E7EAF0 (Primary), Light #6B7280 / Dark #B2BAC8 (Secondary)
+/// - Borders: Light #D5DCE8 / Dark #454D5C (Subtle), Light #B8C3D5 / Dark #626D80 (Strong)
 public enum AppTheme {
     // MARK: - Semantic Colors
     public enum Colors {
-        /// Brand Primary: Deep Royal Blue matching canonical logo backdrop
-        public static let brandPrimary = Color(red: 0.043, green: 0.224, blue: 0.588) // #0B3996
-        public static let brandAccent = Color(red: 0.05, green: 0.60, blue: 0.95)
+        // MARK: - Canvases & Surfaces (Soft Blue / Slate Palette)
+        /// Canvas / Background: Light #F1F2F5, Dark #242831
+        public static let canvas = Color(lightHex: "#F1F2F5", darkHex: "#242831")
+        /// Surface (Cards): Light #E6E9EF, Dark #2D323D
+        public static let surface = Color(lightHex: "#E6E9EF", darkHex: "#2D323D")
+        /// Elevated Surface (Modals, Dropdowns, Float Cards): Light #FFFFFF, Dark #373E4B
+        public static let surfaceElevated = Color(lightHex: "#FFFFFF", darkHex: "#373E4B")
 
-        /// Backgrounds & Surfaces
-        public static let background = Color(uiColor: .systemGroupedBackground)
-        public static let cardBackground = Color(uiColor: .secondarySystemGroupedBackground)
-        public static let elevatedBackground = Color(uiColor: .tertiarySystemGroupedBackground)
+        // MARK: - Content & Typography
+        /// Primary Text: Light #343944, Dark #E7EAF0
+        public static let textPrimary = Color(lightHex: "#343944", darkHex: "#E7EAF0")
+        /// Secondary Text: Light #6B7280, Dark #B2BAC8
+        public static let textSecondary = Color(lightHex: "#6B7280", darkHex: "#B2BAC8")
+        /// Tertiary / Muted Text: Light #8C95A6, Dark #8C95A6
+        public static let textTertiary = Color(lightHex: "#8C95A6", darkHex: "#8C95A6")
 
-        /// Content Text
-        public static let textPrimary = Color(uiColor: .label)
-        public static let textSecondary = Color(uiColor: .secondaryLabel)
-        public static let textTertiary = Color(uiColor: .tertiaryLabel)
+        // MARK: - Accent (Soft Blue Tone)
+        /// Canonical Accent: Light #5879B8, Dark #91ADE5
+        public static let accent = Color(lightHex: "#5879B8", darkHex: "#91ADE5")
+        /// Pressed / Hover Accent: Light #3F5F9B, Dark #B0C5F1
+        public static let accentPressed = Color(lightHex: "#3F5F9B", darkHex: "#B0C5F1")
+        /// Muted Accent Background: Light #E5ECF8, Dark #303D55
+        public static let accentMuted = Color(lightHex: "#E5ECF8", darkHex: "#303D55")
 
-        /// Semantic Status Badges & Alerts
-        public static let success = Color.green
-        public static let warning = Color.orange
-        public static let urgent = Color.red
-        public static let info = Color.blue
+        // MARK: - Borders & Separators
+        /// Subtle Border: Light #D5DCE8, Dark #454D5C
+        public static let borderSubtle = Color(lightHex: "#D5DCE8", darkHex: "#454D5C")
+        /// Strong Border: Light #B8C3D5, Dark #626D80
+        public static let borderStrong = Color(lightHex: "#B8C3D5", darkHex: "#626D80")
 
-        /// Status Tint Backgrounds (Restrained 10-15% opacity)
-        public static let successBackground = Color.green.opacity(0.12)
-        public static let warningBackground = Color.orange.opacity(0.12)
-        public static let urgentBackground = Color.red.opacity(0.12)
-        public static let infoBackground = Color.blue.opacity(0.12)
-        public static let neutralBackground = Color(uiColor: .tertiarySystemFill)
+        // MARK: - Semantic Status Badges & Alerts
+        public static let success = Color(lightHex: "#10B981", darkHex: "#10B981")
+        public static let warning = Color(lightHex: "#F59E0B", darkHex: "#F59E0B")
+        public static let urgent = Color(lightHex: "#EF4444", darkHex: "#EF4444")
+        public static let info = Color(lightHex: "#5879B8", darkHex: "#91ADE5")
 
-        /// Dividers & Borders
-        public static let separator = Color(uiColor: .separator)
+        // MARK: - Status Background Tints (Restrained)
+        public static let successBackground = Color(lightHex: "#ECFDF5", darkHex: "#064E3B").opacity(0.85)
+        public static let warningBackground = Color(lightHex: "#FFFBEB", darkHex: "#78350F").opacity(0.85)
+        public static let urgentBackground = Color(lightHex: "#FEF2F2", darkHex: "#7F1D1D").opacity(0.85)
+        public static let infoBackground = Color(lightHex: "#E5ECF8", darkHex: "#303D55")
+        public static let neutralBackground = Color(lightHex: "#E6E9EF", darkHex: "#2D323D")
+
+        // MARK: - Backward Compatibility Aliases
+        public static let brandPrimary = accent
+        public static let brandAccent = accent
+        public static let background = canvas
+        public static let cardBackground = surface
+        public static let elevatedBackground = surfaceElevated
+        public static let separator = borderSubtle
     }
 
     // MARK: - Metrics, Spacing & Radii

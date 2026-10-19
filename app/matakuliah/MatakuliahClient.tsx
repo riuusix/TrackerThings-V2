@@ -30,6 +30,7 @@ import { classifyApiError } from "@/lib/feedback";
 interface MatakuliahClientProps {
   username: string;
   userEmail: string;
+  profilePictureUrl?: string | null;
   initialCourses: JadwalItem[];
 }
 
@@ -39,6 +40,7 @@ const KATEGORI_OPTIONS = ["Wajib", "Pilihan", "Praktikum", "Umum"];
 export function MatakuliahClient({
   username,
   userEmail,
+  profilePictureUrl,
   initialCourses,
 }: MatakuliahClientProps) {
   const router = useRouter();
@@ -137,22 +139,26 @@ export function MatakuliahClient({
   };
 
   return (
-    <div className="min-h-screen pb-16">
-      <Navbar username={username} userEmail={userEmail} />
+    <div className="min-h-screen bg-canvas text-content-primary pb-16">
+      <Navbar
+        username={username}
+        userEmail={userEmail}
+        profilePictureUrl={profilePictureUrl}
+      />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-line">
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="text-[11px] px-3 py-1 rounded-full font-semibold bg-accent-muted text-accent border border-line-subtle">
                 Manajemen KRS
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-content-primary tracking-tight">
               Daftar Mata Kuliah
             </h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            <p className="text-sm text-content-secondary mt-1">
               Kelola daftar mata kuliah, dosen pengampu, hari, dan jam tatap muka Anda.
             </p>
           </div>
@@ -160,15 +166,15 @@ export function MatakuliahClient({
           <div className="flex items-center gap-2.5 self-start sm:self-auto">
             <button
               onClick={() => setIsImportModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-all shadow-xs hover:scale-[1.02] active:scale-[0.98]"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm text-content-primary bg-surface-elevated hover:bg-surface border border-line shadow-xs transition-all duration-200 active:scale-95"
             >
-              <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              <Sparkles className="w-4 h-4 text-accent" />
               <span>Impor (Foto / PDF)</span>
             </button>
 
             <button
               onClick={handleOpenAdd}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm text-white bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-500/25 transition-all hover:scale-[1.02] active:scale-[0.98]"
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm text-accent-text bg-accent hover:bg-accent-hover shadow-xs transition-all duration-200 active:scale-95"
             >
               <Plus className="w-4 h-4" />
               <span>Tambah Mata Kuliah</span>
@@ -177,25 +183,25 @@ export function MatakuliahClient({
         </div>
 
         {/* Search & Quick Stats */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 glass-card p-4 rounded-2xl">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface border border-line p-4 rounded-2xl shadow-xs">
           <div className="relative flex-1 max-w-md">
-            <Search className="w-4 h-4 absolute left-3.5 top-3 text-slate-400" />
+            <Search className="w-4 h-4 absolute left-3.5 top-3 text-content-muted" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Cari nama mata kuliah, dosen, atau hari..."
-              className="w-full pl-10 pr-4 py-2 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-white text-sm"
+              className="w-full pl-10 pr-4 py-2 rounded-xl bg-surface-elevated border border-line focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent text-content-primary placeholder:text-content-muted text-sm transition-colors"
             />
           </div>
 
-          <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
+          <div className="flex items-center gap-3 text-xs text-content-secondary">
             <span>
-              Total: <strong>{courses.length}</strong> Mata Kuliah
+              Total: <strong className="text-content-primary">{courses.length}</strong> Mata Kuliah
             </span>
             <span>•</span>
             <span>
-              Menampilkan: <strong>{filteredCourses.length}</strong>
+              Menampilkan: <strong className="text-content-primary">{filteredCourses.length}</strong>
             </span>
           </div>
         </div>
@@ -203,12 +209,12 @@ export function MatakuliahClient({
         {/* Course Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredCourses.length === 0 ? (
-            <div className="col-span-full glass-card rounded-2xl p-12 text-center">
-              <BookOpen className="w-12 h-12 text-indigo-400 mx-auto mb-3 opacity-60" />
-              <h3 className="font-bold text-slate-700 dark:text-slate-200 text-lg">
+            <div className="col-span-full bg-surface-elevated border border-line rounded-2xl p-12 text-center shadow-xs">
+              <BookOpen className="w-12 h-12 text-content-muted mx-auto mb-3 opacity-60" />
+              <h3 className="font-bold text-content-primary text-lg">
                 Tidak Ada Mata Kuliah Ditemukan
               </h3>
-              <p className="text-sm text-slate-400 mt-1 max-w-md mx-auto">
+              <p className="text-sm text-content-secondary mt-1 max-w-md mx-auto">
                 {searchTerm
                   ? `Tidak ada hasil yang sesuai dengan kata kunci "${searchTerm}".`
                   : "Mulai tambahkan mata kuliah pertama Anda dengan menekan tombol Tambah Mata Kuliah."}
@@ -217,7 +223,7 @@ export function MatakuliahClient({
                 <button
                   type="button"
                   onClick={() => setSearchTerm("")}
-                  className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors"
+                  className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-xl bg-accent-muted text-accent border border-line-subtle hover:bg-accent hover:text-accent-text transition-colors"
                 >
                   Bersihkan Pencarian
                 </button>
@@ -227,28 +233,28 @@ export function MatakuliahClient({
             filteredCourses.map((c) => (
               <div
                 key={c.id}
-                className="glass-card rounded-2xl p-5 flex flex-col justify-between hover:shadow-xl transition-all duration-200 border border-white/60 dark:border-white/10 group"
+                className="bg-surface-elevated border border-line hover:border-line-strong rounded-2xl p-5 flex flex-col justify-between shadow-xs hover:shadow-md transition-all duration-200 group"
               >
                 <div>
                   <div className="flex items-start justify-between gap-2 mb-2">
-                    <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/80 dark:text-indigo-300 border border-indigo-200/50 dark:border-indigo-900/50">
+                    <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-accent-muted text-accent border border-line-subtle">
                       {c.hari}
                     </span>
 
                     {c.kategori && (
-                      <span className="text-xs px-2.5 py-0.5 rounded-full font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                      <span className="text-xs px-2.5 py-0.5 rounded-full font-medium bg-surface text-content-secondary border border-line-subtle">
                         {c.kategori}
                       </span>
                     )}
                   </div>
 
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white tracking-tight mb-3">
+                  <h3 className="text-lg font-bold text-content-primary tracking-tight mb-3 group-hover:text-accent transition-colors">
                     {c.namaMatkul}
                   </h3>
 
-                  <div className="space-y-2 text-xs sm:text-sm text-slate-600 dark:text-slate-300">
+                  <div className="space-y-2 text-xs sm:text-sm text-content-secondary">
                     <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-indigo-500 shrink-0" />
+                      <Clock className="w-4 h-4 text-accent shrink-0" />
                       <span>
                         {c.waktuMulai} - {c.waktuSelesai}
                       </span>
@@ -263,19 +269,20 @@ export function MatakuliahClient({
 
                     {c.dosen && (
                       <div className="flex items-center gap-2">
-                        <UserCheck className="w-4 h-4 text-emerald-500 shrink-0" />
+                        <UserCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                         <span className="truncate">{c.dosen}</span>
                       </div>
                     )}
                   </div>
                 </div>
 
-                <div className="flex items-center justify-end gap-2 pt-4 mt-4 border-t border-slate-100 dark:border-slate-800/60">
+                <div className="flex items-center justify-end gap-2 pt-4 mt-4 border-t border-line">
                   <button
                     onClick={() => handleOpenEdit(c)}
                     disabled={deletingId !== null}
-                    className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
+                    className="p-2 rounded-xl text-content-secondary hover:text-content-primary hover:bg-surface border border-transparent hover:border-line transition-colors disabled:opacity-50"
                     title="Edit Mata Kuliah"
+                    aria-label="Edit Mata Kuliah"
                   >
                     <Edit2 className="w-4 h-4" />
                   </button>
@@ -283,8 +290,9 @@ export function MatakuliahClient({
                     onClick={() => handleDelete(c)}
                     disabled={deletingId !== null}
                     aria-busy={deletingId === c.id}
-                    className="p-2 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors disabled:opacity-50"
+                    className="p-2 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-transparent hover:border-rose-200 dark:border-rose-900 transition-colors disabled:opacity-50"
                     title="Hapus Mata Kuliah"
+                    aria-label="Hapus Mata Kuliah"
                   >
                     {deletingId === c.id ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -314,7 +322,7 @@ export function MatakuliahClient({
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+            <label className="block text-xs font-semibold text-content-secondary uppercase tracking-wider mb-1">
               Nama Mata Kuliah <span className="text-rose-500">*</span>
             </label>
             <input
@@ -323,12 +331,12 @@ export function MatakuliahClient({
               required
               defaultValue={courseToEdit?.namaMatkul || ""}
               placeholder="Contoh: Pemrograman Web Lanjut"
-              className="w-full px-3.5 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-white text-sm"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-content-primary placeholder:text-content-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent text-sm transition-colors"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+            <label className="block text-xs font-semibold text-content-secondary uppercase tracking-wider mb-1">
               Dosen Pengampu
             </label>
             <input
@@ -336,20 +344,20 @@ export function MatakuliahClient({
               name="dosen"
               defaultValue={courseToEdit?.dosen || ""}
               placeholder="Nama dosen beserta gelar"
-              className="w-full px-3.5 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-white text-sm"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-content-primary placeholder:text-content-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent text-sm transition-colors"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-semibold text-content-secondary uppercase tracking-wider mb-1">
                 Hari Kuliah <span className="text-rose-500">*</span>
               </label>
               <select
                 name="hari"
                 required
                 defaultValue={courseToEdit?.hari || "Senin"}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-white text-sm"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-content-primary placeholder:text-content-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent text-sm transition-colors"
               >
                 {HARI_OPTIONS.map((h) => (
                   <option key={h} value={h}>
@@ -360,13 +368,13 @@ export function MatakuliahClient({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-semibold text-content-secondary uppercase tracking-wider mb-1">
                 Kategori
               </label>
               <select
                 name="kategori"
                 defaultValue={courseToEdit?.kategori || "Wajib"}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-white text-sm"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-content-primary placeholder:text-content-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent text-sm transition-colors"
               >
                 {KATEGORI_OPTIONS.map((k) => (
                   <option key={k} value={k}>
@@ -379,7 +387,7 @@ export function MatakuliahClient({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-semibold text-content-secondary uppercase tracking-wider mb-1">
                 Waktu Mulai <span className="text-rose-500">*</span>
               </label>
               <input
@@ -387,12 +395,12 @@ export function MatakuliahClient({
                 name="waktu_mulai"
                 required
                 defaultValue={courseToEdit?.waktuMulai || "08:00"}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-white text-sm"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-content-primary placeholder:text-content-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent text-sm transition-colors"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-semibold text-content-secondary uppercase tracking-wider mb-1">
                 Waktu Selesai <span className="text-rose-500">*</span>
               </label>
               <input
@@ -400,13 +408,13 @@ export function MatakuliahClient({
                 name="waktu_selesai"
                 required
                 defaultValue={courseToEdit?.waktuSelesai || "09:40"}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-white text-sm"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-content-primary placeholder:text-content-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent text-sm transition-colors"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+            <label className="block text-xs font-semibold text-content-secondary uppercase tracking-wider mb-1">
               Ruangan / Lokasi
             </label>
             <input
@@ -414,16 +422,16 @@ export function MatakuliahClient({
               name="lokasi"
               defaultValue={courseToEdit?.lokasi || ""}
               placeholder="Contoh: Gedung C Ruang 304"
-              className="w-full px-3.5 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-white text-sm"
+              className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-content-primary placeholder:text-content-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent text-sm transition-colors"
             />
           </div>
 
-          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-200/60 dark:border-slate-800">
+          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-line">
             <button
               type="button"
               onClick={() => setIsModalOpen(false)}
               disabled={isPending}
-              className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
+              className="px-4 py-2.5 rounded-xl text-sm font-semibold text-content-secondary hover:text-content-primary hover:bg-surface transition-colors disabled:opacity-50"
             >
               Batal
             </button>
@@ -431,7 +439,7 @@ export function MatakuliahClient({
               type="submit"
               disabled={isPending}
               aria-busy={isPending}
-              className="flex items-center justify-center gap-2 px-5 py-2.5 min-w-[170px] rounded-xl text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-500/25 transition-all disabled:opacity-50"
+              className="flex items-center justify-center gap-2 px-5 py-2.5 min-w-[170px] rounded-xl text-sm font-semibold text-accent-text bg-accent hover:bg-accent-hover shadow-xs transition-all duration-200 active:scale-95 disabled:opacity-50"
             >
               {isPending ? (
                 <>

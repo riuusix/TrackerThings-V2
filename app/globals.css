@@ -7,6 +7,21 @@
   --foreground: 222 47% 11%;
   --card: 0 0% 100%;
   --card-foreground: 222 47% 11%;
+
+  /* DESIGN.md Canonical Light Theme Tokens */
+  --canvas: #F1F2F5;
+  --surface: #E6E9EF;
+  --surface-elevated: #FFFFFF;
+  --surface-hover: #DFE3EB;
+  --text-primary: #343944;
+  --text-secondary: #6B7280;
+  --text-muted: #8F97A6;
+  --border-subtle: #D5DCE8;
+  --border-strong: #B8C3D5;
+  --accent: #5879B8;
+  --accent-hover: #3F5F9B;
+  --accent-muted: #E5ECF8;
+  --accent-text: #FFFFFF;
 }
 
 .dark {
@@ -14,17 +29,34 @@
   --foreground: 210 40% 98%;
   --card: 240 5% 9%;
   --card-foreground: 210 40% 98%;
+
+  /* DESIGN.md Canonical Dark Theme Tokens */
+  --canvas: #242831;
+  --surface: #2D323D;
+  --surface-elevated: #373E4B;
+  --surface-hover: #404756;
+  --text-primary: #E7EAF0;
+  --text-secondary: #B2BAC8;
+  --text-muted: #858E9F;
+  --border-subtle: #454D5C;
+  --border-strong: #626D80;
+  --accent: #91ADE5;
+  --accent-hover: #B0C5F1;
+  --accent-muted: #303D55;
+  --accent-text: #171E2B;
 }
 
 body {
-  color: #1e293b;
+  background-color: var(--canvas);
+  color: var(--text-primary);
   min-height: 100vh;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
 }
 
 .dark body {
-  color: #f4f4f5;
+  background-color: var(--canvas);
+  color: var(--text-primary);
 }
 
 /* Custom Clean Scrollbar */

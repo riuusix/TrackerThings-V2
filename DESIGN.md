@@ -1,311 +1,357 @@
-# TrackerThings V2 — Design System
+# Task: Consolidate and Enhance `DESIGN.md` — TrackerThings V2 Design System
 
-## 1. Design Direction
+Update the existing `DESIGN.md` into the **single source of truth for the
+TrackerThings V2 visual identity and UI design system**.
+
+This task is documentation-only. Do not implement UI changes or modify
+application source code.
+
+## 1. Preserve and strengthen the design philosophy
+
+Keep the established direction:
 
 **Editorial Distinctive — Intentional, Calm, Functional.**
 
-TrackerThings is a personal productivity and schedule management product. Its
-interface should feel thoughtfully art-directed, information-rich without
-feeling crowded, and recognizable without relying on generic SaaS dashboard
-conventions.
+TrackerThings should feel thoughtfully art-directed, recognizable, calm, and
+information-rich without feeling crowded. It must not resemble a generic SaaS
+dashboard or an interface assembled from repetitive AI-generated templates.
 
-The goal is not to make the interface decorative. The goal is to give every
-screen a clear visual hierarchy and a distinct point of view.
+Preserve and consolidate the existing guidance for:
 
-### Core principles
+- Editorial composition and distinctive page layouts.
+- Functional hierarchy and information density.
+- Typography, type scale, font weights, and readable line lengths.
+- Spacing scale, alignment, rhythm, and visual grouping.
+- Surface hierarchy, borders, radii, and component consistency.
+- Navigation, forms, tables, schedules, task lists, dialogs, and dashboard
+  components.
+- Interaction states, transitions, and feedback.
+- Responsive behavior across desktop, tablet, and mobile.
+- Accessibility, keyboard navigation, focus visibility, and reduced motion.
+- Engineering constraints and the existing SwiftUI scope restrictions.
 
-- **Editorial composition:** use deliberate alignment, whitespace, asymmetry,
-  and contrast to establish hierarchy.
-- **Functional first:** every visual element must help users understand their
-  schedule, tasks, progress, or next action.
-- **Distinctive, not decorative:** establish identity through typography,
-  layout, color, and component details rather than excessive gradients or
-  illustrations.
-- **Calm productivity:** the interface should feel focused and approachable, not
-  corporate, gamified, or visually noisy.
-- **Consistency with flexibility:** use shared design tokens and components,
-  while allowing individual pages to have their own composition.
-- **Responsive by design:** preserve hierarchy and usability across desktop,
-  tablet, and mobile.
+Improve clarity and remove contradictions, but do not rewrite unrelated content
+unnecessarily.
 
-## 2. Anti-Patterns to Avoid
+## 2. Establish the soft blue brand identity
 
-Do not produce a generic AI-generated SaaS dashboard.
+Replace the previous sage-green brand accent with a restrained **soft blue**
+identity that aligns with the TrackerThings logo.
+
+The result should feel calm, distinctive, and comfortable for extended use—not
+neon, excessively saturated, overly bright, or like a generic corporate SaaS
+product.
+
+Use these canonical starting tokens.
+
+### Light theme
+
+| Token            | Value     |
+| ---------------- | --------- |
+| Canvas           | `#F1F2F5` |
+| Surface          | `#E6E9EF` |
+| Elevated surface | `#FFFFFF` |
+| Primary text     | `#343944` |
+| Secondary text   | `#6B7280` |
+| Subtle border    | `#D5DCE8` |
+| Strong border    | `#B8C3D5` |
+| Accent           | `#5879B8` |
+| Accent hover     | `#3F5F9B` |
+| Accent muted     | `#E5ECF8` |
+
+### Dark theme
+
+| Token            | Value     |
+| ---------------- | --------- |
+| Canvas           | `#242831` |
+| Surface          | `#2D323D` |
+| Elevated surface | `#373E4B` |
+| Primary text     | `#E7EAF0` |
+| Secondary text   | `#B2BAC8` |
+| Subtle border    | `#454D5C` |
+| Strong border    | `#626D80` |
+| Accent           | `#91ADE5` |
+| Accent hover     | `#B0C5F1` |
+| Accent muted     | `#303D55` |
+
+These are the canonical starting tokens for the web design system. Do not
+preserve sage green or botanical green as an alternative brand palette. Green
+may remain only where it serves a legitimate semantic purpose, such as success
+status.
+
+## 3. Visual identity and color usage
+
+Consolidate the existing color guidance into a coherent visual identity section.
+
+### Brand accent
+
+Use soft blue intentionally for:
+
+- Primary actions and important interactive controls.
+- Active navigation and selected tabs.
+- Keyboard focus indicators.
+- Selected items and meaningful interactive highlights.
+- Progress indicators and relevant data visualization.
+- Links and other elements that require clear interactive affordance.
+
+Do not make every component blue. Most of the interface should remain grounded
+in neutral canvas, surfaces, typography, and subtle borders.
+
+### Neutral foundation
+
+- Use the canonical canvas and surface tokens to create visual depth without
+  excessive contrast.
+- Keep light mode soft and neutral rather than stark white.
+- Keep dark mode charcoal with a subtle blue undertone rather than pure black.
+- Use borders and surface changes to separate content where appropriate.
+- Avoid excessive nested cards, unnecessary outlines, and redundant containers.
+
+### Color anti-patterns
 
 Avoid:
 
-- Repeating identical rounded cards for every metric or content section.
-- Using gradients, glow effects, glassmorphism, or decorative blobs without a
-  clear purpose.
-- Excessive pill badges, oversized icons, and emoji used as visual filler.
-- Giving every section the same background, border, padding, and visual weight.
-- Arbitrary large headings that waste space without improving hierarchy.
-- Decorative charts or statistics that do not support a real user decision.
-- Excessive shadows, nested containers, and unnecessary separators.
-- Introducing new colors or component styles on individual pages without a
-  design rationale.
-- Replacing useful existing patterns just to make the interface look different.
+- Neon blue, oversaturated accents, and excessively bright interactive elements.
+- Gradients, glow effects, glassmorphism, and decorative blue backgrounds
+  without a clear functional purpose.
+- Using accent color on every heading, card, icon, or background.
+- Introducing new brand colors on individual pages without a documented reason.
+- Using color as the only way to communicate status, priority, or meaning.
+- Hardcoding arbitrary colors inside individual components when an existing
+  semantic token should be used.
 
-Every section must justify its visual prominence and spatial footprint.
+Preserve the existing anti-pattern guidance for generic dashboard templates,
+repetitive cards, decorative charts, excessive pills and badges, oversized
+headings without purpose, ornamental icons, and visual decoration that does not
+improve usability.
 
-## 3. Visual Identity
+## 4. Semantic design tokens and consistency rules
 
-### Color
+Document the semantic token architecture so the system remains consistent as the
+application grows.
 
-Begin with a restrained neutral foundation:
+At minimum, define tokens for:
 
-- Warm off-white or subtle neutral page background.
-- White or near-white primary surfaces where separation is necessary.
-- Deep charcoal for primary text.
-- Muted gray for supporting text and metadata.
-- One recognizable brand accent for primary actions and important highlights.
-- Semantic colors for success, warning, and destructive states.
+- Canvas and default surfaces.
+- Elevated surfaces and overlays.
+- Primary and secondary text.
+- Subtle and strong borders.
+- Brand accent, accent hover, and muted accent backgrounds.
+- Success, warning, danger, and disabled states.
+- Focus indicators and interactive states.
+- Any existing semantic tokens required by the current application.
 
-Suggested initial tokens:
+Use semantic names rather than making components depend directly on raw palette
+values.
 
-- `--background: #F7F7F4`
-- `--surface: #FFFFFF`
-- `--foreground: #20211F`
-- `--muted: #777A73`
-- `--border: #E6E6DF`
-- `--accent: #526B52`
-- `--success: #347653`
-- `--warning: #A56A20`
-- `--danger: #B84646`
+For example, components should consume concepts such as `background`, `surface`,
+`text-primary`, `border-subtle`, `accent`, `accent-hover`, `accent-muted`,
+`success`, `warning`, `danger`, and `disabled`, adapted to the project's
+existing naming convention.
 
-Treat these as initial proposals, not permission to overwrite established
-product colors blindly. Audit existing branding and contrast before finalizing.
+Rules:
 
-Do not use every semantic color as decoration. The accent should remain
-recognizable and intentional.
+1. Keep the token architecture compatible with the current codebase; document
+   recommendations without implementing them.
+2. Define light and dark values for applicable tokens.
+3. Keep semantic status colors distinct from the brand accent.
+4. Do not invent exact semantic status values if the existing document or
+   codebase already defines them; preserve legitimate existing definitions and
+   document any gaps.
+5. Do not scatter raw hex values throughout component-specific guidance.
+6. If an exception is genuinely necessary, document its purpose and scope.
+7. Ensure disabled, hover, selected, focus, success, warning, and destructive
+   states remain distinguishable.
+8. Do not rely on color alone to communicate important information.
 
-### Typography
+## 5. Light and dark themes
 
-Use typography to establish hierarchy.
-
-- Page titles: distinctive, confident, and appropriately sized.
-- Section headings: clear and restrained.
-- Body text: highly readable at normal interface sizes.
-- Metadata: smaller and muted, but never illegible.
-- Numbers and dates: aligned and formatted consistently.
-
-Prefer an existing project font when suitable. Otherwise use a reliable system
-stack or a well-supported typeface already available in the project.
-
-Use no more than two typeface families unless there is a compelling
-product-specific reason.
-
-Avoid making every heading oversized or bold.
-
-### Spacing
-
-Use a consistent spacing scale based on 4px increments.
-
-Suggested values: 4, 8, 12, 16, 24, 32, 48, and 64px.
-
-Use whitespace to separate information groups and create rhythm. Do not fill
-every available space with cards.
-
-### Borders and surfaces
-
-- Prefer subtle borders over heavy shadows.
-- Use shadows only when they communicate elevation.
-- Reserve rounded containers for elements that benefit from grouping.
-- Allow important content to sit directly on the page background.
-- Do not apply the same corner radius indiscriminately to every element.
-
-## 4. Dashboard Composition
-
-The dashboard must prioritize what the user needs to know and do next.
-
-Recommended hierarchy:
-
-1. A clear page heading and relevant date or contextual information.
-2. The most useful immediate action or upcoming schedule.
-3. Today's tasks and schedule, organized by practical priority.
-4. Supporting summaries or progress information.
-5. Secondary information that should not compete with immediate actions.
-
-This is a hierarchy proposal, not a mandate to invent new features. Inspect the
-current product and preserve its real capabilities.
-
-### Layout rules
-
-- Establish a deliberate grid and alignment system.
-- Use asymmetry selectively when it improves hierarchy.
-- Let the primary content occupy more visual space than secondary summaries.
-- Use compact rows, timelines, lists, and editorial groupings where they
-  communicate information better than cards.
-- Keep the navigation visually distinct from the main content.
-- Avoid unnecessary duplication of information.
-- Use responsive breakpoints based on content needs rather than arbitrary device
-  labels.
-
-The dashboard should look intentional even when all cards, charts, and
-decorative elements are removed.
-
-## 5. Components
-
-Create or refine reusable components only where repetition and consistency
-justify them.
-
-Potential shared patterns:
-
-- Application navigation.
-- Page header and contextual date.
-- Task row and task status.
-- Schedule or timeline entry.
-- Priority indicator.
-- Section heading.
-- Summary metric.
-- Empty, loading, and error states.
-- Dialogs, menus, and form controls.
-
-Component rules:
-
-- Reuse existing components where practical.
-- Define consistent interaction, focus, disabled, and validation states.
-- Prefer semantic HTML and accessible controls.
-- Use clear labels and sufficient contrast.
-- Do not create abstractions for a single use case without a reason.
-
-## 6. Interaction and Motion
-
-Interaction should be subtle, purposeful, and predictable.
-
-- Use motion to communicate state changes, not to decorate the page.
-- Preserve clear hover, focus, active, disabled, and loading states.
-- Respect reduced-motion preferences.
-- Ensure important functionality works with keyboard navigation.
-- Avoid animations that delay common productivity tasks.
-
-## 7. Responsive Behavior
-
-Desktop:
-
-- Use available width intentionally.
-- Keep reading and task-management areas comfortable to scan.
-- Avoid stretching dense content across excessively wide layouts.
-
-Mobile:
-
-- Prioritize the next action and essential information.
-- Collapse secondary content logically.
-- Avoid horizontal overflow.
-- Keep controls comfortably tappable.
-- Preserve the information hierarchy instead of simply shrinking the desktop
-  layout.
-
-## 8. SwiftUI Scope
-
-The native iOS implementation is not part of the web dashboard redesign.
-
-Preserve existing working SwiftUI navigation, native interactions, business
-logic, state management, and platform conventions.
-
-Only propose selective visual refinements when they provide a clear
-user-experience benefit. Do not port the web aesthetic directly into iOS or
-replace native components without a justified reason.
-
-Any SwiftUI changes must be scoped separately and validated independently.
-
-## 9. Engineering Constraints
-
-- Inspect the existing repository and identify the actual framework, component
-  system, styling conventions, and data contracts before implementation.
-- Reuse the current architecture and dependencies whenever possible.
-- Do not modify API behavior, database schemas, authentication, business logic,
-  or unrelated routes as part of a visual redesign.
-- Do not fabricate metrics, schedule data, or product capabilities.
-- Keep existing functional behavior intact.
-- Avoid unnecessary new dependencies.
-- Do not overwrite unrelated user changes.
-
-## 10. Definition of Done
-
-The redesign is complete only when:
-
-- The dashboard has a recognizable visual identity.
-- The hierarchy of primary and secondary information is obvious.
-- The layout avoids repetitive generic card patterns.
-- Existing features and data remain functional.
-- Loading, error, and empty states remain usable.
-- Desktop and mobile layouts have been reviewed.
-- Keyboard navigation and accessible contrast have been considered.
-- The production build succeeds.
-- Changes remain scoped to the intended web dashboard.
-- Existing SwiftUI functionality remains untouched.
-- The final implementation is reviewed against this document, not merely
-  declared finished because it compiles.
-
-## 11. Light and Dark Theme — Soft Contrast
-
-Both themes must feel comfortable for extended daily use.
-
-The visual identity must remain consistent across light and dark modes. Dark
-mode is not a simple inversion of light mode; each theme must have intentionally
-designed surfaces, text colors, borders, and semantic states.
+Replace the previous sage-based palette and green-undertone guidance with the
+canonical soft blue tokens in Section 11, or in the equivalent existing theme
+section.
 
 ### Light mode
 
-- Use warm off-white and muted neutral backgrounds instead of pure white as the
-  dominant canvas.
-- Use charcoal rather than absolute black for primary text.
-- Use restrained surface separation and subtle borders.
-- Avoid large, high-luminance white areas that make the interface feel glaring.
-- Maintain clear text readability without making the overall interface
-  excessively bright.
+The light theme should feel soft, neutral, and comfortable for extended use.
 
-Initial palette:
-
-- Canvas: `#F1F0EB`
-- Surface: `#E7E5DE`
-- Primary text: `#343630`
-- Secondary text: `#696B63`
-- Border: `#D8D7CF`
-- Accent: `#687B65`
+- Use `#F1F2F5` as the canvas.
+- Use `#E6E9EF` for standard surfaces.
+- Use `#FFFFFF` selectively for elevated surfaces rather than making the entire
+  interface stark white.
+- Use muted blue accents that remain readable and purposeful.
+- Avoid excessive brightness, washed-out text, and unnecessary high-contrast
+  boundaries.
 
 ### Dark mode
 
-- Use deep charcoal with a subtle neutral or green undertone, not pure black as
-  the main background.
-- Use slightly lighter surfaces to distinguish content groups.
-- Use soft off-white for primary text instead of pure white.
-- Avoid excessively bright accent colors and stark white borders.
-- Maintain enough surface separation to preserve hierarchy without relying on
-  heavy shadows.
+The dark theme should feel calm and layered.
 
-Initial palette:
+- Use `#242831` as the canvas.
+- Use `#2D323D` for standard surfaces.
+- Use `#373E4B` for elevated surfaces.
+- Use soft blue accents that remain legible without causing eye strain.
+- Avoid pure black, overly dark surfaces, glowing accents, and large areas of
+  bright blue.
 
-- Canvas: `#222420`
-- Surface: `#2C2F29`
-- Elevated surface: `#353830`
-- Primary text: `#E5E5DC`
-- Secondary text: `#B5B7AC`
-- Border: `#44473F`
-- Accent: `#A6B69A`
+### Cross-theme consistency
 
-### Theme behavior
+- Preserve the same information hierarchy, component meaning, and interaction
+  semantics in both themes.
+- Adapt contrast appropriately rather than mechanically inverting colors.
+- Preserve existing theme-selection and system-appearance behavior.
+- Ensure borders, muted surfaces, text, charts, dialogs, menus, form controls,
+  and interactive states work in both themes.
+- Do not introduce a separate brand identity for either theme.
+- Treat light and dark themes as equally supported experiences, not as a primary
+  theme and an afterthought.
 
-- Implement theme colors as semantic design tokens rather than hardcoded colors
-  scattered across components.
-- Preserve the user's existing theme-selection behavior and system appearance
-  integration.
-- Ensure task statuses, priorities, warnings, and destructive actions remain
-  distinguishable in both themes.
-- Do not communicate status through color alone.
-- Check text contrast, focus states, disabled controls, charts, form fields,
-  menus, and dialogs in both themes.
-- Avoid opacity-based text treatments that become illegible against different
-  surfaces.
-- Do not force every component to use a card background; hierarchy may also come
-  from typography, spacing, and alignment.
+The specified hex values are the canonical starting points. If a token creates
+an accessibility issue in a particular use, document the issue and the intended
+semantic adjustment instead of silently introducing an unrelated color.
 
-### Acceptance criteria
+## 6. Editorial layout and component guidance
 
-The dashboard must be reviewed in both light and dark modes at realistic screen
-brightness. Neither theme should feel glaring, muddy, excessively dark, or
-washed out.
+Preserve and refine the existing layout system rather than replacing it with a
+conventional dashboard template.
 
-The same component must retain consistent hierarchy, interaction behavior, and
-readability across both themes.
+The document should explain how to create distinction through:
+
+- Clear content hierarchy and deliberate composition.
+- Intentional variation in layout where content requires it.
+- Strong alignment, spacing rhythm, and meaningful negative space.
+- Appropriate contrast between primary information and supporting details.
+- Dense information presented in a calm, scannable manner.
+- Components whose visual weight reflects their actual importance.
+
+Do not force every page into the same arrangement of a page title, four
+statistic cards, a grid of identical panels, and a chart.
+
+Component rules should explain when to use cards, tables, lists, timelines,
+compact metadata, dividers, and other existing patterns. Reuse established
+components when they are appropriate, but do not let reuse create repetitive or
+visually monotonous pages.
+
+Maintain consistency without forcing uniformity.
+
+## 7. Typography, spacing, and surfaces
+
+Preserve the existing typography and spacing principles. Refine them only where
+needed to make the document more actionable and internally consistent.
+
+Ensure the guidance covers:
+
+- A deliberate type hierarchy for page titles, section headings, body text,
+  labels, and metadata.
+- Readability and appropriate line lengths.
+- Consistent spacing tokens and layout rhythm.
+- Intentional surface elevation rather than excessive card nesting.
+- Consistent borders, corner radii, and component proportions.
+- Visual restraint: decoration must support comprehension rather than compete
+  with it.
+
+Do not introduce a new typography framework, dependency, or arbitrary design
+scale solely for this documentation update.
+
+## 8. Interaction, responsive design, and accessibility
+
+Preserve all existing requirements and consolidate overlapping guidance without
+weakening it.
+
+Include:
+
+- Clear hover, pressed, focused, selected, disabled, loading, success, warning,
+  and destructive states where applicable.
+- Visible keyboard focus and usable keyboard navigation.
+- Sufficient text and interface contrast in both themes.
+- Semantic labels and accessible control behavior.
+- Responsive layouts that adapt to available width instead of merely shrinking
+  desktop layouts.
+- Appropriate touch targets and mobile spacing.
+- Reduced-motion support and restrained transitions.
+- Clear empty, loading, error, and success states.
+- Information that remains understandable without relying exclusively on color,
+  animation, or icons.
+
+Do not sacrifice usability or accessibility to preserve a particular aesthetic.
+
+## 9. Engineering and SwiftUI scope restrictions
+
+Keep the existing engineering constraints and make the scope distinction
+explicit.
+
+This document update does not authorize implementation changes.
+
+- Do not modify SwiftUI source files.
+- Do not modify application source code, components, stylesheets, configuration,
+  dependencies, or build scripts.
+- Do not change business logic, API behavior, database schemas, authentication,
+  or data handling.
+- Do not change theme-selection behavior or system appearance settings.
+- Do not install packages or generate application code.
+- Do not modify unrelated documentation or files.
+- Do not overwrite or discard existing local changes.
+- Do not create a commit or push.
+
+`DESIGN.md` describes the web design system and must preserve the existing
+guidance that native SwiftUI should remain genuinely native to iOS. Any future
+SwiftUI refinement should be selective and intentional, not a wholesale attempt
+to force the web design system onto native iOS controls.
+
+## 10. Documentation consistency review
+
+After updating the document, review the entire `DESIGN.md`.
+
+Search for and resolve:
+
+- References to sage green or botanical green as brand colors.
+- Old green accent hex values or old palette definitions.
+- Conflicting color descriptions or theme rules.
+- Duplicate or contradictory token definitions.
+- References to pure white or pure black as the default canvas.
+- Outdated instructions that conflict with the canonical soft blue palette.
+
+Preserve legitimate semantic green status colors, existing
+success/warning/danger meanings, and unrelated content.
+
+Do not remove unrelated design principles merely because they appear in the same
+section as old color guidance.
+
+If the existing file uses different section numbering or headings, update the
+corresponding sections in place instead of creating duplicate sections or
+forcing an unnecessary document restructure.
+
+## 11. Verification and final report
+
+Before editing:
+
+1. Inspect the current `DESIGN.md` and understand its existing structure.
+2. Run `git status --short`.
+3. Identify pre-existing changes and distinguish them from this task's changes.
+4. Preserve all unrelated local modifications.
+
+After editing:
+
+1. Review the complete updated document for clarity and consistency.
+2. Verify the canonical light and dark tokens exactly match this specification.
+3. Search again for outdated sage-green and botanical-green brand guidance.
+4. Confirm semantic status colors and existing non-color requirements were
+   preserved.
+5. Run `git status --short` again.
+6. Confirm that this task modified **only `DESIGN.md`**. If unrelated changes
+   already existed, report them separately rather than attributing them to this
+   task.
+7. Do not create a commit or push.
+
+### Final response
+
+Report:
+
+- The exact sections updated.
+- How the soft blue palette and semantic token rules were consolidated.
+- Confirmation that editorial composition, anti-patterns, typography, spacing,
+  accessibility, responsive behavior, engineering constraints, and SwiftUI scope
+  restrictions were preserved.
+- Results of the outdated-color and token consistency review.
+- The before-and-after Git status, including any pre-existing changes.
+- Explicit confirmation of whether only `DESIGN.md` was modified by this task.
+
+If you cannot verify any item, state that clearly rather than claiming success.

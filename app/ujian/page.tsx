@@ -10,7 +10,7 @@ export default async function UjianPage() {
     redirect("/login");
   }
 
-  const [rawCourses, rawExams] = await Promise.all([
+  const [rawCourses, rawExams, user] = await Promise.all([
     prisma.jadwal.findMany({
       where: { userId: session.userId },
       select: { id: true, namaMatkul: true },
@@ -27,6 +27,10 @@ export default async function UjianPage() {
         { tanggal: "asc" },
         { waktuMulai: "asc" },
       ],
+    }),
+    prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { profilePictureUrl: true },
     }),
   ]);
 
@@ -56,6 +60,7 @@ export default async function UjianPage() {
     <UjianClient
       username={session.username}
       userEmail={session.email}
+      profilePictureUrl={user?.profilePictureUrl}
       initialExams={exams as any}
       courses={courses}
     />

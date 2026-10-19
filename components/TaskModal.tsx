@@ -73,7 +73,7 @@ export function TaskModal({ isOpen, onClose, taskToEdit, courses }: TaskModalPro
         )}
 
         <div>
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+          <label className="block text-xs font-bold text-content-primary uppercase tracking-wider mb-1.5">
             Nama Tugas
           </label>
           <input
@@ -82,22 +82,22 @@ export function TaskModal({ isOpen, onClose, taskToEdit, courses }: TaskModalPro
             defaultValue={taskToEdit?.namaTugas || ""}
             required
             placeholder="Contoh: Makalah Sistem Terdistribusi"
-            className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 text-sm transition-all"
+            className="w-full px-4 py-2.5 rounded-xl bg-surface border border-line focus:outline-none focus:border-accent text-content-primary placeholder:text-content-muted text-sm transition-all"
           />
         </div>
 
         <div>
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+          <label className="block text-xs font-bold text-content-primary uppercase tracking-wider mb-1.5">
             Mata Kuliah
           </label>
           <select
             name="id_jadwal"
             defaultValue={taskToEdit?.idJadwal || courses[0]?.id || ""}
             required
-            className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-slate-100 text-sm"
+            className="w-full px-4 py-2.5 rounded-xl bg-surface border border-line focus:outline-none focus:border-accent text-content-primary text-sm"
           >
             {courses.map((course) => (
-              <option key={course.id} value={course.id} className="dark:bg-slate-800">
+              <option key={course.id} value={course.id} className="bg-surface-elevated text-content-primary">
                 {course.namaMatkul}
               </option>
             ))}
@@ -106,37 +106,37 @@ export function TaskModal({ isOpen, onClose, taskToEdit, courses }: TaskModalPro
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-bold text-content-primary uppercase tracking-wider mb-1.5">
               Prioritas
             </label>
             <select
               name="prioritas"
               defaultValue={taskToEdit?.prioritas || "Sedang"}
-              className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-slate-100 text-sm"
+              className="w-full px-4 py-2.5 rounded-xl bg-surface border border-line focus:outline-none focus:border-accent text-content-primary text-sm"
             >
-              <option value="Tinggi" className="dark:bg-slate-800">Tinggi</option>
-              <option value="Sedang" className="dark:bg-slate-800">Sedang</option>
-              <option value="Rendah" className="dark:bg-slate-800">Rendah</option>
+              <option value="Tinggi" className="bg-surface-elevated text-content-primary">Tinggi</option>
+              <option value="Sedang" className="bg-surface-elevated text-content-primary">Sedang</option>
+              <option value="Rendah" className="bg-surface-elevated text-content-primary">Rendah</option>
             </select>
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-bold text-content-primary uppercase tracking-wider mb-1.5">
               Jenis Tugas
             </label>
             <select
               name="jenis"
               defaultValue={taskToEdit?.jenis || "Individu"}
-              className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-slate-100 text-sm"
+              className="w-full px-4 py-2.5 rounded-xl bg-surface border border-line focus:outline-none focus:border-accent text-content-primary text-sm"
             >
-              <option value="Individu" className="dark:bg-slate-800">Individu</option>
-              <option value="Kelompok" className="dark:bg-slate-800">Kelompok</option>
+              <option value="Individu" className="bg-surface-elevated text-content-primary">Individu</option>
+              <option value="Kelompok" className="bg-surface-elevated text-content-primary">Kelompok</option>
             </select>
           </div>
         </div>
 
         <div>
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+          <label className="block text-xs font-bold text-content-primary uppercase tracking-wider mb-1.5">
             Deadline / Tenggat Waktu
           </label>
           <input
@@ -144,16 +144,16 @@ export function TaskModal({ isOpen, onClose, taskToEdit, courses }: TaskModalPro
             name="deadline"
             defaultValue={formatForInput(taskToEdit?.deadline)}
             required
-            className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-slate-100 text-sm"
+            className="w-full px-4 py-2.5 rounded-xl bg-surface border border-line focus:outline-none focus:border-accent text-content-primary text-sm"
           />
         </div>
 
-        <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+        <div className="flex items-center justify-end gap-3 pt-3 border-t border-line">
           <button
             type="button"
             onClick={onClose}
             disabled={isPending}
-            className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
+            className="px-4 py-2.5 rounded-xl text-sm font-semibold text-content-secondary hover:text-content-primary hover:bg-surface transition-colors disabled:opacity-50"
           >
             Batal
           </button>
@@ -161,7 +161,7 @@ export function TaskModal({ isOpen, onClose, taskToEdit, courses }: TaskModalPro
             type="submit"
             disabled={isPending}
             aria-busy={isPending}
-            className="flex items-center justify-center gap-2 px-5 py-2.5 min-w-[150px] rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-600/20 transition-all disabled:opacity-50 active:scale-95"
+            className="flex items-center justify-center gap-2 px-5 py-2.5 min-w-[150px] rounded-xl text-sm font-semibold text-accent-text bg-accent hover:bg-accent-hover shadow-xs transition-all disabled:opacity-50 active:scale-95"
           >
             {isPending ? (
               <>

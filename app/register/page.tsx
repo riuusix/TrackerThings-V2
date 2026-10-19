@@ -44,7 +44,7 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-center items-center p-4 py-12 relative">
+    <div className="min-h-screen bg-canvas text-content-primary flex flex-col justify-center items-center p-4 py-12 relative">
       <div className="absolute top-5 right-5">
         <ThemeToggle />
       </div>
@@ -52,26 +52,23 @@ export default function RegisterPage() {
       <div className="w-full max-w-md">
         {/* Brand Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex w-16 h-16 rounded-2xl overflow-hidden shadow-xl shadow-blue-600/25 mb-3 transition-transform hover:scale-105 bg-blue-700 flex items-center justify-center">
+          <div className="inline-flex w-16 h-16 rounded-2xl overflow-hidden shadow-xs mb-3 transition-transform hover:scale-105 bg-accent flex items-center justify-center">
             <img
               src="/icon.png"
               alt="TrackerThings Logo"
               className="w-full h-full object-cover"
             />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-            Tracker
-            <span className="bg-gradient-to-r from-blue-600 to-cyan-500 text-transparent bg-clip-text">
-              Things
-            </span>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-content-primary tracking-tight">
+            Tracker<span className="text-accent">Things</span>
           </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-sm text-content-secondary mt-1">
             Buat akun baru untuk mulai mengelola jadwal dan tugas Anda
           </p>
         </div>
 
         {/* Card Form */}
-        <div className="glass-card rounded-3xl p-6 sm:p-8 backdrop-blur-2xl">
+        <div className="bg-surface-elevated border border-line rounded-3xl p-6 sm:p-8 shadow-xs">
           {error && (
             <div className="mb-5 p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-400 text-sm flex items-start gap-2.5">
               <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
@@ -88,79 +85,79 @@ export default function RegisterPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-content-secondary mb-1.5">
                 Nama Lengkap
               </label>
               <div className="relative">
-                <User className="w-5 h-5 absolute left-3.5 top-3 text-slate-400" />
+                <User className="w-5 h-5 absolute left-3.5 top-3 text-content-muted" />
                 <input
                   type="text"
                   name="full_name"
                   placeholder="Nama Lengkap Anda"
-                  className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white text-sm"
+                  className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-surface border border-line focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent text-content-primary placeholder:text-content-muted text-sm transition-colors"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-content-secondary mb-1.5">
                 Username <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
-                <User className="w-5 h-5 absolute left-3.5 top-3 text-slate-400" />
+                <User className="w-5 h-5 absolute left-3.5 top-3 text-content-muted" />
                 <input
                   type="text"
                   name="username"
                   required
                   placeholder="Username unik"
-                  className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white text-sm"
+                  className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-surface border border-line focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent text-content-primary placeholder:text-content-muted text-sm transition-colors"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-content-secondary mb-1.5">
                 Email Kampus / Pribadi <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
-                <Mail className="w-5 h-5 absolute left-3.5 top-3 text-slate-400" />
+                <Mail className="w-5 h-5 absolute left-3.5 top-3 text-content-muted" />
                 <input
                   type="email"
                   name="email"
                   required
                   placeholder="mahasiswa@univ.ac.id"
-                  className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white text-sm"
+                  className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-surface border border-line focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent text-content-primary placeholder:text-content-muted text-sm transition-colors"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-content-secondary mb-1.5">
                 Nomor WhatsApp / HP
               </label>
               <div className="relative">
-                <Phone className="w-5 h-5 absolute left-3.5 top-3 text-slate-400" />
+                <Phone className="w-5 h-5 absolute left-3.5 top-3 text-content-muted" />
                 <input
                   type="tel"
                   name="phone_number"
                   placeholder="081234567890"
-                  className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white text-sm"
+                  className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-surface border border-line focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent text-content-primary placeholder:text-content-muted text-sm transition-colors"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-content-secondary mb-1.5">
                 Kata Sandi <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
-                <Lock className="w-5 h-5 absolute left-3.5 top-3 text-slate-400" />
+                <Lock className="w-5 h-5 absolute left-3.5 top-3 text-content-muted" />
                 <input
                   type="password"
                   name="password"
                   required
                   placeholder="Minimal 6 karakter"
-                  className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-white text-sm"
+                  className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-surface border border-line focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent text-content-primary placeholder:text-content-muted text-sm transition-colors"
                 />
               </div>
             </div>
@@ -169,7 +166,7 @@ export default function RegisterPage() {
               type="submit"
               disabled={isPending}
               aria-busy={isPending}
-              className="w-full py-3.5 px-4 min-h-[50px] rounded-xl font-semibold text-white bg-blue-600 hover:bg-blue-700 active:scale-[0.98] shadow-lg shadow-blue-500/25 transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-50"
+              className="w-full py-3.5 px-4 min-h-[50px] rounded-xl font-semibold text-accent-text bg-accent hover:bg-accent-hover active:scale-95 shadow-xs transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-50"
             >
               {isPending ? (
                 <>
@@ -185,12 +182,12 @@ export default function RegisterPage() {
             </button>
           </form>
 
-          <div className="mt-6 pt-6 border-t border-slate-200/60 dark:border-slate-800 text-center">
-            <p className="text-sm text-slate-500 dark:text-slate-400">
+          <div className="mt-6 pt-6 border-t border-line text-center">
+            <p className="text-sm text-content-secondary">
               Sudah punya akun?{" "}
               <Link
                 href="/login"
-                className="font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+                className="font-semibold text-accent hover:underline"
               >
                 Masuk di sini
               </Link>

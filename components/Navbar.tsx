@@ -17,8 +17,12 @@ import {
   ChevronDown,
   Clock,
   CheckCircle2,
+  Sun,
+  Moon,
+  Check,
+  Loader2,
 } from "lucide-react";
-import { ThemeToggle } from "./ThemeToggle";
+import { useTheme } from "next-themes";
 import { logoutAction } from "@/app/actions/auth";
 import { NotificationItem } from "@/types";
 
@@ -26,6 +30,7 @@ interface NavbarProps {
   username: string;
   userEmail?: string;
   role?: string;
+  profilePictureUrl?: string | null;
   notifications?: NotificationItem[];
 }
 
@@ -33,17 +38,32 @@ export function Navbar({
   username,
   userEmail,
   role = "user",
+  profilePictureUrl,
   notifications = [],
 }: NavbarProps) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [notifDropdownOpen, setNotifDropdownOpen] = useState(false);
+  const [avatarImgError, setAvatarImgError] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const { resolvedTheme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    setAvatarImgError(false);
+  }, [profilePictureUrl]);
 
   const profileRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
 
   const isAdmin = role.toLowerCase() === "admin";
+  const isDark = resolvedTheme === "dark";
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -70,68 +90,65 @@ export function Navbar({
     : "U";
 
   return (
-    <nav className="sticky top-0 z-40 w-full bg-white/90 dark:bg-slate-950/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors duration-200 shadow-[0_2px_10px_rgb(0,0,0,0.02)]">
+    <nav className="sticky top-0 z-40 w-full bg-canvas/95 backdrop-blur-md border-b border-line transition-colors duration-200 shadow-2xs">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Logo & Brand */}
-          <div className="flex items-center gap-7">
+        <div className="relative flex items-center justify-between h-16">
+          {/* Logo & Brand (Left Region) */}
+          <div className="flex items-center shrink-0 z-10">
             <Link
               href="/dashboard"
               className="flex items-center gap-2.5 font-extrabold text-xl sm:text-2xl tracking-tight group"
             >
-              <div className="w-10 h-10 rounded-xl overflow-hidden shadow-md shadow-blue-600/25 transition-transform group-hover:scale-105 bg-blue-700 flex items-center justify-center">
+              <div className="w-9 h-9 rounded-xl overflow-hidden shadow-xs transition-transform group-hover:scale-105 bg-accent flex items-center justify-center">
                 <img
                   src="/icon.png"
                   alt="TrackerThings Logo"
                   className="w-full h-full object-cover"
                 />
               </div>
-              <span className="text-slate-900 dark:text-white">
-                Tracker
-                <span className="bg-gradient-to-r from-blue-600 to-cyan-500 text-transparent bg-clip-text">
-                  Things
-                </span>
+              <span className="text-content-primary">
+                Tracker<span className="text-accent font-extrabold">Things</span>
               </span>
             </Link>
-
-            {/* Desktop Navigation Links */}
-            <div className="hidden md:flex items-center space-x-1">
-              {navLinks.map((link) => {
-                const Icon = link.icon;
-                const isActive = pathname === link.href;
-                return (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    className={`relative flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${
-                      isActive
-                        ? "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/40 shadow-xs"
-                        : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-900/60"
-                    }`}
-                  >
-                    <Icon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                    <span>{link.label}</span>
-                  </Link>
-                );
-              })}
-            </div>
           </div>
 
-          {/* Right Header Items: Notifications, Theme Toggle, Profile */}
-          <div className="flex items-center gap-2.5 sm:gap-3">
+          {/* Mathematically Centered Desktop Navigation Links (Center Region) */}
+          <div className="hidden lg:flex items-center space-x-1 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-auto">
+            {navLinks.map((link) => {
+              const Icon = link.icon;
+              const isActive = pathname === link.href;
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={`relative flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                    isActive
+                      ? "text-accent font-bold bg-accent-muted border border-line-subtle shadow-xs"
+                      : "text-content-secondary hover:text-content-primary hover:bg-surface"
+                  }`}
+                >
+                  <Icon className={`w-4 h-4 ${isActive ? "text-accent" : "text-content-secondary"}`} />
+                  <span>{link.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+
+          {/* Right Header Items: Notifications & Profile Controls (Right Region) */}
+          <div className="flex items-center gap-2.5 sm:gap-3 shrink-0 z-10">
             {/* Notification Bell */}
             <div className="relative" ref={notifRef}>
               <button
                 type="button"
                 onClick={() => setNotifDropdownOpen(!notifDropdownOpen)}
-                className="relative p-2.5 rounded-xl bg-slate-100 dark:bg-slate-900 hover:bg-slate-200/80 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 transition-all"
+                className="relative p-2.5 rounded-xl bg-surface-elevated hover:bg-surface text-content-primary border border-line transition-all shadow-xs"
                 aria-label="Notifikasi"
               >
                 <Bell className="w-4 h-4" />
                 {notifications.length > 0 && (
                   <span className="absolute -top-1 -right-1 flex h-4 w-4">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-4 w-4 bg-blue-600 text-[10px] font-bold text-white items-center justify-center">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-4 w-4 bg-accent text-[10px] font-bold text-accent-text items-center justify-center">
                       {notifications.length}
                     </span>
                   </span>
@@ -140,29 +157,29 @@ export function Navbar({
 
               {/* Notification Popover */}
               {notifDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl z-50 animate-in fade-in-50 zoom-in-95 duration-150">
-                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center gap-2 font-bold text-slate-800 dark:text-slate-100 text-sm">
-                      <Bell className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl p-4 bg-surface-elevated border border-line shadow-xl z-50 animate-in fade-in-50 zoom-in-95 duration-150">
+                  <div className="flex items-center justify-between pb-3 border-b border-line">
+                    <div className="flex items-center gap-2 font-bold text-content-primary text-sm">
+                      <Bell className="w-4 h-4 text-accent" />
                       <span>Notifikasi Penting</span>
                     </div>
-                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-300 font-semibold border border-blue-200 dark:border-blue-800/40">
+                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-accent-muted text-accent font-semibold border border-line-subtle">
                       {notifications.length} Jadwal
                     </span>
                   </div>
 
-                  <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-72 overflow-y-auto mt-2">
+                  <div className="divide-y divide-line max-h-72 overflow-y-auto mt-2">
                     {notifications.length === 0 ? (
-                      <div className="py-6 text-center text-slate-400 dark:text-slate-500">
+                      <div className="py-6 text-center text-content-muted">
                         <CheckCircle2 className="w-8 h-8 mx-auto text-emerald-500 mb-2 opacity-80" />
-                        <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Semua Terkendali!</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-500">Tidak ada tugas atau evaluasi terdekat.</p>
+                        <p className="text-sm font-semibold text-content-primary">Semua Terkendali!</p>
+                        <p className="text-xs text-content-secondary">Tidak ada tugas atau evaluasi terdekat.</p>
                       </div>
                     ) : (
                       notifications.map((item) => (
                         <div
                           key={item.id}
-                          className="py-2.5 flex items-start gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/60 p-2 rounded-xl transition-colors"
+                          className="py-2.5 flex items-start gap-3 hover:bg-surface p-2 rounded-xl transition-colors"
                         >
                           <div
                             className={`p-1.5 rounded-lg text-xs font-semibold shrink-0 ${
@@ -174,13 +191,13 @@ export function Navbar({
                             {item.tipe}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">
+                            <p className="text-sm font-semibold text-content-primary truncate">
                               {item.judul}
                             </p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                            <p className="text-xs text-content-secondary truncate">
                               {item.namaMatkul}
                             </p>
-                            <div className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+                            <div className="flex items-center gap-1 text-[11px] text-content-muted mt-0.5">
                               <Clock className="w-3 h-3" />
                               <span>{item.waktu}</span>
                             </div>
@@ -193,74 +210,172 @@ export function Navbar({
               )}
             </div>
 
-            {/* Dark Mode Sun/Moon Toggle */}
-            <ThemeToggle />
-
             {/* Profile Dropdown */}
             <div className="relative" ref={profileRef}>
               <button
                 type="button"
                 onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-                className="flex items-center gap-2 p-1.5 sm:px-3 sm:py-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 hover:bg-slate-200/80 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800 transition-all"
+                className="flex items-center gap-2 p-1.5 sm:px-3 sm:py-1.5 rounded-xl bg-surface-elevated hover:bg-surface text-content-primary border border-line transition-all shadow-xs"
+                aria-expanded={profileDropdownOpen}
+                aria-haspopup="true"
               >
-                {/* User Avatar with Initials */}
-                <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-sm shadow-sm">
-                  {userInitial}
+                {/* User Avatar with Image or Initial Fallback */}
+                <div className="w-8 h-8 rounded-lg bg-accent text-accent-text flex items-center justify-center font-bold text-sm shadow-xs overflow-hidden shrink-0">
+                  {profilePictureUrl && !avatarImgError ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={profilePictureUrl}
+                      alt={username}
+                      className="w-full h-full object-cover"
+                      onError={() => setAvatarImgError(true)}
+                    />
+                  ) : (
+                    userInitial
+                  )}
                 </div>
                 <div className="hidden sm:flex flex-col text-left">
-                  <span className="text-xs font-bold text-slate-800 dark:text-slate-100 leading-tight">
+                  <span className="text-xs font-bold text-content-primary leading-tight">
                     {username}
                   </span>
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium capitalize">
-                    Mahasiswa
+                  <span className="text-[10px] text-content-secondary font-medium capitalize">
+                    {isAdmin ? "Administrator" : "Mahasiswa"}
                   </span>
                 </div>
-                <ChevronDown className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 hidden sm:block" />
+                <ChevronDown className="w-3.5 h-3.5 text-content-muted hidden sm:block" />
               </button>
 
               {/* Profile Dropdown Menu */}
               {profileDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-64 rounded-2xl p-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl z-50 animate-in fade-in-50 zoom-in-95 duration-150">
-                  <div className="px-3 py-2.5 border-b border-slate-100 dark:border-slate-800 mb-1">
-                    <p className="text-[10px] text-blue-600 dark:text-blue-400 uppercase font-bold tracking-wider mb-1">
-                      Profil Akun
-                    </p>
-                    <p className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">
-                      {username}
-                    </p>
-                    {userEmail && (
-                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                        {userEmail}
+                <div className="absolute right-0 mt-2 w-64 rounded-2xl p-2 bg-surface-elevated border border-line shadow-xl z-50 animate-in fade-in-50 zoom-in-95 duration-150">
+                  <div className="px-3 py-2.5 border-b border-line mb-1 flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-accent text-accent-text flex items-center justify-center font-bold text-sm shadow-xs overflow-hidden shrink-0">
+                      {profilePictureUrl && !avatarImgError ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={profilePictureUrl}
+                          alt={username}
+                          className="w-full h-full object-cover"
+                          onError={() => setAvatarImgError(true)}
+                        />
+                      ) : (
+                        userInitial
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] text-accent uppercase font-bold tracking-wider mb-0.5">
+                        {isAdmin ? "Sesi Administrator" : "Profil Akun"}
                       </p>
-                    )}
+                      <p className="text-sm font-bold text-content-primary truncate">
+                        {username}
+                      </p>
+                      {userEmail && (
+                        <p className="text-xs text-content-secondary truncate">
+                          {userEmail}
+                        </p>
+                      )}
+                    </div>
                   </div>
+
+                  {/* Panel Admin Access (Strictly Guarded for Verified Administrator Role) */}
+                  {isAdmin && (
+                    <Link
+                      href="/admin"
+                      onClick={() => setProfileDropdownOpen(false)}
+                      className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold text-accent hover:bg-accent-muted transition-colors border border-line-subtle/70 mb-1"
+                    >
+                      <span className="flex items-center gap-2.5">
+                        <Shield className="w-4 h-4 text-accent" />
+                        <span>Panel Admin</span>
+                      </span>
+                      <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-accent text-accent-text tracking-wider">
+                        ADMIN
+                      </span>
+                    </Link>
+                  )}
 
                   <Link
                     href="/profile"
                     onClick={() => setProfileDropdownOpen(false)}
-                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-content-secondary hover:text-content-primary hover:bg-surface transition-colors"
                   >
-                    <User className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    <User className="w-4 h-4 text-accent" />
                     <span>Profil Pengguna</span>
                   </Link>
 
                   <Link
                     href="/settings"
                     onClick={() => setProfileDropdownOpen(false)}
-                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-content-secondary hover:text-content-primary hover:bg-surface transition-colors"
                   >
                     <Shield className="w-4 h-4 text-emerald-500" />
                     <span>Keamanan & Sandi</span>
                   </Link>
 
-                  <div className="border-t border-slate-100 dark:border-slate-800 mt-1 pt-1">
-                    <form action={logoutAction}>
+                  {/* Theme Switcher in Dropdown */}
+                  <div className="px-3 py-2 border-t border-line mt-1">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[10px] font-bold text-content-secondary uppercase tracking-wider">
+                        Tampilan
+                      </span>
+                      <span className="text-[10px] text-content-muted capitalize">
+                        {mounted ? (isDark ? "Gelap" : "Terang") : "..."}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-surface border border-line-subtle">
+                      <button
+                        type="button"
+                        onClick={() => setTheme("light")}
+                        className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all ${
+                          mounted && !isDark
+                            ? "bg-surface-elevated text-accent shadow-xs border border-line"
+                            : "text-content-secondary hover:text-content-primary"
+                        }`}
+                        aria-label="Pilih Tema Terang"
+                      >
+                        <Sun className="w-3.5 h-3.5 text-amber-500" />
+                        <span>Terang</span>
+                        {mounted && !isDark && <Check className="w-3 h-3 text-accent ml-auto" />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTheme("dark")}
+                        className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all ${
+                          mounted && isDark
+                            ? "bg-surface-elevated text-accent shadow-xs border border-line"
+                            : "text-content-secondary hover:text-content-primary"
+                        }`}
+                        aria-label="Pilih Tema Gelap"
+                      >
+                        <Moon className="w-3.5 h-3.5 text-accent" />
+                        <span>Gelap</span>
+                        {mounted && isDark && <Check className="w-3 h-3 text-accent ml-auto" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-line mt-1 pt-1">
+                    <form
+                      action={async () => {
+                        setIsLoggingOut(true);
+                        await logoutAction();
+                      }}
+                    >
                       <button
                         type="submit"
-                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors text-left"
+                        disabled={isLoggingOut}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors text-left disabled:opacity-60 disabled:cursor-not-allowed"
                       >
-                        <LogOut className="w-4 h-4" />
-                        <span>Keluar (Logout)</span>
+                        {isLoggingOut ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin text-rose-500" />
+                            <span>Keluar...</span>
+                          </>
+                        ) : (
+                          <>
+                            <LogOut className="w-4 h-4" />
+                            <span>Keluar (Logout)</span>
+                          </>
+                        )}
                       </button>
                     </form>
                   </div>
@@ -269,11 +384,12 @@ export function Navbar({
             </div>
 
             {/* Mobile Hamburger Toggle */}
-            <div className="flex md:hidden">
+            <div className="flex lg:hidden">
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="p-2 rounded-xl bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800"
+                className="p-2 rounded-xl bg-surface-elevated text-content-primary border border-line"
+                aria-label="Menu Navigasi"
               >
                 {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
               </button>
@@ -283,26 +399,64 @@ export function Navbar({
 
         {/* Mobile Navigation Menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden py-3 border-t border-slate-100 dark:border-slate-800 space-y-1">
-            {navLinks.map((link) => {
-              const Icon = link.icon;
-              const isActive = pathname === link.href;
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold ${
-                    isActive
-                      ? "bg-blue-600 text-white"
-                      : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+          <div className="lg:hidden py-3 border-t border-line space-y-2 animate-in fade-in-50 duration-150">
+            <div className="space-y-1">
+              {navLinks.map((link) => {
+                const Icon = link.icon;
+                const isActive = pathname === link.href;
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                      isActive
+                        ? "bg-accent-muted text-accent border border-line-subtle shadow-xs"
+                        : "text-content-secondary hover:text-content-primary hover:bg-surface"
+                    }`}
+                  >
+                    <Icon className="w-4 h-4" />
+                    <span>{link.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* Mobile Theme Toggle Section */}
+            <div className="pt-2 border-t border-line px-2">
+              <div className="flex items-center justify-between mb-2 px-2">
+                <span className="text-xs font-semibold text-content-secondary">Mode Tampilan</span>
+                <span className="text-xs text-content-muted capitalize">
+                  {mounted ? (isDark ? "Gelap" : "Terang") : "..."}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-surface border border-line-subtle">
+                <button
+                  type="button"
+                  onClick={() => setTheme("light")}
+                  className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-all ${
+                    mounted && !isDark
+                      ? "bg-surface-elevated text-accent shadow-xs border border-line"
+                      : "text-content-secondary hover:text-content-primary"
                   }`}
                 >
-                  <Icon className="w-4 h-4" />
-                  <span>{link.label}</span>
-                </Link>
-              );
-            })}
+                  <Sun className="w-4 h-4 text-amber-500" />
+                  <span>Terang</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTheme("dark")}
+                  className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-all ${
+                    mounted && isDark
+                      ? "bg-surface-elevated text-accent shadow-xs border border-line"
+                      : "text-content-secondary hover:text-content-primary"
+                  }`}
+                >
+                  <Moon className="w-4 h-4 text-accent" />
+                  <span>Gelap</span>
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

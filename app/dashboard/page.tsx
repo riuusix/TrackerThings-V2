@@ -22,7 +22,7 @@ export default async function DashboardPage() {
     await Promise.all([
       prisma.user.findUnique({
         where: { id: session.userId },
-        select: { username: true, email: true, fullName: true, role: true },
+        select: { username: true, email: true, fullName: true, role: true, profilePictureUrl: true },
       }),
       prisma.jadwal.findMany({
         where: { userId: session.userId },
@@ -204,6 +204,7 @@ export default async function DashboardPage() {
       username={username}
       userEmail={userEmail}
       role={role}
+      profilePictureUrl={userData?.profilePictureUrl}
       courses={courses}
       schedulesByDay={schedulesByDay}
       initialDay={initialDay}

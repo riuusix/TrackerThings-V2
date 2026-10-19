@@ -11,13 +11,19 @@ export default async function MatakuliahPage() {
     redirect("/login");
   }
 
-  const rawCourses = await prisma.jadwal.findMany({
-    where: { userId: session.userId },
-    orderBy: [
-      { hari: "asc" },
-      { waktuMulai: "asc" },
-    ],
-  });
+  const [rawCourses, user] = await Promise.all([
+    prisma.jadwal.findMany({
+      where: { userId: session.userId },
+      orderBy: [
+        { hari: "asc" },
+        { waktuMulai: "asc" },
+      ],
+    }),
+    prisma.user.findUnique({
+      where: { id: session.userId },
+      select: { profilePictureUrl: true },
+    }),
+  ]);
 
   const courses: JadwalItem[] = rawCourses.map((c) => ({
     id: c.id,
@@ -36,6 +42,7 @@ export default async function MatakuliahPage() {
     <MatakuliahClient
       username={session.username}
       userEmail={session.email}
+      profilePictureUrl={user?.profilePictureUrl}
       initialCourses={courses}
     />
   );

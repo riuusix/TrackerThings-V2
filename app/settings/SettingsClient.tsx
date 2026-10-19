@@ -91,37 +91,41 @@ export function SettingsClient({ user }: SettingsClientProps) {
   };
 
   return (
-    <div className="min-h-screen pb-16">
-      <Navbar username={user.username} userEmail={user.email} />
+    <div className="min-h-screen bg-canvas text-content-primary pb-16">
+      <Navbar
+        username={user.username}
+        userEmail={user.email}
+        profilePictureUrl={user.profilePictureUrl}
+      />
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-8">
-        <div className="pb-2">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+        <div className="pb-2 border-b border-line">
+          <div className="flex items-center gap-2 mb-1.5">
+            <span className="text-[11px] px-3 py-1 rounded-full font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900/60">
               Pengaturan Akun
             </span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-content-primary tracking-tight">
             Keamanan & Kata Sandi
           </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-sm text-content-secondary mt-1">
             Ubah kata sandi akun dan atur pertanyaan pemulihan keamanan jika lupa kata sandi.
           </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Change Password Card */}
-          <div className="glass-card rounded-3xl p-6 border border-white/60 dark:border-white/10 flex flex-col justify-between">
+          <div className="bg-surface-elevated border border-line rounded-3xl p-6 shadow-xs flex flex-col justify-between">
             <div>
-              <div className="flex items-center gap-2.5 pb-4 mb-4 border-b border-slate-100 dark:border-slate-800">
-                <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+              <div className="flex items-center gap-2.5 pb-4 mb-4 border-b border-line">
+                <div className="w-9 h-9 rounded-xl bg-accent-muted flex items-center justify-center text-accent">
                   <KeyRound className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-800 dark:text-white text-base">
+                  <h3 className="font-bold text-content-primary text-base">
                     Ganti Kata Sandi
                   </h3>
-                  <p className="text-xs text-slate-400">Gunakan kombinasi yang kuat dan unik</p>
+                  <p className="text-xs text-content-muted">Gunakan kombinasi yang kuat dan unik</p>
                 </div>
               </div>
 
@@ -141,7 +145,7 @@ export function SettingsClient({ user }: SettingsClientProps) {
 
               <form onSubmit={handlePasswordSubmit} className="space-y-3.5">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block text-xs font-semibold text-content-secondary mb-1">
                     Kata Sandi Saat Ini
                   </label>
                   <input
@@ -149,12 +153,12 @@ export function SettingsClient({ user }: SettingsClientProps) {
                     name="current_password"
                     required
                     placeholder="••••••••"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-white text-sm"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-content-primary placeholder:text-content-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent text-sm transition-colors"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block text-xs font-semibold text-content-secondary mb-1">
                     Kata Sandi Baru
                   </label>
                   <input
@@ -162,12 +166,12 @@ export function SettingsClient({ user }: SettingsClientProps) {
                     name="new_password"
                     required
                     placeholder="Minimal 6 karakter"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-white text-sm"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-content-primary placeholder:text-content-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent text-sm transition-colors"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block text-xs font-semibold text-content-secondary mb-1">
                     Konfirmasi Kata Sandi Baru
                   </label>
                   <input
@@ -175,7 +179,7 @@ export function SettingsClient({ user }: SettingsClientProps) {
                     name="confirm_password"
                     required
                     placeholder="Ketik ulang kata sandi baru"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-white text-sm"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-content-primary placeholder:text-content-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent text-sm transition-colors"
                   />
                 </div>
 
@@ -183,7 +187,7 @@ export function SettingsClient({ user }: SettingsClientProps) {
                   type="submit"
                   disabled={pwdPending}
                   aria-busy={pwdPending}
-                  className="w-full py-2.5 px-4 min-h-[42px] rounded-xl font-semibold text-white bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-500/25 transition-all text-sm flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
+                  className="w-full py-2.5 px-4 min-h-[42px] rounded-xl font-semibold text-accent-text bg-accent hover:bg-accent-hover shadow-xs transition-all duration-200 active:scale-95 text-sm flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
                 >
                   {pwdPending ? (
                     <>
@@ -199,17 +203,17 @@ export function SettingsClient({ user }: SettingsClientProps) {
           </div>
 
           {/* Security Question Card */}
-          <div className="glass-card rounded-3xl p-6 border border-white/60 dark:border-white/10 flex flex-col justify-between">
+          <div className="bg-surface-elevated border border-line rounded-3xl p-6 shadow-xs flex flex-col justify-between">
             <div>
-              <div className="flex items-center gap-2.5 pb-4 mb-4 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2.5 pb-4 mb-4 border-b border-line">
                 <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
                   <ShieldQuestion className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-800 dark:text-white text-base">
+                  <h3 className="font-bold text-content-primary text-base">
                     Pertanyaan Keamanan
                   </h3>
-                  <p className="text-xs text-slate-400">Untuk pemulihan jika lupa kata sandi</p>
+                  <p className="text-xs text-content-muted">Untuk pemulihan jika lupa kata sandi</p>
                 </div>
               </div>
 
@@ -229,7 +233,7 @@ export function SettingsClient({ user }: SettingsClientProps) {
 
               <form onSubmit={handleSecuritySubmit} className="space-y-3.5">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block text-xs font-semibold text-content-secondary mb-1">
                     Pertanyaan Keamanan
                   </label>
                   <input
@@ -238,12 +242,12 @@ export function SettingsClient({ user }: SettingsClientProps) {
                     required
                     defaultValue={user.securityPrompt || ""}
                     placeholder="Contoh: Apa nama hewan peliharaan pertama Anda?"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-white text-sm"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-content-primary placeholder:text-content-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent text-sm transition-colors"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block text-xs font-semibold text-content-secondary mb-1">
                     Jawaban Rahasia
                   </label>
                   <input
@@ -251,12 +255,12 @@ export function SettingsClient({ user }: SettingsClientProps) {
                     name="security_answer"
                     required
                     placeholder="Jawaban pertanyaan keamanan"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-white text-sm"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-content-primary placeholder:text-content-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent text-sm transition-colors"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  <label className="block text-xs font-semibold text-content-secondary mb-1">
                     Konfirmasi Kata Sandi Saat Ini
                   </label>
                   <input
@@ -264,7 +268,7 @@ export function SettingsClient({ user }: SettingsClientProps) {
                     name="current_password"
                     required
                     placeholder="••••••••"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-white/70 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-white text-sm"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-content-primary placeholder:text-content-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent text-sm transition-colors"
                   />
                 </div>
 
@@ -272,7 +276,7 @@ export function SettingsClient({ user }: SettingsClientProps) {
                   type="submit"
                   disabled={secPending}
                   aria-busy={secPending}
-                  className="w-full py-2.5 px-4 min-h-[42px] rounded-xl font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-md shadow-emerald-500/25 transition-all text-sm flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
+                  className="w-full py-2.5 px-4 min-h-[42px] rounded-xl font-semibold text-white bg-emerald-600 hover:bg-emerald-700 shadow-xs transition-all duration-200 active:scale-95 text-sm flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
                 >
                   {secPending ? (
                     <>
@@ -289,34 +293,34 @@ export function SettingsClient({ user }: SettingsClientProps) {
         </div>
 
         {/* Audit Log Card */}
-        <div className="glass-card rounded-3xl p-6 border border-white/60 dark:border-white/10">
-          <div className="flex items-center gap-2.5 pb-4 mb-4 border-b border-slate-100 dark:border-slate-800">
-            <History className="w-5 h-5 text-indigo-500" />
-            <h3 className="font-bold text-slate-800 dark:text-white text-base">
+        <div className="bg-surface-elevated border border-line rounded-3xl p-6 shadow-xs">
+          <div className="flex items-center gap-2.5 pb-4 mb-4 border-b border-line">
+            <History className="w-5 h-5 text-accent" />
+            <h3 className="font-bold text-content-primary text-base">
               Catatan Aktivitas Akun
             </h3>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs sm:text-sm">
-            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
-              <span className="text-slate-400 block mb-1">Akun Dibuat</span>
-              <strong className="text-slate-800 dark:text-slate-200">
+            <div className="p-4 rounded-2xl bg-surface border border-line">
+              <span className="text-content-muted block mb-1">Akun Dibuat</span>
+              <strong className="text-content-primary">
                 {formatIndonesianDateTime(user.createdAt)}
               </strong>
             </div>
 
-            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
-              <span className="text-slate-400 block mb-1">Profil Terakhir Diperbarui</span>
-              <strong className="text-slate-800 dark:text-slate-200">
+            <div className="p-4 rounded-2xl bg-surface border border-line">
+              <span className="text-content-muted block mb-1">Profil Terakhir Diperbarui</span>
+              <strong className="text-content-primary">
                 {user.profileUpdatedAt
                   ? formatIndonesianDateTime(user.profileUpdatedAt)
                   : "Belum pernah"}
               </strong>
             </div>
 
-            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60">
-              <span className="text-slate-400 block mb-1">Sandi Terakhir Diubah</span>
-              <strong className="text-slate-800 dark:text-slate-200">
+            <div className="p-4 rounded-2xl bg-surface border border-line">
+              <span className="text-content-muted block mb-1">Sandi Terakhir Diubah</span>
+              <strong className="text-content-primary">
                 {user.passwordChangedAt
                   ? formatIndonesianDateTime(user.passwordChangedAt)
                   : "Belum pernah"}

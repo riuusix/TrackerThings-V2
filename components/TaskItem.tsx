@@ -93,11 +93,11 @@ export function TaskItem({ task, onEdit }: TaskItemProps) {
 
   return (
     <div
-      className={`group relative rounded-2xl p-5 sm:p-6 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 shadow-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-md dark:hover:border-slate-700 ${
+      className={`group relative rounded-2xl p-5 sm:p-6 bg-surface-elevated border border-line shadow-xs transition-all duration-200 hover:border-line-strong ${
         task.status === "Selesai"
-          ? "opacity-60 bg-slate-50/50 dark:bg-slate-900/30 border-slate-200/60 dark:border-slate-800/60"
+          ? "opacity-60 bg-surface/40 border-line-subtle"
           : isUrgent
-          ? "border-rose-200/90 dark:border-rose-800/60 bg-gradient-to-r from-rose-50/30 dark:from-rose-950/20 to-white dark:to-slate-900/60"
+          ? "border-rose-300 dark:border-rose-800/60 bg-rose-50/20 dark:bg-rose-950/10"
           : ""
       }`}
     >
@@ -112,12 +112,12 @@ export function TaskItem({ task, onEdit }: TaskItemProps) {
               {task.prioritas}
             </span>
 
-            <span className="text-[11px] px-2.5 py-0.5 rounded-full font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200/80 dark:border-slate-700">
+            <span className="text-[11px] px-2.5 py-0.5 rounded-full font-medium bg-surface text-content-secondary border border-line-subtle">
               {task.jenis}
             </span>
 
             {task.jadwal?.namaMatkul && (
-              <span className="text-[11px] px-2.5 py-0.5 rounded-full font-semibold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/40 truncate max-w-[220px]">
+              <span className="text-[11px] px-2.5 py-0.5 rounded-full font-semibold bg-accent-muted text-accent border border-line-subtle truncate max-w-[220px]">
                 {task.jadwal.namaMatkul}
               </span>
             )}
@@ -126,8 +126,8 @@ export function TaskItem({ task, onEdit }: TaskItemProps) {
           <h4
             className={`text-base sm:text-lg font-bold tracking-tight transition-colors ${
               task.status === "Selesai"
-                ? "line-through text-slate-400 dark:text-slate-600"
-                : "text-slate-800 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400"
+                ? "line-through text-content-muted"
+                : "text-content-primary group-hover:text-accent"
             }`}
           >
             {task.namaTugas}
@@ -158,7 +158,7 @@ export function TaskItem({ task, onEdit }: TaskItemProps) {
             onClick={() => onEdit(task)}
             disabled={isPending || isDeleting}
             title="Edit Tugas"
-            className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200/80 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-700 transition-all active:scale-95 disabled:opacity-50"
+            className="p-2 rounded-xl bg-surface hover:bg-surface-hover text-content-secondary hover:text-content-primary border border-line transition-all active:scale-95 disabled:opacity-50"
           >
             <Edit2 className="w-4 h-4" />
           </button>
@@ -177,8 +177,8 @@ export function TaskItem({ task, onEdit }: TaskItemProps) {
       </div>
 
       {/* Deadline Info */}
-      <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-500 dark:text-slate-400 mb-3.5">
-        <Calendar className="w-4 h-4 text-slate-400 dark:text-slate-500" />
+      <div className="flex items-center gap-2 text-xs sm:text-sm text-content-secondary mb-3.5">
+        <Calendar className="w-4 h-4 text-content-muted" />
         <span>Deadline: {formatIndonesianDate(task.deadline)}</span>
         {isPast ? (
           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/50">
@@ -193,13 +193,13 @@ export function TaskItem({ task, onEdit }: TaskItemProps) {
       </div>
 
       {/* Interactive Progress Slider */}
-      <div className="space-y-1.5 pt-2.5 border-t border-slate-100 dark:border-slate-800">
+      <div className="space-y-1.5 pt-2.5 border-t border-line">
         <div className="flex items-center justify-between text-xs font-semibold">
-          <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1.5 font-medium">
+          <span className="text-content-secondary flex items-center gap-1.5 font-medium">
             Progress Pengerjaan
-            {isPending && <Loader2 className="w-3 h-3 animate-spin text-blue-600 dark:text-blue-400" />}
+            {isPending && <Loader2 className="w-3 h-3 animate-spin text-accent" />}
           </span>
-          <span className="text-blue-600 dark:text-blue-400 tracking-wide font-bold">{progress}%</span>
+          <span className="text-accent tracking-wide font-bold">{progress}%</span>
         </div>
 
         <div className="relative flex items-center">
@@ -210,7 +210,7 @@ export function TaskItem({ task, onEdit }: TaskItemProps) {
             step="5"
             value={progress}
             onChange={(e) => handleProgressChange(parseInt(e.target.value, 10))}
-            className="w-full h-2 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-600 dark:accent-blue-500 hover:accent-blue-700 transition-all"
+            className="w-full h-2 bg-surface rounded-lg appearance-none cursor-pointer accent-accent transition-all"
           />
         </div>
       </div>

@@ -62,16 +62,16 @@ export function KelasPenggantiModal({
         )}
 
         <div>
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+          <label className="block text-xs font-bold text-content-primary uppercase tracking-wider mb-1.5">
             Mata Kuliah
           </label>
           <select
             name="id_jadwal"
             required
-            className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-slate-100 text-sm"
+            className="w-full px-4 py-2.5 rounded-xl bg-surface border border-line focus:outline-none focus:border-accent text-content-primary text-sm"
           >
             {courses.map((c) => (
-              <option key={c.id} value={c.id} className="dark:bg-slate-800">
+              <option key={c.id} value={c.id} className="bg-surface-elevated text-content-primary">
                 {c.namaMatkul}
               </option>
             ))}
@@ -79,20 +79,20 @@ export function KelasPenggantiModal({
         </div>
 
         <div>
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+          <label className="block text-xs font-bold text-content-primary uppercase tracking-wider mb-1.5">
             Tanggal Kelas Pengganti
           </label>
           <input
             type="date"
             name="tanggal"
             required
-            className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-slate-100 text-sm"
+            className="w-full px-4 py-2.5 rounded-xl bg-surface border border-line focus:outline-none focus:border-accent text-content-primary text-sm"
           />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-bold text-content-primary uppercase tracking-wider mb-1.5">
               Waktu Mulai
             </label>
             <input
@@ -100,12 +100,12 @@ export function KelasPenggantiModal({
               name="waktu_mulai"
               required
               defaultValue="08:00"
-              className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-slate-100 text-sm"
+              className="w-full px-4 py-2.5 rounded-xl bg-surface border border-line focus:outline-none focus:border-accent text-content-primary text-sm"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-bold text-content-primary uppercase tracking-wider mb-1.5">
               Waktu Selesai
             </label>
             <input
@@ -113,41 +113,41 @@ export function KelasPenggantiModal({
               name="waktu_selesai"
               required
               defaultValue="09:40"
-              className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-slate-100 text-sm"
+              className="w-full px-4 py-2.5 rounded-xl bg-surface border border-line focus:outline-none focus:border-accent text-content-primary text-sm"
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+          <label className="block text-xs font-bold text-content-primary uppercase tracking-wider mb-1.5">
             Lokasi / Ruangan (Opsional)
           </label>
           <input
             type="text"
             name="lokasi"
             placeholder="Contoh: Lab Komputer 2 atau Zoom"
-            className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 text-sm"
+            className="w-full px-4 py-2.5 rounded-xl bg-surface border border-line focus:outline-none focus:border-accent text-content-primary placeholder:text-content-muted text-sm"
           />
         </div>
 
         <div>
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+          <label className="block text-xs font-bold text-content-primary uppercase tracking-wider mb-1.5">
             Catatan Tambahan (Opsional)
           </label>
           <textarea
             name="catatan"
             rows={2}
             placeholder="Materi pengganti minggu lalu..."
-            className="w-full px-4 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 text-sm resize-none"
+            className="w-full px-4 py-2.5 rounded-xl bg-surface border border-line focus:outline-none focus:border-accent text-content-primary placeholder:text-content-muted text-sm resize-none"
           />
         </div>
 
-        <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+        <div className="flex items-center justify-end gap-3 pt-3 border-t border-line">
           <button
             type="button"
             onClick={onClose}
             disabled={isPending}
-            className="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
+            className="px-4 py-2.5 rounded-xl text-sm font-semibold text-content-secondary hover:text-content-primary hover:bg-surface transition-colors disabled:opacity-50"
           >
             Batal
           </button>
@@ -155,7 +155,7 @@ export function KelasPenggantiModal({
             type="submit"
             disabled={isPending}
             aria-busy={isPending}
-            className="flex items-center justify-center gap-2 px-5 py-2.5 min-w-[210px] rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-600/20 transition-all disabled:opacity-50 active:scale-95"
+            className="flex items-center justify-center gap-2 px-5 py-2.5 min-w-[210px] rounded-xl text-sm font-semibold text-accent-text bg-accent hover:bg-accent-hover shadow-xs transition-all disabled:opacity-50 active:scale-95"
           >
             {isPending ? (
               <>

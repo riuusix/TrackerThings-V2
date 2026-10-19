@@ -18,7 +18,7 @@ export default async function AdminLayout({
   // Strict server-side verification from trusted database record
   const currentUserData = await prisma.user.findUnique({
     where: { id: session.userId },
-    select: { username: true, email: true, role: true },
+    select: { username: true, email: true, role: true, profilePictureUrl: true },
   });
 
   const userRole = (currentUserData?.role || "").toLowerCase();
@@ -27,10 +27,11 @@ export default async function AdminLayout({
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+    <div className="min-h-screen bg-canvas text-content-primary flex flex-col transition-colors duration-200">
       <AdminNavbar
         currentUsername={currentUserData?.username || session.username}
         currentUserEmail={currentUserData?.email || session.email}
+        profilePictureUrl={currentUserData?.profilePictureUrl}
       />
       <main className="flex-1">{children}</main>
     </div>
