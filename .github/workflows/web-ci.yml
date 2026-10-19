@@ -1,0 +1,69 @@
+name: Web CI (Type Check, Deterministic Tests, Build)
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Typecheck, Test & Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+        env:
+          # Dummy connection strings for offline schema compilation and client generation
+          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/trackerthings"
+          DIRECT_URL: "postgresql://postgres:postgres@localhost:5432/trackerthings"
+
+      - name: TypeScript Static Typecheck
+        run: npx tsc --noEmit
+
+      - name: Run Deterministic Multi-Timezone & Unit Tests
+        run: node tests/date_timezone_audit.test.js
+
+      - name: Run Timezone Regression Suite (M0)
+        run: node --test tests/test_timezone_regression.test.js
+
+      - name: Run Architecture & Connectivity Resilience Tests
+        run: node --test tests/test_404_and_connectivity_resilience.test.js
+
+      - name: Run Production Import Reliability & OCR Fallback Tests
+        run: node --test tests/test_phase7e_production_reliability.test.js
+
+      - name: Run Schedule Parser Baseline Benchmark Tests
+        run: node --test tests/test_schedule_benchmark.test.js
+
+      - name: Run Avatar Storage Integration Tests
+        run: node --test tests/test_avatar_upload_integration.test.js
+
+      - name: Build Production Next.js Bundle
+        run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
+          # Dummy connection strings for Next.js build-time static page generation
+          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/trackerthings"
+          DIRECT_URL: "postgresql://postgres:postgres@localhost:5432/trackerthings"
+          JWT_SECRET: "ci_dummy_jwt_secret_key_minimum_32_characters_long_for_build!"

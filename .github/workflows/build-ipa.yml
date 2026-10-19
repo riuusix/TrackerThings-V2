@@ -32,6 +32,20 @@ jobs:
           brew install xtool-org/tap/xtool
           xtool --help
 
+      - name: Inject Build Number & Source Traceability
+        run: |
+          COMMIT_SHA="$(git rev-parse --short HEAD)"
+          BUILD_NUM="${{ github.run_number }}"
+          echo "Injecting build metadata: Build #${BUILD_NUM}, Commit ${COMMIT_SHA}"
+
+          # Update CFBundleVersion in Info.plist used by xtool and app bundle packaging
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${BUILD_NUM}" xtool/assets/Info.plist
+
+          # Update CURRENT_PROJECT_VERSION in Xcode project file
+          sed -i '' "s/CURRENT_PROJECT_VERSION = [0-9]*;/CURRENT_PROJECT_VERSION = ${BUILD_NUM};/g" TrackerThings.xcodeproj/project.pbxproj
+
+          echo "Traceability updated: CFBundleVersion=${BUILD_NUM}, commit=${COMMIT_SHA}"
+
       - name: Build IPA
         run: |
           xtool dev build --ipa --configuration release
@@ -93,7 +107,7 @@ jobs:
       - name: Upload IPA artifact
         uses: actions/upload-artifact@v4
         with:
-          name: TrackerThings-IPA
+          name: TrackerThings-iOS-v1.0.0-build${{ github.run_number }}-${{ github.sha }}
           path: dist/TrackerThings.ipa
           if-no-files-found: error
           retention-days: 7
