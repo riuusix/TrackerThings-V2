@@ -83,7 +83,7 @@ public actor NetworkService: NetworkServiceProtocol {
 
     public init(
         baseURL: URL? = nil,
-        urlSession: URLSession = .shared
+        urlSession: URLSession? = nil
     ) {
         if let customURL = baseURL {
             self.baseURL = customURL
@@ -91,7 +91,15 @@ public actor NetworkService: NetworkServiceProtocol {
             self.baseURL = AppConfig.resolveActiveServerURL()
         }
 
-        self.urlSession = urlSession
+        if let customSession = urlSession {
+            self.urlSession = customSession
+        } else {
+            let config = URLSessionConfiguration.default
+            config.timeoutIntervalForRequest = 15.0
+            config.timeoutIntervalForResource = 30.0
+            config.waitsForConnectivity = false
+            self.urlSession = URLSession(configuration: config)
+        }
 
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom { decoder in
@@ -187,6 +195,41 @@ public actor NetworkService: NetworkServiceProtocol {
         return URL(string: fullString)
     }
 
+    private func executeDataTask(for request: URLRequest, isIdempotent: Bool) async throws -> (Data, URLResponse) {
+        var attempts = 0
+        let maxAttempts = isIdempotent ? 2 : 1
+
+        while true {
+            attempts += 1
+            do {
+                return try await urlSession.data(for: request)
+            } catch let urlError as URLError {
+                if attempts < maxAttempts && (urlError.code == .networkConnectionLost || urlError.code == .timedOut) {
+                    try? await Task.sleep(nanoseconds: 500_000_000)
+                    continue
+                }
+                switch urlError.code {
+                case .cancelled:
+                    throw AppError.cancelled
+                case .timedOut:
+                    throw AppError.timeout("Waktu permintaan habis (timeout). Server membutuhkan waktu terlalu lama untuk merespons.")
+                case .notConnectedToInternet, .networkConnectionLost, .dataNotAllowed, .internationalRoamingOff:
+                    throw AppError.offline("Koneksi internet terputus atau tidak tersedia. Periksa koneksi jaringan perangkat Anda.")
+                case .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed:
+                    throw AppError.serverUnreachable("Tidak dapat menghubungi server TrackerThings. Pastikan server aktif dan URL server dapat diakses.")
+                default:
+                    throw AppError.networkConnection(urlError.localizedDescription)
+                }
+            } catch is CancellationError {
+                throw AppError.cancelled
+            } catch let appError as AppError {
+                throw appError
+            } catch {
+                throw AppError.unknown(error.localizedDescription)
+            }
+        }
+    }
+
     public func request<T: Decodable & Sendable>(
         endpoint: String,
         method: String = "GET",
@@ -199,6 +242,7 @@ public actor NetworkService: NetworkServiceProtocol {
 
         var request = URLRequest(url: url)
         request.httpMethod = method
+        request.timeoutInterval = 15.0
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
@@ -216,7 +260,8 @@ public actor NetworkService: NetworkServiceProtocol {
             request.httpBody = body
         }
 
-        let (data, response) = try await urlSession.data(for: request)
+        let isIdempotent = (method == "GET" || method == "HEAD")
+        let (data, response) = try await executeDataTask(for: request, isIdempotent: isIdempotent)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw NetworkError.unknown("Respon tidak valid dari server.")
@@ -287,6 +332,7 @@ public actor NetworkService: NetworkServiceProtocol {
         let boundary = "Boundary-\(UUID().uuidString)"
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        request.timeoutInterval = 30.0
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
@@ -308,7 +354,7 @@ public actor NetworkService: NetworkServiceProtocol {
 
         request.httpBody = body
 
-        let (data, response) = try await urlSession.data(for: request)
+        let (data, response) = try await executeDataTask(for: request, isIdempotent: false)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw NetworkError.unknown("Respon tidak valid dari server.")
@@ -370,4 +416,3 @@ public actor NetworkService: NetworkServiceProtocol {
         return nil
     }
 }
-

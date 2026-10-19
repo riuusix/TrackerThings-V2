@@ -26,24 +26,29 @@ public final class AdminViewModel {
         errorMessage = nil
         isUnauthorized = false
 
+        defer {
+            if currentLoadId == loadId {
+                self.isLoading = false
+            }
+        }
+
         do {
             let data = try await adminService.fetchDashboardMetrics()
             guard currentLoadId == loadId else { return }
             self.metrics = data
-            self.isLoading = false
         } catch let appError as AppError {
             guard currentLoadId == loadId else { return }
-            self.isLoading = false
+            if appError.isCancellation { return }
             if case .serverError(let code, _) = appError, code == 403 {
                 self.isUnauthorized = true
                 self.errorMessage = "Akses ditolak: Anda tidak memiliki hak akses administrator."
             } else {
-                self.errorMessage = appError.localizedDescription
+                self.errorMessage = appError.errorDescription ?? appError.localizedDescription
             }
         } catch {
             guard currentLoadId == loadId else { return }
-            self.isLoading = false
-            self.errorMessage = error.localizedDescription
+            if error is CancellationError { return }
+            self.errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
     }
 

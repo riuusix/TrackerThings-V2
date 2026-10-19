@@ -1,6 +1,7 @@
 import SwiftUI
 
 public struct RootTabView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(AuthViewModel.self) private var authViewModel
     @State private var dashboardViewModel = DashboardViewModel()
     @State private var courseViewModel = CourseViewModel()
@@ -62,6 +63,37 @@ public struct RootTabView: View {
                 navigateToDestination(dest)
             }
         }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                Task {
+                    await refreshActiveTabSafely()
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .connectivityRestored)) { _ in
+            Task {
+                await refreshActiveTabSafely()
+            }
+        }
+    }
+
+    private func refreshActiveTabSafely() async {
+        switch selectedTab {
+        case 0:
+            if !dashboardViewModel.isLoading {
+                await dashboardViewModel.loadDashboardData()
+            }
+        case 1:
+            if !courseViewModel.isLoading {
+                await courseViewModel.fetchCourses()
+            }
+        case 2:
+            if !examViewModel.isLoading {
+                await examViewModel.fetchExams()
+            }
+        default:
+            break
+        }
     }
 
     private func handleDeepLink(url: URL) {
@@ -93,4 +125,3 @@ public struct RootTabView: View {
         }
     }
 }
-

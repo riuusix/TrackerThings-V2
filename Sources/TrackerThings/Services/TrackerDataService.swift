@@ -75,21 +75,14 @@ public actor TrackerDataService: TrackerDataServiceProtocol {
 
     public func getTugasList() async throws -> [TugasItem] {
         do {
-            let res: TasksResponse = try await network.request(endpoint: "tugas", method: "GET")
-            LocalCacheService.shared.save(res.tasks, forKey: LocalCacheService.keyTugas)
-            return res.tasks
+            let items: [TugasItem] = try await network.request(endpoint: "tugas", method: "GET")
+            LocalCacheService.shared.save(items, forKey: LocalCacheService.keyTugas)
+            return items
         } catch {
-            // Coba parsing langsung sebagai [TugasItem]
-            do {
-                let items: [TugasItem] = try await network.request(endpoint: "tugas", method: "GET")
-                LocalCacheService.shared.save(items, forKey: LocalCacheService.keyTugas)
-                return items
-            } catch let primaryError {
-                if let cached: [TugasItem] = LocalCacheService.shared.load(forKey: LocalCacheService.keyTugas) {
-                    return cached
-                }
-                throw primaryError
+            if let cached: [TugasItem] = LocalCacheService.shared.load(forKey: LocalCacheService.keyTugas) {
+                return cached
             }
+            throw error
         }
     }
 

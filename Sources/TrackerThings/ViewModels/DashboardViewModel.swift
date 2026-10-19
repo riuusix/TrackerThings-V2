@@ -93,6 +93,12 @@ public final class DashboardViewModel {
         isLoading = true
         errorMessage = nil
 
+        defer {
+            if self.currentLoadId == loadId {
+                self.isLoading = false
+            }
+        }
+
         do {
             async let fetchCourses = dataService.getJadwalList()
             async let fetchTasks = dataService.getTugasList()
@@ -131,12 +137,12 @@ public final class DashboardViewModel {
                 tasks: loadedTasks,
                 exams: loadedExams
             )
-
-            isLoading = false
         } catch {
             guard loadId == self.currentLoadId else { return }
-            errorMessage = error.localizedDescription
-            isLoading = false
+            if error is CancellationError || (error as? AppError)?.isCancellation == true {
+                return
+            }
+            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             // Jika sudah ada data lama (pull-to-refresh gagal), pertahankan data lama dan beri tahu user
             if !courses.isEmpty {
                 showToast("Gagal memperbarui data terkini. Menampilkan data tersimpan.", severity: .warning)

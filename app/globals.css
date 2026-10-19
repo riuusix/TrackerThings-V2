@@ -85,3 +85,48 @@ body {
 .dark ::-webkit-scrollbar-thumb:hover {
   background: rgba(161, 161, 170, 0.6);
 }
+
+/* TrackerThings Logo Loading Animation (Design System Calm Soft-Blue) */
+@keyframes logoBreathe {
+  0%, 100% {
+    transform: scale(0.97);
+    opacity: 0.92;
+  }
+  50% {
+    transform: scale(1.02);
+    opacity: 1;
+  }
+}
+
+@keyframes logoPulseRing {
+  0% {
+    transform: scale(0.96);
+    opacity: 0.45;
+  }
+  50% {
+    transform: scale(1.18);
+    opacity: 0.10;
+  }
+  100% {
+    transform: scale(0.96);
+    opacity: 0.45;
+  }
+}
+
+.animate-logo-breathe {
+  animation: logoBreathe 2s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+.animate-logo-ring {
+  animation: logoPulseRing 2s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-logo-breathe,
+  .animate-logo-ring {
+    animation: none !important;
+    transform: none !important;
+  }
+}

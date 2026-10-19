@@ -202,6 +202,7 @@ public struct BrandLogoView: View {
     private let cornerRadius: CGFloat
     private let showShadow: Bool
     private let isAnimated: Bool
+    private let loop: Bool
 
     // Progress tunggal dinamis: diinisialisasi 0.0 jika animasi aktif agar tidak ada flash logo final
     @State private var animationProgress: CGFloat
@@ -211,12 +212,14 @@ public struct BrandLogoView: View {
         size: CGFloat = 64,
         cornerRadius: CGFloat? = nil,
         showShadow: Bool = true,
-        isAnimated: Bool = false
+        isAnimated: Bool = false,
+        loop: Bool = false
     ) {
         self.size = size
         self.cornerRadius = cornerRadius ?? (size * 0.24)
         self.showShadow = showShadow
         self.isAnimated = isAnimated
+        self.loop = loop
         self._animationProgress = State(initialValue: isAnimated ? 0.0 : 1.0)
     }
 
@@ -251,18 +254,23 @@ public struct BrandLogoView: View {
         .accessibilityLabel("Logo TrackerThings")
         .accessibilityAddTraits(.isImage)
         .task {
-            guard isAnimated, !reduceMotion, !hasCompletedAnimation else { return }
+            guard isAnimated, !reduceMotion else { return }
 
-            withAnimation(.easeInOut(duration: 1.15)) {
-                animationProgress = 1.0
-            }
+            while !Task.isCancelled {
+                animationProgress = 0.0
+                withAnimation(.easeInOut(duration: 1.15)) {
+                    animationProgress = 1.0
+                }
 
-            do {
-                try await Task.sleep(nanoseconds: 1_200_000_000)
-                guard !Task.isCancelled else { return }
-                hasCompletedAnimation = true
-            } catch {
-                // Task dibatalkan ketika view di-dismiss (misal: navigasi selesai)
+                do {
+                    try await Task.sleep(nanoseconds: 1_800_000_000)
+                    guard loop, !Task.isCancelled else {
+                        hasCompletedAnimation = true
+                        break
+                    }
+                } catch {
+                    break
+                }
             }
         }
     }

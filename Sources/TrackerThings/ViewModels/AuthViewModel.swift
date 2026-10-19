@@ -69,31 +69,31 @@ public final class AuthViewModel {
             return
         }
 
-        // Cek konektivitas jaringan sebelum login pertama kali
-        if !NetworkMonitor.shared.isConnected {
-            errorMessage = "Koneksi internet tidak tersedia. Login pertama kali memerlukan koneksi server aktif."
-            return
-        }
-
         isLoading = true
         errorMessage = nil
+        defer { isLoading = false }
 
         do {
             let user = try await authService.login(username: username, password: password)
             currentUser = user
             isAuthenticated = true
-            isLoading = false
         } catch let err as AppError {
-            isLoading = false
+            if err.isCancellation { return }
             switch err {
+            case .offline:
+                errorMessage = "Koneksi internet tidak tersedia. Periksa jaringan Anda lalu coba lagi."
+            case .timeout:
+                errorMessage = "Waktu permintaan habis (timeout). Server membutuhkan waktu terlalu lama untuk merespons."
+            case .serverUnreachable:
+                errorMessage = "Tidak dapat menghubungi server TrackerThings. Pastikan backend aktif dan alamat server benar."
             case .networkConnection, .invalidURL:
                 errorMessage = "Gagal terhubung ke server. Periksa koneksi internet Anda lalu coba lagi."
             default:
                 errorMessage = err.errorDescription ?? "Login gagal. Periksa username dan password Anda."
             }
         } catch {
-            isLoading = false
-            errorMessage = error.localizedDescription
+            if error is CancellationError { return }
+            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
     }
 

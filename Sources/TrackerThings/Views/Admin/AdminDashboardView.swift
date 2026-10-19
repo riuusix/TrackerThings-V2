@@ -20,13 +20,12 @@ public struct AdminDashboardView: View {
                         // MARK: - Daftar Pengguna Terbaru
                         recentUsersSection(users: metrics.recentUsers)
                     } else if viewModel.isLoading {
-                        VStack(spacing: 12) {
-                            ProgressView()
-                                .scaleEffect(1.2)
-                            Text("Memuat metrik sistem...")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
+                        BrandLoadingView(
+                            message: "Memuat metrik sistem...",
+                            size: 56,
+                            isFullScreen: false,
+                            loop: true
+                        )
                         .frame(maxWidth: .infinity, minHeight: 250)
                     } else if let error = viewModel.errorMessage {
                         errorStateView(message: error)

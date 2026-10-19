@@ -1,6 +1,10 @@
 import Foundation
 import Network
 
+public extension Notification.Name {
+    static let connectivityRestored = Notification.Name("TrackerThings.connectivityRestored")
+}
+
 /// Monitor status konektivitas jaringan secara reaktif (NWPathMonitor)
 /// Menyediakan publisher dan observable state untuk UI dan service layer.
 @Observable
@@ -34,6 +38,8 @@ public final class NetworkMonitor {
 
     private func handlePathUpdate(_ path: NWPath) {
         let satisfied = (path.status == .satisfied)
+        let wasConnected = self.isConnected
+
         self.isConnected = satisfied
         self.isConstrained = path.isConstrained
 
@@ -46,13 +52,21 @@ public final class NetworkMonitor {
         } else {
             self.connectionType = .unknown
         }
+
+        // Ketika perangkat kembali mendapatkan koneksi, kirim notifikasi agar UI/ViewModel dapat menyinkronkan data dengan aman
+        if !wasConnected && satisfied {
+            NotificationCenter.default.post(name: .connectivityRestored, object: nil)
+        }
     }
 
     /// Helper untuk memeriksa apakah server/jaringan dapat dijangkau
     public func setSimulatedOffline(_ offline: Bool) {
         #if DEBUG
+        let wasConnected = self.isConnected
         self.isConnected = !offline
+        if !wasConnected && !offline {
+            NotificationCenter.default.post(name: .connectivityRestored, object: nil)
+        }
         #endif
     }
 }
-

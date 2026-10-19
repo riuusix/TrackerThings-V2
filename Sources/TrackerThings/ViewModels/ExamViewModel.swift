@@ -31,6 +31,12 @@ public final class ExamViewModel {
         isLoading = true
         errorMessage = nil
 
+        defer {
+            if currentLoadId == loadId {
+                isLoading = false
+            }
+        }
+
         do {
             async let examTask = dataService.getUjianList()
             async let courseTask = dataService.getJadwalList()
@@ -38,11 +44,12 @@ public final class ExamViewModel {
             guard currentLoadId == loadId else { return }
             exams = loadedExams.sorted { $0.tanggal < $1.tanggal }
             courses = loadedCourses
-            isLoading = false
         } catch {
             guard currentLoadId == loadId else { return }
-            errorMessage = error.localizedDescription
-            isLoading = false
+            if error is CancellationError || (error as? AppError)?.isCancellation == true {
+                return
+            }
+            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             if !exams.isEmpty {
                 showToast("Gagal memperbarui jadwal ujian. Menampilkan data tersimpan.", severity: .warning)
             }

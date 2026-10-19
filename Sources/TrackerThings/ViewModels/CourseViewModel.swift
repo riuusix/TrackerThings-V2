@@ -43,15 +43,22 @@ public final class CourseViewModel {
         isLoading = true
         errorMessage = nil
 
+        defer {
+            if currentLoadId == loadId {
+                isLoading = false
+            }
+        }
+
         do {
             let loadedCourses = try await dataService.getJadwalList()
             guard currentLoadId == loadId else { return }
             courses = loadedCourses
-            isLoading = false
         } catch {
             guard currentLoadId == loadId else { return }
-            errorMessage = error.localizedDescription
-            isLoading = false
+            if error is CancellationError || (error as? AppError)?.isCancellation == true {
+                return
+            }
+            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
             if !courses.isEmpty {
                 showToast("Gagal memperbarui daftar kuliah. Menampilkan data tersimpan.", severity: .warning)
             }
