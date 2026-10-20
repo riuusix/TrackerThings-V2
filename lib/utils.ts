@@ -122,9 +122,49 @@ export function formatIndonesianDateTime(dateInput: Date | string): string {
  * dengan tanggal target kalender (YYYY-MM-DD).
  * Tidak terpengaruh pergeseran jam atau offset UTC.
  */
-export function getDaysDifference(targetDate: Date | string): number {
-  const now = new Date();
-  const todayLocal = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+export function getDaysDifference(
+  targetDate: Date | string,
+  referenceDate?: Date | string | null
+): number {
+  let refYear: number, refMonth: number, refDay: number;
+  if (!referenceDate) {
+    const now = new Date();
+    refYear = now.getFullYear();
+    refMonth = now.getMonth();
+    refDay = now.getDate();
+  } else if (typeof referenceDate === "string") {
+    const match = referenceDate.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+      refYear = parseInt(match[1], 10);
+      refMonth = parseInt(match[2], 10) - 1;
+      refDay = parseInt(match[3], 10);
+    } else {
+      const d = new Date(referenceDate);
+      refYear = d.getFullYear();
+      refMonth = d.getMonth();
+      refDay = d.getDate();
+    }
+  } else if (referenceDate instanceof Date) {
+    if (
+      referenceDate.getUTCHours() === 0 &&
+      referenceDate.getUTCMinutes() === 0 &&
+      referenceDate.getUTCSeconds() === 0 &&
+      referenceDate.getUTCMilliseconds() === 0
+    ) {
+      refYear = referenceDate.getUTCFullYear();
+      refMonth = referenceDate.getUTCMonth();
+      refDay = referenceDate.getUTCDate();
+    } else {
+      refYear = referenceDate.getFullYear();
+      refMonth = referenceDate.getMonth();
+      refDay = referenceDate.getDate();
+    }
+  } else {
+    const now = new Date();
+    refYear = now.getFullYear();
+    refMonth = now.getMonth();
+    refDay = now.getDate();
+  }
 
   let targetYear: number, targetMonth: number, targetDay: number;
   if (typeof targetDate === "string") {
@@ -139,15 +179,17 @@ export function getDaysDifference(targetDate: Date | string): number {
       targetMonth = d.getMonth();
       targetDay = d.getDate();
     }
-  } else {
+  } else if (targetDate instanceof Date) {
     targetYear = targetDate.getUTCFullYear();
     targetMonth = targetDate.getUTCMonth();
     targetDay = targetDate.getUTCDate();
+  } else {
+    return 0;
   }
 
-  const targetLocal = new Date(targetYear, targetMonth, targetDay);
-  const diffMs = targetLocal.getTime() - todayLocal.getTime();
-  return Math.round(diffMs / (1000 * 60 * 60 * 24));
+  const targetUtc = Date.UTC(targetYear, targetMonth, targetDay);
+  const refUtc = Date.UTC(refYear, refMonth, refDay);
+  return Math.round((targetUtc - refUtc) / (1000 * 60 * 60 * 24));
 }
 
 export function sanitizeRedirectPath(path?: string | null, fallback = "/dashboard"): string {
@@ -302,19 +344,21 @@ export function formatTimeFromDate(dateInput?: Date | string | null, fallback = 
  * mengasumsikan atau meng-hardcode zona waktu tertentu (seperti WIB / Asia/Jakarta).
  */
 export function parseDateOnly(dateStr?: string | Date | null): Date {
-  if (!dateStr) return new Date();
+  const getTodayUtcMidnight = () => {
+    const now = new Date();
+    return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  };
+
+  if (!dateStr) return getTodayUtcMidnight();
 
   if (dateStr instanceof Date) {
-    if (isNaN(dateStr.getTime())) return new Date();
+    if (isNaN(dateStr.getTime())) return getTodayUtcMidnight();
     return new Date(Date.UTC(dateStr.getUTCFullYear(), dateStr.getUTCMonth(), dateStr.getUTCDate()));
   }
 
   const trimmed = String(dateStr).trim();
-  if (!trimmed) return new Date();
+  if (!trimmed) return getTodayUtcMidnight();
 
-  // Ekstrak komponen tahun, bulan, tanggal (YYYY-MM-DD)
-  // Mendukung format kalender murni "YYYY-MM-DD", datetime "YYYY-MM-DDTHH:mm",
-  // serta format ISO dengan offset "YYYY-MM-DDT...".
   const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (match) {
     const y = parseInt(match[1], 10);
@@ -324,5 +368,6 @@ export function parseDateOnly(dateStr?: string | Date | null): Date {
   }
 
   const d = new Date(trimmed);
-  return isNaN(d.getTime()) ? new Date() : d;
+  if (isNaN(d.getTime())) return getTodayUtcMidnight();
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 }

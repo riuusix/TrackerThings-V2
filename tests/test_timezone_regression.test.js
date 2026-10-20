@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import cp from "node:child_process";
-import { getDaysDifference } from "../lib/utils.ts";
+import { getDaysDifference, parseDateOnly } from "../lib/utils.ts";
 
 describe("Timezone & Deadline Regression Suite (M0 Validation)", () => {
   describe("1. Existing getDaysDifference behavior with ambient runtime clock", () => {
@@ -123,6 +123,94 @@ describe("Timezone & Deadline Regression Suite (M0 Validation)", () => {
       const diff = Math.round((dTgt.getTime() - dRef.getTime()) / 86400000);
 
       assert.equal(diff, 5, "Explicit reference date eliminates all ambient timezone drift");
+    });
+  });
+
+  describe("4. Multi-Timezone & Calendar Boundary Invariance (M2 Validation)", () => {
+    const timezones = ["Asia/Jakarta", "Asia/Tokyo", "America/New_York", "UTC"];
+
+    function runInTimezone(targetDate, refDate, tz) {
+      const script = `
+        import('./lib/utils.ts').then(({ getDaysDifference }) => {
+          const diff = getDaysDifference('${targetDate}', '${refDate}');
+          console.log(JSON.stringify({ tz: '${tz}', diff }));
+        });
+      `;
+      const out = cp.execSync("node --input-type=module", {
+        input: script,
+        env: { ...process.env, TZ: tz },
+      }).toString();
+      const lines = out.trim().split("\n").map(l => l.trim()).filter(Boolean);
+      const jsonLine = lines.find(l => l.startsWith("{") && l.endsWith("}"));
+      return JSON.parse(jsonLine).diff;
+    }
+
+    it("evaluates exact calendar difference identically across UTC+7, UTC+9, UTC-5, and UTC", () => {
+      for (const tz of timezones) {
+        // Same day
+        assert.equal(runInTimezone("2026-10-20", "2026-10-20", tz), 0, `Failed on ${tz} for same day`);
+        // Tomorrow
+        assert.equal(runInTimezone("2026-10-21", "2026-10-20", tz), 1, `Failed on ${tz} for tomorrow`);
+        // Yesterday
+        assert.equal(runInTimezone("2026-10-19", "2026-10-20", tz), -1, `Failed on ${tz} for yesterday`);
+      }
+    });
+
+    it("handles month boundary transitions identically across all target timezones", () => {
+      for (const tz of timezones) {
+        // Oct 31 -> Nov 1
+        assert.equal(runInTimezone("2026-11-01", "2026-10-31", tz), 1, `Failed on ${tz} for Oct->Nov`);
+        assert.equal(runInTimezone("2026-10-31", "2026-11-01", tz), -1, `Failed on ${tz} for Nov->Oct`);
+      }
+    });
+
+    it("handles year boundary transitions identically across all target timezones", () => {
+      for (const tz of timezones) {
+        // Dec 31, 2026 -> Jan 1, 2027
+        assert.equal(runInTimezone("2027-01-01", "2026-12-31", tz), 1, `Failed on ${tz} for Year transition`);
+        assert.equal(runInTimezone("2026-12-31", "2027-01-01", tz), -1, `Failed on ${tz} for Year transition reverse`);
+      }
+    });
+
+    it("handles leap year (2024) vs non-leap year (2026) boundaries identically", () => {
+      for (const tz of timezones) {
+        // In leap year 2024: Feb 28 to Mar 1 spans 2 days (Feb 29 exists)
+        assert.equal(runInTimezone("2024-03-01", "2024-02-28", tz), 2, `Failed on ${tz} for 2024 leap year`);
+        // In non-leap year 2026: Feb 28 to Mar 1 spans 1 day
+        assert.equal(runInTimezone("2026-03-01", "2026-02-28", tz), 1, `Failed on ${tz} for 2026 non-leap year`);
+      }
+    });
+  });
+
+  describe("5. parseDateOnly UTC Midnight Consistency Guarantee (M2)", () => {
+    it("guarantees every parsed date is anchored to exact UTC midnight (00:00:00.000Z)", () => {
+      const inputs = [
+        "2026-10-20",
+        "2026-10-20T14:30",
+        "2026-10-20T00:00:00.000Z",
+        "2026-10-20T23:59:59+07:00",
+        new Date("2026-10-20T00:00:00.000Z"),
+        "",
+        null,
+        undefined,
+        "invalid-date-string",
+      ];
+
+      for (const input of inputs) {
+        const parsed = parseDateOnly(input);
+        assert.ok(parsed instanceof Date, `Expected Date instance for ${input}`);
+        assert.equal(isNaN(parsed.getTime()), false, `Expected valid date for ${input}`);
+        assert.equal(parsed.getUTCHours(), 0, `getUTCHours must be 0 for ${input}`);
+        assert.equal(parsed.getUTCMinutes(), 0, `getUTCMinutes must be 0 for ${input}`);
+        assert.equal(parsed.getUTCSeconds(), 0, `getUTCSeconds must be 0 for ${input}`);
+        assert.equal(parsed.getUTCMilliseconds(), 0, `getUTCMilliseconds must be 0 for ${input}`);
+      }
+    });
+
+    it("preserves exact calendar date when parsing Prisma Date instances", () => {
+      const prismaDate = new Date("2026-10-20T00:00:00.000Z");
+      const parsed = parseDateOnly(prismaDate);
+      assert.equal(parsed.toISOString(), "2026-10-20T00:00:00.000Z");
     });
   });
 });
