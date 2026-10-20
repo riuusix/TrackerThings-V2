@@ -203,6 +203,36 @@ test.describe("Phase 7E: End-to-End Route Execution & Integration Verification S
       assert.equal(res.status, 400);
       assert.equal(json.error, "UNSUPPORTED_FORMAT");
     });
+
+    test("2.3 Image upload producing parsedItems > 0 with needsReview or insufficientForProduction returns HTTP 200 with vision_fallback_eligible: true", async () => {
+      const formData = new FormData();
+      // Client OCR returned an ambiguous row with reversed/invalid time that needs review
+      formData.append(
+        "rawText",
+        "Hari | Mulai | Akhir | Ruang | Kode MK | Kls | Nama MK | SKS\n" +
+        "Senin | 14:00 | 10:00 | Lab RPL | IF3201 | R.01 | Sistem Terdistribusi | 3"
+      );
+      formData.append("fileName", "camera_schedule.png");
+
+      const req = createNextRequest("http://localhost:3000/api/jadwal/import/preview", "POST", formData);
+      const res = await previewPost(req);
+      const json = await res.json();
+
+      assert.equal(res.status, 200);
+      assert.equal(json.success, true);
+      assert.ok(json.data.items.length >= 1, "Must have parsedItems > 0");
+      assert.equal(json.data.requires_review, true, "Must flag requires_review: true");
+      assert.equal(
+        json.data.vision_fallback_eligible,
+        true,
+        "Must offer vision_fallback_eligible: true when items require review or are insufficient"
+      );
+      assert.equal(
+        json.data.insufficient_for_production,
+        true,
+        "Must flag insufficient_for_production: true when items require review"
+      );
+    });
   });
 
   // =========================================================================

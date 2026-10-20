@@ -255,7 +255,10 @@ export async function POST(req: NextRequest) {
     ).length;
     const needsReviewCount = parsedItems.filter((item) => item.needsReview).length;
 
-    const isInsufficient = parsedItems.length === 0 || (Boolean(recognition.insufficientForProduction) && parsedItems.length === 0);
+    const isInsufficient =
+      parsedItems.length === 0 ||
+      Boolean(recognition.insufficientForProduction) ||
+      parsedItems.some((item: any) => item.needsReview);
     const isImageUpload = extractionSource === "client_ocr" || extractionSource === "server_ocr";
     const visionFallbackEligible = isImageUpload && isInsufficient;
 
