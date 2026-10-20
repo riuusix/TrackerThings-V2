@@ -59,6 +59,9 @@ jobs:
       - name: Run Avatar Storage Integration Tests
         run: node --test tests/test_avatar_upload_integration.test.js
 
+      - name: Run Academic Intelligence Tests (M1)
+        run: node --test tests/test_academic_intelligence.test.js
+
       - name: Build Production Next.js Bundle
         run: npm run build
         env:
