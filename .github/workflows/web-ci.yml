@@ -62,6 +62,9 @@ jobs:
       - name: Run Academic Intelligence Tests (M1)
         run: node --test tests/test_academic_intelligence.test.js
 
+      - name: Run Reminder Reliability Tests (M3)
+        run: node --test tests/test_reminder_reliability.test.js
+
       - name: Build Production Next.js Bundle
         run: npm run build
         env:

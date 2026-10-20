@@ -199,6 +199,20 @@ export default async function DashboardPage() {
     }
   }
 
+  for (const e of upcomingExamsRaw) {
+    const daysDiff = getDaysDifference(e.tanggal);
+    if (daysDiff >= 0 && daysDiff <= 2) {
+      notifications.push({
+        id: `exam-${e.id}`,
+        judul: `Ujian ${e.jenisUjian}`,
+        namaMatkul: e.jadwal?.namaMatkul || "",
+        waktu: formatIndonesianDate(e.tanggal),
+        tipe: "Ujian",
+        isUrgent: daysDiff === 0 || daysDiff === 1,
+      });
+    }
+  }
+
   return (
     <DashboardClient
       username={username}
