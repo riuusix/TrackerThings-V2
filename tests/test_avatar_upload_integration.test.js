@@ -11,7 +11,6 @@ import {
   AVATAR_BUCKET_NAME,
   SUPPORTED_AVATAR_TYPES,
 } from "../lib/avatarStorage.ts";
-import { prisma } from "../lib/prisma.ts";
 
 const repoRoot = process.cwd();
 
@@ -198,44 +197,457 @@ describe("Avatar Upload & Storage Integration Tests", () => {
   });
 
   // =========================================================================
-  // 5. Database PostgreSQL RLS Policy Verification
+  // 5. Supabase Storage Migration SQL RLS & Bucket Contract Audit
   // =========================================================================
-  it("verifies storage.objects only allows public SELECT and strictly denies public writes/deletes", async () => {
-    const policies = await prisma.$queryRawUnsafe(`
-      SELECT policyname, cmd, roles
-      FROM pg_policies
-      WHERE schemaname = 'storage' AND tablename = 'objects';
-    `);
 
-    // Verify there are NO public INSERT, UPDATE, or DELETE policies on storage.objects
-    const publicWritePolicies = policies.filter(
-      (p) => ["INSERT", "UPDATE", "DELETE"].includes(p.cmd) && p.roles.includes("public")
-    );
-    assert.equal(
-      publicWritePolicies.length,
-      0,
-      `storage.objects must not grant public write/delete permissions. Found: ${JSON.stringify(publicWritePolicies)}`
-    );
+  /**
+   * Helper to strip SQL single-line (-- ...) and block (/* ... *\/) comments.
+   */
+  function stripSqlComments(sql) {
+    return sql.replace(/--[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
+  }
 
-    // Verify public SELECT policy exists for avatars bucket
-    const publicSelect = policies.find(
-      (p) => p.cmd === "SELECT" && p.roles.includes("public")
+  /**
+   * Balanced parenthesis extractor for specific SQL clauses (e.g. USING (...), WITH CHECK (...)).
+   * Handles arbitrary nesting of parentheses without regular expression recursion limitations.
+   */
+  function extractBalancedClauseContent(text, keyword) {
+    const kwRegex = new RegExp(`\\b${keyword}\\s*\\(`, "i");
+    const kwMatch = text.match(kwRegex);
+    if (!kwMatch || kwMatch.index === undefined) return null;
+    const startParen = text.indexOf("(", kwMatch.index);
+    let depth = 0;
+    for (let i = startParen; i < text.length; i++) {
+      if (text[i] === "(") depth++;
+      else if (text[i] === ")") {
+        depth--;
+        if (depth === 0) {
+          return text.slice(startParen + 1, i).trim();
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Strict validator for the SELECT policy USING condition.
+   * Strips matched outer parentheses and verifies the condition is strictly and
+   * exclusively `bucket_id = 'avatars'`, rejecting any injection or relaxation (e.g. `OR true`, `OR 1=1`).
+   */
+  function isStrictlyAvatarsBucketCondition(condition) {
+    if (!condition) return false;
+    let stripped = condition.trim();
+    while (stripped.startsWith("(") && stripped.endsWith(")")) {
+      let depth = 0;
+      let matchedOuter = false;
+      for (let i = 0; i < stripped.length; i++) {
+        if (stripped[i] === "(") depth++;
+        else if (stripped[i] === ")") {
+          depth--;
+          if (depth === 0) {
+            if (i === stripped.length - 1) matchedOuter = true;
+            break;
+          }
+        }
+      }
+      if (matchedOuter) {
+        stripped = stripped.slice(1, -1).trim();
+      } else {
+        break;
+      }
+    }
+    return /^\s*bucket_id\s*=\s*'avatars'\s*$/i.test(stripped);
+  }
+
+  /**
+   * Domain-specific policy extractor for storage.objects policies in migration SQL.
+   * Note: This is an explicit, hardened auditor tailored to migration 20261020_harden_avatar_storage_rls.sql,
+   * not a general-purpose SQL grammar parser.
+   * Accurately models PostgreSQL RLS semantics:
+   * - If FOR is omitted, PostgreSQL defaults to FOR ALL
+   * - If TO is omitted, PostgreSQL defaults to TO PUBLIC
+   * - Detects and parses both USING and WITH CHECK clauses with balanced parenthesis traversal
+   */
+  function extractStorageObjectsPolicies(cleanSql) {
+    const policyRegex = /CREATE\s+POLICY\s+([\s\S]*?)\s+ON\s+storage\.objects\s+([\s\S]*?);/gi;
+    const policies = [];
+    let match;
+
+    while ((match = policyRegex.exec(cleanSql)) !== null) {
+      const rawName = match[1].trim().replace(/^["']|["']$/g, "");
+      const body = match[2].trim();
+
+      // Extract command: FOR ALL | SELECT | INSERT | UPDATE | DELETE (default is ALL)
+      const forMatch = body.match(/\bFOR\s+(ALL|SELECT|INSERT|UPDATE|DELETE)\b/i);
+      const command = forMatch ? forMatch[1].toUpperCase() : "ALL";
+
+      // Extract roles: TO role1, role2 (default is public)
+      const toMatch = body.match(/\bTO\s+([a-zA-Z0-9_,\s"']+?)(?=\s+(?:USING|WITH\s+CHECK|$))/i);
+      const roles = toMatch
+        ? toMatch[1].split(",").map((r) => r.trim().replace(/^["']|["']$/g, "").toLowerCase()).filter(Boolean)
+        : ["public"];
+
+      const isPublic = roles.some((r) => r === "public" || r === "anon");
+
+      // Extract balanced USING and WITH CHECK clauses
+      const usingClause = extractBalancedClauseContent(body, "USING");
+      const withCheckClause = extractBalancedClauseContent(body, "WITH\\s+CHECK");
+
+      policies.push({
+        name: rawName,
+        command,
+        roles,
+        isPublic,
+        using: usingClause,
+        withCheck: withCheckClause,
+      });
+    }
+
+    return policies;
+  }
+
+  /**
+   * Core auditor for storage.objects RLS policies.
+   */
+  function auditStorageObjectsPolicies(cleanSql) {
+    // 1. Verify required insecure policy drops
+    const requiredDrops = [
+      "Public Insert for Avatars",
+      "Public Update for Avatars",
+      "Public Delete for Avatars",
+      "Allow public uploads for avatars",
+      "Allow public updates for avatars",
+      "Allow public deletes for avatars",
+    ];
+    for (const policyName of requiredDrops) {
+      const dropRegex = new RegExp(`DROP\\s+POLICY\\s+IF\\s+EXISTS\\s+"${policyName}"\\s+ON\\s+storage\\.objects;`, "i");
+      if (!dropRegex.test(cleanSql)) {
+        throw new Error(`Migration must drop insecure policy: "${policyName}"`);
+      }
+    }
+
+    // 2. Extract and inspect all created policies on storage.objects
+    const policies = extractStorageObjectsPolicies(cleanSql);
+
+    // Exactly 1 policy must be created on storage.objects in this migration
+    if (policies.length !== 1) {
+      throw new Error(`Migration must define exactly 1 policy on storage.objects, found ${policies.length}`);
+    }
+
+    // Reject any public write/mutation policy (INSERT, UPDATE, DELETE, ALL, or WITH CHECK)
+    const publicMutations = policies.filter(
+      (p) => p.isPublic && (["INSERT", "UPDATE", "DELETE", "ALL"].includes(p.command) || p.withCheck !== null)
     );
-    assert.ok(publicSelect, "storage.objects must have public SELECT policy for public avatar URLs");
+    if (publicMutations.length > 0) {
+      throw new Error(`Insecure public write policy found on storage.objects: ${JSON.stringify(publicMutations)}`);
+    }
+
+    // Ensure public SELECT policy exists and is strictly restricted to bucket_id = 'avatars'
+    const publicSelects = policies.filter((p) => p.isPublic && p.command === "SELECT");
+    if (publicSelects.length !== 1) {
+      throw new Error(`Expected exactly 1 public SELECT policy on storage.objects, found ${publicSelects.length}`);
+    }
+
+    const selectPolicy = publicSelects[0];
+    if (selectPolicy.name !== "Public Access for Avatars") {
+      throw new Error(`Unexpected public SELECT policy name: "${selectPolicy.name}"`);
+    }
+
+    if (!isStrictlyAvatarsBucketCondition(selectPolicy.using)) {
+      throw new Error(`Public SELECT policy USING clause must strictly and exclusively be (bucket_id = 'avatars'), got: "${selectPolicy.using}"`);
+    }
+
+    return { valid: true, policiesCount: policies.length };
+  }
+
+  /**
+   * Core auditor for avatars bucket constraints in storage.buckets.
+   * Verifies both INSERT and ON CONFLICT clauses with column-order independence.
+   */
+  function auditAvatarsBucketConstraints(cleanSql) {
+    const expectedMimes = ["image/jpeg", "image/png", "image/webp"].sort();
+
+    // 1. Locate and parse INSERT INTO storage.buckets (<columns>) VALUES (<values>)
+    const insertMatch = cleanSql.match(/INSERT\s+INTO\s+storage\.buckets\s*\(([^)]+)\)\s*VALUES\s*\(([\s\S]*?)(?:\)\s*(?:ON\s+CONFLICT|;|$))/i);
+    if (!insertMatch) {
+      throw new Error("Migration must include an INSERT INTO storage.buckets statement specifying columns and VALUES");
+    }
+
+    const columns = insertMatch[1].split(",").map((c) => c.trim().toLowerCase());
+    const rawValuesClause = insertMatch[2].trim();
+
+    // Split values by comma, respecting ARRAY[...] brackets
+    const values = [];
+    let cur = "";
+    let inArray = false;
+    for (let i = 0; i < rawValuesClause.length; i++) {
+      const ch = rawValuesClause[i];
+      if (ch === "[") inArray = true;
+      else if (ch === "]") inArray = false;
+
+      if (ch === "," && !inArray) {
+        values.push(cur.trim());
+        cur = "";
+      } else {
+        cur += ch;
+      }
+    }
+    if (cur.trim()) values.push(cur.trim());
+
+    if (columns.length !== values.length) {
+      throw new Error(`Column count (${columns.length}) does not match value count (${values.length}) in storage.buckets INSERT`);
+    }
+
+    const row = {};
+    for (let i = 0; i < columns.length; i++) {
+      row[columns[i]] = values[i];
+    }
+
+    if (!row.id || row.id.replace(/^['"]|['"]$/g, "") !== "avatars") {
+      throw new Error(`Bucket id must be 'avatars', got: ${row.id}`);
+    }
+    if (!row.name || row.name.replace(/^['"]|['"]$/g, "") !== "avatars") {
+      throw new Error(`Bucket name must be 'avatars', got: ${row.name}`);
+    }
+    if (row.public !== "true") {
+      throw new Error(`Bucket public flag must be true, got: ${row.public}`);
+    }
+    if (row.file_size_limit !== "2097152") {
+      throw new Error(`Bucket file_size_limit must be 2097152 (2 MB), got: ${row.file_size_limit}`);
+    }
+
+    const arrayMatch = (row.allowed_mime_types || "").match(/ARRAY\s*\[([\s\S]*?)\]/i);
+    if (!arrayMatch) {
+      throw new Error(`INSERT allowed_mime_types must be an ARRAY[...], got: ${row.allowed_mime_types}`);
+    }
+    const mimes = arrayMatch[1].split(",").map((s) => s.trim().replace(/^['"]|['"]$/g, "")).sort();
+    if (JSON.stringify(mimes) !== JSON.stringify(expectedMimes)) {
+      throw new Error(`INSERT allowed_mime_types must be exactly ${JSON.stringify(expectedMimes)}, got: ${JSON.stringify(mimes)}`);
+    }
+
+    // 2. Locate and parse ON CONFLICT (id) DO UPDATE SET ...
+    const conflictMatch = cleanSql.match(/ON\s+CONFLICT\s*\(\s*id\s*\)\s*DO\s+UPDATE\s+SET\s+([\s\S]*?)(?:;|$)/i);
+    if (!conflictMatch) {
+      throw new Error("Migration must include ON CONFLICT (id) DO UPDATE SET clause for storage.buckets");
+    }
+
+    const setClause = conflictMatch[1].trim();
+    const setParts = [];
+    let partCur = "";
+    let setInArray = false;
+    for (let i = 0; i < setClause.length; i++) {
+      const ch = setClause[i];
+      if (ch === "[") setInArray = true;
+      else if (ch === "]") setInArray = false;
+
+      if (ch === "," && !setInArray) {
+        setParts.push(partCur.trim());
+        partCur = "";
+      } else {
+        partCur += ch;
+      }
+    }
+    if (partCur.trim()) setParts.push(partCur.trim());
+
+    const assignments = {};
+    for (const part of setParts) {
+      const eqIdx = part.indexOf("=");
+      if (eqIdx !== -1) {
+        assignments[part.slice(0, eqIdx).trim().toLowerCase()] = part.slice(eqIdx + 1).trim();
+      }
+    }
+
+    if (assignments.public !== "true") {
+      throw new Error(`ON CONFLICT public must be set to true, got: ${assignments.public}`);
+    }
+    if (assignments.file_size_limit !== "2097152") {
+      throw new Error(`ON CONFLICT file_size_limit must be set to 2097152, got: ${assignments.file_size_limit}`);
+    }
+
+    const conflictArrayMatch = (assignments.allowed_mime_types || "").match(/ARRAY\s*\[([\s\S]*?)\]/i);
+    if (!conflictArrayMatch) {
+      throw new Error(`ON CONFLICT allowed_mime_types must be an ARRAY[...], got: ${assignments.allowed_mime_types}`);
+    }
+    const conflictMimes = conflictArrayMatch[1].split(",").map((s) => s.trim().replace(/^['"]|['"]$/g, "")).sort();
+    if (JSON.stringify(conflictMimes) !== JSON.stringify(expectedMimes)) {
+      throw new Error(`ON CONFLICT allowed_mime_types must be exactly ${JSON.stringify(expectedMimes)}, got: ${JSON.stringify(conflictMimes)}`);
+    }
+
+    return { valid: true };
+  }
+
+  it("audits migration SQL: ensures storage.objects denies public write/mutation policies and strictly limits public SELECT to avatars bucket", () => {
+    const rawSql = readRepoFile("prisma/migrations/20261020_harden_avatar_storage_rls.sql");
+    const cleanSql = stripSqlComments(rawSql);
+    const result = auditStorageObjectsPolicies(cleanSql);
+    assert.equal(result.valid, true);
+    assert.equal(result.policiesCount, 1);
   });
 
-  it("verifies avatars bucket in storage.buckets has 2 MB file size limit and allowed MIME types", async () => {
-    const bucket = await prisma.$queryRawUnsafe(`
-      SELECT id, name, public, file_size_limit, allowed_mime_types
-      FROM storage.buckets
-      WHERE id = 'avatars';
-    `);
+  it("audits migration SQL: ensures avatars bucket in storage.buckets defines 2 MB limit, public SELECT, and strict MIME whitelist", () => {
+    const rawSql = readRepoFile("prisma/migrations/20261020_harden_avatar_storage_rls.sql");
+    const cleanSql = stripSqlComments(rawSql);
+    const result = auditAvatarsBucketConstraints(cleanSql);
+    assert.equal(result.valid, true);
+  });
 
-    assert.ok(bucket.length > 0, "avatars bucket must exist in storage.buckets");
-    assert.equal(bucket[0].public, true, "avatars bucket must be public for SELECT");
-    assert.equal(Number(bucket[0].file_size_limit), 2097152, "file_size_limit must be 2097152 bytes (2 MB)");
-    assert.ok(bucket[0].allowed_mime_types.includes("image/jpeg"), "allowed_mime_types must include image/jpeg");
-    assert.ok(bucket[0].allowed_mime_types.includes("image/png"), "allowed_mime_types must include image/png");
-    assert.ok(bucket[0].allowed_mime_types.includes("image/webp"), "allowed_mime_types must include image/webp");
+  it("negative test: proves policy auditor flags insecure public write, unconstrained SELECT, or omitted FOR/TO defaults", () => {
+    const baseDrops = `
+      DROP POLICY IF EXISTS "Public Insert for Avatars" ON storage.objects;
+      DROP POLICY IF EXISTS "Public Update for Avatars" ON storage.objects;
+      DROP POLICY IF EXISTS "Public Delete for Avatars" ON storage.objects;
+      DROP POLICY IF EXISTS "Allow public uploads for avatars" ON storage.objects;
+      DROP POLICY IF EXISTS "Allow public updates for avatars" ON storage.objects;
+      DROP POLICY IF EXISTS "Allow public deletes for avatars" ON storage.objects;
+    `;
+
+    // 1. Explicit FOR INSERT TO public
+    const sqlInsecureInsert = `
+      ${baseDrops}
+      CREATE POLICY "Insecure Insert" ON storage.objects FOR INSERT TO public WITH CHECK (true);
+    `;
+    assert.throws(
+      () => auditStorageObjectsPolicies(sqlInsecureInsert),
+      /Insecure public write policy found on storage\.objects/
+    );
+
+    // 2. Omitted FOR and TO (PostgreSQL defaults to FOR ALL TO PUBLIC)
+    const sqlDefaultAll = `
+      ${baseDrops}
+      CREATE POLICY "Open Everything" ON storage.objects USING (true);
+    `;
+    assert.throws(
+      () => auditStorageObjectsPolicies(sqlDefaultAll),
+      /Insecure public write policy found on storage\.objects/
+    );
+
+    // 3. Role 'anon' treated as unauthenticated public
+    const sqlAnonInsert = `
+      ${baseDrops}
+      CREATE POLICY "Anon Write" ON storage.objects FOR INSERT TO anon WITH CHECK (bucket_id = 'avatars');
+    `;
+    assert.throws(
+      () => auditStorageObjectsPolicies(sqlAnonInsert),
+      /Insecure public write policy found on storage\.objects/
+    );
+
+    // 4. Public SELECT with injected condition (e.g. 'OR true')
+    const sqlOrTrueSelect = `
+      ${baseDrops}
+      CREATE POLICY "Public Access for Avatars" ON storage.objects FOR SELECT TO public USING (bucket_id = 'avatars' OR true);
+    `;
+    assert.throws(
+      () => auditStorageObjectsPolicies(sqlOrTrueSelect),
+      /Public SELECT policy USING clause must strictly and exclusively be \(bucket_id = 'avatars'\)/
+    );
+
+    // 5. Public SELECT with injected condition 'OR 1=1'
+    const sqlOr1Equals1 = `
+      ${baseDrops}
+      CREATE POLICY "Public Access for Avatars" ON storage.objects FOR SELECT TO public USING (bucket_id = 'avatars' OR 1=1);
+    `;
+    assert.throws(
+      () => auditStorageObjectsPolicies(sqlOr1Equals1),
+      /Public SELECT policy USING clause must strictly and exclusively be \(bucket_id = 'avatars'\)/
+    );
+
+    // 6. Public SELECT with WITH CHECK clause attached (invalid / mutation risk)
+    const sqlSelectWithCheck = `
+      ${baseDrops}
+      CREATE POLICY "Public Access for Avatars" ON storage.objects FOR SELECT TO public USING (bucket_id = 'avatars') WITH CHECK (true);
+    `;
+    assert.throws(
+      () => auditStorageObjectsPolicies(sqlSelectWithCheck),
+      /Insecure public write policy found on storage\.objects/
+    );
+
+    // 7. Extra policy created on storage.objects (backdoor policy)
+    const sqlMultiplePolicies = `
+      ${baseDrops}
+      CREATE POLICY "Public Access for Avatars" ON storage.objects FOR SELECT TO public USING (bucket_id = 'avatars');
+      CREATE POLICY "Backdoor Policy" ON storage.objects FOR SELECT TO authenticated USING (true);
+    `;
+    assert.throws(
+      () => auditStorageObjectsPolicies(sqlMultiplePolicies),
+      /Migration must define exactly 1 policy on storage\.objects, found 2/
+    );
+
+    // 8. Missing a required DROP POLICY statement
+    const sqlMissingDrop = `
+      DROP POLICY IF EXISTS "Public Insert for Avatars" ON storage.objects;
+      CREATE POLICY "Public Access for Avatars" ON storage.objects FOR SELECT TO public USING (bucket_id = 'avatars');
+    `;
+    assert.throws(
+      () => auditStorageObjectsPolicies(sqlMissingDrop),
+      /Migration must drop insecure policy: "Public Update for Avatars"/
+    );
+  });
+
+  it("negative test: proves bucket auditor flags oversized limits, missing MIME types, or weakened ON CONFLICT clauses", () => {
+    // 1. Oversized file limit (5 MB instead of 2 MB)
+    const sqlOversized = `
+      INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+      VALUES ('avatars', 'avatars', true, 5242880, ARRAY['image/jpeg', 'image/png', 'image/webp'])
+      ON CONFLICT (id) DO UPDATE SET public = true, file_size_limit = 5242880, allowed_mime_types = ARRAY['image/jpeg', 'image/png', 'image/webp'];
+    `;
+    assert.throws(
+      () => auditAvatarsBucketConstraints(sqlOversized),
+      /Bucket file_size_limit must be 2097152/
+    );
+
+    // 2. Dangerous extra MIME type in INSERT (allowing pdf)
+    const sqlExtraMimeInsert = `
+      INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+      VALUES ('avatars', 'avatars', true, 2097152, ARRAY['image/jpeg', 'image/png', 'image/webp', 'application/pdf'])
+      ON CONFLICT (id) DO UPDATE SET public = true, file_size_limit = 2097152, allowed_mime_types = ARRAY['image/jpeg', 'image/png', 'image/webp'];
+    `;
+    assert.throws(
+      () => auditAvatarsBucketConstraints(sqlExtraMimeInsert),
+      /INSERT allowed_mime_types must be exactly/
+    );
+
+    // 3. Dangerous extra MIME type in ON CONFLICT (allowing gif)
+    const sqlExtraMimeConflict = `
+      INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+      VALUES ('avatars', 'avatars', true, 2097152, ARRAY['image/jpeg', 'image/png', 'image/webp'])
+      ON CONFLICT (id) DO UPDATE SET public = true, file_size_limit = 2097152, allowed_mime_types = ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    `;
+    assert.throws(
+      () => auditAvatarsBucketConstraints(sqlExtraMimeConflict),
+      /ON CONFLICT allowed_mime_types must be exactly/
+    );
+
+    // 4. Missing required MIME type (missing webp)
+    const sqlMissingMime = `
+      INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+      VALUES ('avatars', 'avatars', true, 2097152, ARRAY['image/jpeg', 'image/png'])
+      ON CONFLICT (id) DO UPDATE SET public = true, file_size_limit = 2097152, allowed_mime_types = ARRAY['image/jpeg', 'image/png'];
+    `;
+    assert.throws(
+      () => auditAvatarsBucketConstraints(sqlMissingMime),
+      /INSERT allowed_mime_types must be exactly/
+    );
+
+    // 5. Column reordering with weakened limit must still fail accurately
+    const sqlReorderedWeakLimit = `
+      INSERT INTO storage.buckets (file_size_limit, id, allowed_mime_types, public, name)
+      VALUES (10485760, 'avatars', ARRAY['image/jpeg', 'image/png', 'image/webp'], true, 'avatars')
+      ON CONFLICT (id) DO UPDATE SET public = true, file_size_limit = 2097152, allowed_mime_types = ARRAY['image/jpeg', 'image/png', 'image/webp'];
+    `;
+    assert.throws(
+      () => auditAvatarsBucketConstraints(sqlReorderedWeakLimit),
+      /Bucket file_size_limit must be 2097152/
+    );
+
+    // 6. Weakened ON CONFLICT update clause (public = false or limit not set)
+    const sqlWeakConflict = `
+      INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+      VALUES ('avatars', 'avatars', true, 2097152, ARRAY['image/jpeg', 'image/png', 'image/webp'])
+      ON CONFLICT (id) DO UPDATE SET public = false, file_size_limit = 2097152, allowed_mime_types = ARRAY['image/jpeg', 'image/png', 'image/webp'];
+    `;
+    assert.throws(
+      () => auditAvatarsBucketConstraints(sqlWeakConflict),
+      /ON CONFLICT public must be set to true/
+    );
   });
 });
