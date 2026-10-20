@@ -1,0 +1,54 @@
+{
+  "documentId": "DOC-UNAS-001",
+  "documentType": "class_schedule",
+  "items": [
+    {
+      "namaMatkul": "Rekayasa Perangkat Lunak",
+      "kodeMatkul": "IF253418",
+      "kelas": "R.01",
+      "hari": "Senin",
+      "tanggal": null,
+      "waktuMulai": "08:00",
+      "waktuSelesai": "10:30",
+      "lokasi": "Lab RPL",
+      "sks": 3,
+      "recurrence": "weekly"
+    },
+    {
+      "namaMatkul": "Sistem Terdistribusi",
+      "kodeMatkul": "IF253420",
+      "kelas": "R.01",
+      "hari": "Senin",
+      "tanggal": null,
+      "waktuMulai": "10:40",
+      "waktuSelesai": "13:10",
+      "lokasi": "R.402",
+      "sks": 3,
+      "recurrence": "weekly"
+    },
+    {
+      "namaMatkul": "Basis Data Lanjut",
+      "kodeMatkul": "IF253422",
+      "kelas": "R.02",
+      "hari": "Selasa",
+      "tanggal": null,
+      "waktuMulai": "09:00",
+      "waktuSelesai": "11:30",
+      "lokasi": "Lab Basis Data",
+      "sks": 3,
+      "recurrence": "weekly"
+    },
+    {
+      "namaMatkul": "Kecerdasan Buatan",
+      "kodeMatkul": "IF253425",
+      "kelas": "R.01",
+      "hari": "Kamis",
+      "tanggal": null,
+      "waktuMulai": "13:00",
+      "waktuSelesai": "15:30",
+      "lokasi": "R.301",
+      "sks": 3,
+      "recurrence": "weekly"
+    }
+  ]
+}

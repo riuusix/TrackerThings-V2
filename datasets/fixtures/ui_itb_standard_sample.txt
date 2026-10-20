@@ -1,0 +1,4 @@
+No | Kode MK | Nama Mata Kuliah | SKS | Kelas | Hari | Waktu | Ruang | Dosen
+1 | CS201 | Algoritma dan Pemrograman | 4 | A | Rabu | 08:00 - 11:40 | Lab Komputer 1 | Dr. Budi Santoso
+2 | CS204 | Arsitektur Komputer | 3 | B | Kamis | 13:00 - 15:30 | Gedung Baru 204 | Prof. Hendra Wijaya
+3 | MA102 | Kalkulus Peubah Banyak | 3 | A | Jumat | 08:00 - 10:30 | Ruang Kuliah 101 | Ir. Siti Rahma M.T

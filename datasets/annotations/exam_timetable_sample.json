@@ -1,0 +1,30 @@
+{
+  "documentId": "DOC-EXAM-004",
+  "documentType": "exam_schedule",
+  "items": [
+    {
+      "namaMatkul": "Rekayasa Perangkat Lunak",
+      "kodeMatkul": "IF253418",
+      "kelas": null,
+      "hari": null,
+      "tanggal": "2026-10-26",
+      "waktuMulai": "08:00",
+      "waktuSelesai": "10:00",
+      "lokasi": "R.Auditorium",
+      "sks": null,
+      "recurrence": "one_time"
+    },
+    {
+      "namaMatkul": "Sistem Terdistribusi",
+      "kodeMatkul": "IF253420",
+      "kelas": null,
+      "hari": null,
+      "tanggal": "2026-10-28",
+      "waktuMulai": "13:00",
+      "waktuSelesai": "15:00",
+      "lokasi": "Lab RPL",
+      "sks": null,
+      "recurrence": "one_time"
+    }
+  ]
+}

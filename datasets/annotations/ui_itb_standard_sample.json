@@ -1,0 +1,42 @@
+{
+  "documentId": "DOC-UI-ITB-002",
+  "documentType": "class_schedule",
+  "items": [
+    {
+      "namaMatkul": "Algoritma dan Pemrograman",
+      "kodeMatkul": "CS201",
+      "kelas": "A",
+      "hari": "Rabu",
+      "tanggal": null,
+      "waktuMulai": "08:00",
+      "waktuSelesai": "11:40",
+      "lokasi": "Lab Komputer 1",
+      "sks": 4,
+      "recurrence": "weekly"
+    },
+    {
+      "namaMatkul": "Arsitektur Komputer",
+      "kodeMatkul": "CS204",
+      "kelas": "B",
+      "hari": "Kamis",
+      "tanggal": null,
+      "waktuMulai": "13:00",
+      "waktuSelesai": "15:30",
+      "lokasi": "Gedung Baru 204",
+      "sks": 3,
+      "recurrence": "weekly"
+    },
+    {
+      "namaMatkul": "Kalkulus Peubah Banyak",
+      "kodeMatkul": "MA102",
+      "kelas": "A",
+      "hari": "Jumat",
+      "tanggal": null,
+      "waktuMulai": "08:00",
+      "waktuSelesai": "10:30",
+      "lokasi": "Ruang Kuliah 101",
+      "sks": 3,
+      "recurrence": "weekly"
+    }
+  ]
+}

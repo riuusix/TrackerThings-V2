@@ -1,0 +1,42 @@
+{
+  "documentId": "DOC-COMBINED-003",
+  "documentType": "class_schedule",
+  "items": [
+    {
+      "namaMatkul": "Jaringan Komputer",
+      "kodeMatkul": null,
+      "kelas": null,
+      "hari": "Senin",
+      "tanggal": null,
+      "waktuMulai": "07:30",
+      "waktuSelesai": "10:00",
+      "lokasi": "Lab Komputer Terpadu",
+      "sks": null,
+      "recurrence": "weekly"
+    },
+    {
+      "namaMatkul": "Keamanan Informasi dan Siber",
+      "kodeMatkul": null,
+      "kelas": null,
+      "hari": "Selasa",
+      "tanggal": null,
+      "waktuMulai": "10:15",
+      "waktuSelesai": "12:45",
+      "lokasi": "Ruang Teori 3",
+      "sks": null,
+      "recurrence": "weekly"
+    },
+    {
+      "namaMatkul": "Pemrograman Berorientasi Objek",
+      "kodeMatkul": null,
+      "kelas": null,
+      "hari": "Rabu",
+      "tanggal": null,
+      "waktuMulai": "13:00",
+      "waktuSelesai": "15:30",
+      "lokasi": "Lab Software Engineering",
+      "sks": null,
+      "recurrence": "weekly"
+    }
+  ]
+}

@@ -68,6 +68,9 @@ jobs:
       - name: Run Native Productivity Integration Tests (M4)
         run: node --test tests/test_native_productivity_integration.test.js
 
+      - name: Run Academic Document Extraction Benchmark (Phase 1)
+        run: node --test tests/test_academic_extraction_benchmark.test.js
+
       - name: Build Production Next.js Bundle
         run: npm run build
         env:

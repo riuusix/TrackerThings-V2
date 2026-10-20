@@ -1,0 +1,6 @@
+JADWAL UJIAN AKHIR SEMESTER (UAS) GENAP
+FAKULTAS TEKNOLOGI KOMUNIKASI DAN INFORMATIKA
+
+Tanggal | Jam Ujian | Kode MK | Mata Kuliah | Ruang Ujian | Sifat Ujian
+26 Oktober 2026 | 08:00 - 10:00 | IF253418 | Rekayasa Perangkat Lunak | R.Auditorium | Tutup Buku
+28 Oktober 2026 | 13:00 - 15:00 | IF253420 | Sistem Terdistribusi | Lab RPL | Buka Buku

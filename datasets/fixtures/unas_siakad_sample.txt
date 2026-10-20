@@ -1,0 +1,5 @@
+Hari | Mulai | Akhir | Ruang | Kode MK | Kls | Nama MK | SKS
+Senin | 08:00 | 10:30 | Lab RPL | IF253418 | R.01 | Rekayasa Perangkat Lunak | 3
+Senin | 10:40 | 13:10 | R.402 | IF253420 | R.01 | Sistem Terdistribusi | 3
+Selasa | 09:00 | 11:30 | Lab Basis Data | IF253422 | R.02 | Basis Data Lanjut | 3
+Kamis | 13:00 | 15:30 | R.301 | IF253425 | R.01 | Kecerdasan Buatan | 3

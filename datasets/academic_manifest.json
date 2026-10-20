@@ -1,0 +1,78 @@
+{
+  "version": "1.0.0",
+  "description": "TrackerThings V2 Academic Document Benchmark Dataset Manifest",
+  "created_at": "2026-10-21T00:00:00Z",
+  "license": "Internal Synthetic Academic Benchmark (Zero PII)",
+  "entries": [
+    {
+      "id": "DOC-UNAS-001",
+      "format": "tabular_text",
+      "category": "class_schedule",
+      "template_family": "unas_8col_siakad",
+      "university": "Universitas Nasional (Synthetic Layout)",
+      "source_file": "datasets/fixtures/unas_siakad_sample.txt",
+      "ground_truth_file": "datasets/annotations/unas_siakad_sample.json",
+      "split": "test",
+      "annotation_status": "verified",
+      "expected_record_count": 4,
+      "difficulty": "standard",
+      "notes": "Standard 8-column layout with separate Mulai and Akhir columns."
+    },
+    {
+      "id": "DOC-UI-ITB-002",
+      "format": "tabular_text",
+      "category": "class_schedule",
+      "template_family": "standard_national_university",
+      "university": "General Indonesian University (UI/ITB/UGM Style)",
+      "source_file": "datasets/fixtures/ui_itb_standard_sample.txt",
+      "ground_truth_file": "datasets/annotations/ui_itb_standard_sample.json",
+      "split": "test",
+      "annotation_status": "verified",
+      "expected_record_count": 3,
+      "difficulty": "medium",
+      "notes": "Column order differs from UNAS: No | Kode | Nama MK | SKS | Kelas | Hari | Jam | Ruang | Dosen."
+    },
+    {
+      "id": "DOC-COMBINED-003",
+      "format": "tabular_text",
+      "category": "class_schedule",
+      "template_family": "combined_time_column",
+      "university": "General Academic Timetable",
+      "source_file": "datasets/fixtures/combined_time_sample.txt",
+      "ground_truth_file": "datasets/annotations/combined_time_sample.json",
+      "split": "dev",
+      "annotation_status": "verified",
+      "expected_record_count": 3,
+      "difficulty": "standard",
+      "notes": "Single time cell with '08:00 - 10:30' range syntax."
+    },
+    {
+      "id": "DOC-EXAM-004",
+      "format": "tabular_text",
+      "category": "exam_schedule",
+      "template_family": "midterm_final_exam_timetable",
+      "university": "Fakultas Teknologi Komunikasi dan Informatika",
+      "source_file": "datasets/fixtures/exam_timetable_sample.txt",
+      "ground_truth_file": "datasets/annotations/exam_timetable_sample.json",
+      "split": "test",
+      "annotation_status": "verified",
+      "expected_record_count": 2,
+      "difficulty": "high",
+      "notes": "Specific calendar dates (2026-10-26, 2026-10-28) rather than repeating weekly classes."
+    },
+    {
+      "id": "DOC-KRS-005",
+      "format": "text_list",
+      "category": "course_registration_krs",
+      "template_family": "pre_schedule_krs",
+      "university": "Universitas Terbuka / KRS Mandiri",
+      "source_file": "datasets/fixtures/krs_registration_sample.txt",
+      "ground_truth_file": "datasets/annotations/krs_registration_sample.json",
+      "split": "dev",
+      "annotation_status": "verified",
+      "expected_record_count": 3,
+      "difficulty": "medium",
+      "notes": "Registered course list without time or room assignments (recurrence: none)."
+    }
+  ]
+}

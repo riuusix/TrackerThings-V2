@@ -1,0 +1,42 @@
+{
+  "documentId": "DOC-KRS-005",
+  "documentType": "course_registration_krs",
+  "items": [
+    {
+      "namaMatkul": "Pendidikan Agama Islam",
+      "kodeMatkul": "UN101",
+      "kelas": null,
+      "hari": null,
+      "tanggal": null,
+      "waktuMulai": null,
+      "waktuSelesai": null,
+      "lokasi": null,
+      "sks": 2,
+      "recurrence": "none"
+    },
+    {
+      "namaMatkul": "Pendidikan Kewarganegaraan",
+      "kodeMatkul": "UN102",
+      "kelas": null,
+      "hari": null,
+      "tanggal": null,
+      "waktuMulai": null,
+      "waktuSelesai": null,
+      "lokasi": null,
+      "sks": 2,
+      "recurrence": "none"
+    },
+    {
+      "namaMatkul": "Teori Graf dan Otomata",
+      "kodeMatkul": "IF301",
+      "kelas": null,
+      "hari": null,
+      "tanggal": null,
+      "waktuMulai": null,
+      "waktuSelesai": null,
+      "lokasi": null,
+      "sks": 3,
+      "recurrence": "none"
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+Hari | Jam Perkuliahan | Mata Kuliah | Ruangan
+Senin | 07:30 - 10:00 | Jaringan Komputer | Lab Komputer Terpadu
+Selasa | 10:15 - 12:45 | Keamanan Informasi dan Siber | Ruang Teori 3
+Rabu | 13:00 - 15:30 | Pemrograman Berorientasi Objek | Lab Software Engineering

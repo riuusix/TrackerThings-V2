@@ -1,0 +1,7 @@
+KARTU RENCANA STUDI (KRS)
+SEMESTER GANJIL 2026/2027
+
+No | Kode MK | Nama Mata Kuliah | SKS | Status
+1 | UN101 | Pendidikan Agama Islam | 2 | Disetujui
+2 | UN102 | Pendidikan Kewarganegaraan | 2 | Disetujui
+3 | IF301 | Teori Graf dan Otomata | 3 | Disetujui
