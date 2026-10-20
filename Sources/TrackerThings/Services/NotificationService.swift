@@ -66,12 +66,11 @@ private final class LocalNotificationPresentationDelegate: NSObject, UNUserNotif
             logger.info("Notification tapped with destination: \(destination, privacy: .public)")
             // Simpan pendingDestination agar dapat dikonsumsi saat cold-start
             NotificationService.shared.pendingDestination = destination
-            NotificationService.shared.pendingUserInfo = userInfo
             await MainActor.run {
                 NotificationCenter.default.post(
                     name: .openTrackerThingsDestination,
                     object: nil,
-                    userInfo: userInfo
+                    userInfo: ["destination": destination]
                 )
             }
         }
@@ -91,7 +90,6 @@ public final class NotificationService: Sendable {
     private let destinationLock = NSLock()
     private final class PendingStorage: @unchecked Sendable {
         var destination: String? = nil
-        var userInfo: [AnyHashable: Any]? = nil
     }
     private let storage = PendingStorage()
 
@@ -110,38 +108,12 @@ public final class NotificationService: Sendable {
     }
 
     /// Mengambil dan menghapus tujuan navigasi notifikasi pending secara atomik
-    public var pendingUserInfo: [AnyHashable: Any]? {
-        get {
-            destinationLock.lock()
-            defer { destinationLock.unlock() }
-            return storage.userInfo
-        }
-        set {
-            destinationLock.lock()
-            defer { destinationLock.unlock() }
-            storage.userInfo = newValue
-        }
-    }
-
-    /// Mengambil dan menghapus tujuan navigasi notifikasi pending secara atomik
     public func consumePendingDestination() -> String? {
         destinationLock.lock()
         defer { destinationLock.unlock() }
         let current = storage.destination
         storage.destination = nil
-        storage.userInfo = nil
         return current
-    }
-
-    /// Mengambil seluruh paket tujuan dan payload notifikasi pending secara atomik
-    public func consumePendingNotification() -> (destination: String, userInfo: [AnyHashable: Any])? {
-        destinationLock.lock()
-        defer { destinationLock.unlock() }
-        guard let dest = storage.destination else { return nil }
-        let uInfo = storage.userInfo ?? [:]
-        storage.destination = nil
-        storage.userInfo = nil
-        return (dest, uInfo)
     }
 
     private init() {
@@ -344,7 +316,6 @@ public final class NotificationService: Sendable {
         dateComponents.minute = reminderMinute
         dateComponents.second = 0
 
-        dateComponents.timeZone = Calendar.current.timeZone
         let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: true)
 
         let request = UNNotificationRequest(
