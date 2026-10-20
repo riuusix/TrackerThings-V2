@@ -1,0 +1,31 @@
+{
+  "documentId": "DOC-REPLACEMENT-009",
+  "documentType": "replacement_class",
+  "items": [
+    {
+      "namaMatkul": "Grafika Komputer",
+      "kodeMatkul": "IF202",
+      "kelas": null,
+      "hari": null,
+      "tanggal": "2026-10-29",
+      "waktuMulai": "10:00",
+      "waktuSelesai": "12:30",
+      "lokasi": "Lab Multimedia",
+      "sks": null,
+      "recurrence": "one_time"
+    },
+    {
+      "namaMatkul": "Pemrograman Web Lanjut",
+      "kodeMatkul": "IF206",
+      "kelas": null,
+      "hari": null,
+      "tanggal": "2026-10-31",
+      "waktuMulai": "14:00",
+      "waktuSelesai": "16:30",
+      "lokasi": "Lab Komputer 3",
+      "sks": null,
+      "recurrence": "one_time"
+    }
+  ]
+}
+

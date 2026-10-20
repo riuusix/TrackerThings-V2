@@ -1,0 +1,7 @@
+PEMBERITAHUAN JADWAL KELAS PENGGANTI KULIAH
+PROGRAM STUDI INFORMATIKA
+
+Tanggal | Waktu | Kode MK | Mata Kuliah | Ruangan | Keterangan
+2026-10-29 | 10:00 - 12:30 | IF202 | Grafika Komputer | Lab Multimedia | Pengganti Libur Nasional
+2026-10-31 | 14:00 - 16:30 | IF206 | Pemrograman Web Lanjut | Lab Komputer 3 | Pengganti Dosen Seminar
+

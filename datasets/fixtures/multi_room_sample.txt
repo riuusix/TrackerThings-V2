@@ -1,0 +1,4 @@
+Hari | Waktu | Kode MK | Nama Mata Kuliah | Ruang Kuliah | Dosen Pengajar
+Selasa | 08:00 - 10:30 | IF304 | Tata Kelola Teknologi Informasi | Gedung Menara Saidah Lantai 3 R.304 | Dr. Ir. Budi Santoso, M.Kom
+Jumat | 13:30 - 16:00 | IF308 | Etika Profesi dan Hukum Siber | Gedung Pascasarjana Auditorium Utama | Prof. Hendra Wijaya
+

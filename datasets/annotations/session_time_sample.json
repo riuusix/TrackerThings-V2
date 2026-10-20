@@ -1,0 +1,31 @@
+{
+  "documentId": "DOC-SESSION-TIME-008",
+  "documentType": "class_schedule",
+  "items": [
+    {
+      "namaMatkul": "Pengantar Teknologi Informasi",
+      "kodeMatkul": "IF101",
+      "kelas": null,
+      "hari": "Senin",
+      "tanggal": null,
+      "waktuMulai": "08:00",
+      "waktuSelesai": "09:40",
+      "lokasi": "Lab 1",
+      "sks": null,
+      "recurrence": "weekly"
+    },
+    {
+      "namaMatkul": "Pemrograman Dasar",
+      "kodeMatkul": "IF104",
+      "kelas": null,
+      "hari": "Rabu",
+      "tanggal": null,
+      "waktuMulai": "13:00",
+      "waktuSelesai": "14:40",
+      "lokasi": "Lab 2",
+      "sks": null,
+      "recurrence": "weekly"
+    }
+  ]
+}
+

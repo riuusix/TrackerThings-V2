@@ -11,6 +11,12 @@ import {
   type OcrWord,
 } from "@/lib/scheduleParser";
 import { getUserScheduleMappings } from "@/lib/scheduleCorrections";
+import {
+  AcademicHybridRouter,
+  bridgeCanonicalToLegacyItem,
+  type CanonicalAcademicExtractionResult,
+  type HybridRoutingDecision,
+} from "@/lib/intelligence/academicEngine";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -196,12 +202,49 @@ export async function POST(req: NextRequest) {
     ]);
     const dbDurationMs = Date.now() - dbStartTime;
 
+    const hybridRouter = new AcademicHybridRouter();
+    let hybridExtraction: {
+      result: CanonicalAcademicExtractionResult;
+      decision: HybridRoutingDecision;
+    } | null = null;
+
+    if (extractedText && extractedText.trim().length > 0) {
+      try {
+        hybridExtraction = await hybridRouter.routeAndExtract({
+          buffer: Buffer.from(extractedText, "utf8"),
+          mimeType: "text/plain",
+          fileName,
+          preExtractedText: extractedText,
+        });
+      } catch (err) {
+        console.warn("[ImportPreview] Hybrid extraction warning:", err);
+      }
+    }
+
     const recognition = recognizeScheduleData(
       { text: extractedText, words: extractedWords },
       existingCourses,
       userMappings
     );
-    const parsedItems: ParsedScheduleItem[] = recognition.items;
+
+    let parsedItems: (ParsedScheduleItem | ReturnType<typeof bridgeCanonicalToLegacyItem>)[] = recognition.items;
+    let effectiveDocumentType = "class_schedule";
+    let processingMode = "legacy_local_ocr";
+
+    if (hybridExtraction && hybridExtraction.result.items.length > 0) {
+      effectiveDocumentType = hybridExtraction.decision.documentType;
+      // If legacy recognition produced 0 items or is deemed insufficient, OR if hybrid extraction detected non-class_schedule (e.g. exam, krs, replacement)
+      const preferHybrid =
+        parsedItems.length === 0 ||
+        Boolean(recognition.insufficientForProduction) ||
+        effectiveDocumentType !== "class_schedule" ||
+        hybridExtraction.result.items.length > parsedItems.length;
+
+      if (preferHybrid) {
+        parsedItems = hybridExtraction.result.items.map(bridgeCanonicalToLegacyItem);
+        processingMode = hybridExtraction.decision.processingMode;
+      }
+    }
 
     const requiresReview = parsedItems.length === 0 || parsedItems.some((item) => item.needsReview);
     const highConfidenceCount = parsedItems.filter(
@@ -212,20 +255,26 @@ export async function POST(req: NextRequest) {
     ).length;
     const needsReviewCount = parsedItems.filter((item) => item.needsReview).length;
 
+    const isInsufficient = parsedItems.length === 0 || (Boolean(recognition.insufficientForProduction) && parsedItems.length === 0);
     const isImageUpload = extractionSource === "client_ocr" || extractionSource === "server_ocr";
-    const visionFallbackEligible = isImageUpload && (Boolean(recognition.insufficientForProduction) || parsedItems.length === 0);
+    const visionFallbackEligible = isImageUpload && isInsufficient;
 
     return apiSuccess(
       parsedItems.length > 0
         ? `Ekstraksi jadwal berhasil. Ditemukan ${parsedItems.length} mata kuliah.`
         : "Jadwal kuliah belum terdeteksi jelas dengan OCR lokal.",
       {
+        version: "2.0",
+        document_type: effectiveDocumentType,
+        processing_mode: processingMode,
+        canonical_items: hybridExtraction?.result?.items || [],
+        hybrid_decision: hybridExtraction?.decision || null,
         items: parsedItems,
         total: parsedItems.length,
         requires_review: requiresReview,
         layout: recognition.layout,
-        insufficient_for_production: Boolean(recognition.insufficientForProduction) || parsedItems.length === 0,
-        insufficiency_reasons: recognition.insufficiencyReasons || [],
+        insufficient_for_production: isInsufficient,
+        insufficiency_reasons: isInsufficient ? (recognition.insufficiencyReasons || []) : [],
         vision_fallback_eligible: visionFallbackEligible,
         recognition_summary: {
           high_confidence_count: highConfidenceCount,

@@ -1,0 +1,31 @@
+{
+  "documentId": "DOC-MULTI-ROOM-007",
+  "documentType": "class_schedule",
+  "items": [
+    {
+      "namaMatkul": "Tata Kelola Teknologi Informasi",
+      "kodeMatkul": "IF304",
+      "kelas": null,
+      "hari": "Selasa",
+      "tanggal": null,
+      "waktuMulai": "08:00",
+      "waktuSelesai": "10:30",
+      "lokasi": "Gedung Menara Saidah Lantai 3 R.304",
+      "sks": null,
+      "recurrence": "weekly"
+    },
+    {
+      "namaMatkul": "Etika Profesi dan Hukum Siber",
+      "kodeMatkul": "IF308",
+      "kelas": null,
+      "hari": "Jumat",
+      "tanggal": null,
+      "waktuMulai": "13:30",
+      "waktuSelesai": "16:00",
+      "lokasi": "Gedung Pascasarjana Auditorium Utama",
+      "sks": null,
+      "recurrence": "weekly"
+    }
+  ]
+}
+

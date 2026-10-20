@@ -15,6 +15,10 @@ import {
   normalizeTimeString,
   parseDateFromIndonesianText,
   MockAcademicProvider,
+  AcademicHybridRouter,
+  SelfHostedServerProvider,
+  ExternalGenerativeProvider,
+  bridgeCanonicalToLegacyItem,
 } from "../lib/intelligence/academicEngine.ts";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -141,9 +145,9 @@ describe("Academic Intelligence Engine — Extraction & Benchmark Suite (Phase 1
     const extractor = new DeterministicAcademicExtractor();
 
     it("verifies manifest completeness and split integrity", () => {
-      assert.equal(manifest.version, "1.0.0");
+      assert.equal(manifest.version, "2.0.0");
       assert.ok(Array.isArray(manifest.entries));
-      assert.ok(manifest.entries.length >= 5);
+      assert.ok(manifest.entries.length >= 9);
 
       for (const entry of manifest.entries) {
         assert.ok(entry.id);
@@ -273,6 +277,126 @@ describe("Academic Intelligence Engine — Extraction & Benchmark Suite (Phase 1
       assert.equal(res.documentType, "class_schedule");
       assert.equal(res.items.length, 1);
       assert.equal(res.items[0].namaMatkul, "Sistem Terdistribusi");
+    });
+  });
+
+  // =========================================================================
+  // 5. Academic Hybrid Router & Policy Decision Engine (Phase 2)
+  // =========================================================================
+  describe("5. Academic Hybrid Router & Policy Decisions", () => {
+    const router = new AcademicHybridRouter();
+
+    it("routes high-confidence deterministic extraction without external ML invocation", async () => {
+      const unasSample =
+        "Hari | Mulai | Akhir | Ruang | Kode MK | Kls | Nama MK | SKS\n" +
+        "Senin | 08:00:00 | 10:30:00 | Lab RPL | IF3201 | R.01 | Sistem Terdistribusi | 3";
+
+      const outcome = await router.routeAndExtract({
+        buffer: Buffer.from(unasSample, "utf8"),
+        mimeType: "text/plain",
+        fileName: "unas_sample.txt",
+        preExtractedText: unasSample,
+      });
+
+      assert.equal(outcome.decision.processingMode, "deterministic");
+      assert.equal(outcome.decision.selectedProviderId, "deterministic");
+      assert.ok(outcome.decision.qualitySignals.passRatePercent >= 75);
+      assert.equal(outcome.decision.qualitySignals.hasTimeErrors, false);
+      assert.equal(outcome.result.items.length, 1);
+      assert.equal(outcome.result.items[0].namaMatkul, "Sistem Terdistribusi");
+    });
+
+    it("evaluates multi-signal quality and flags invalid time or unconfident fields", () => {
+      const mockResult = {
+        documentType: "class_schedule",
+        items: [
+          {
+            id: "1",
+            namaMatkul: "Kalkulus",
+            hari: "Senin",
+            waktuMulai: "10:00",
+            waktuSelesai: "08:00", // Inverted!
+            recurrence: "weekly",
+            needsReview: true,
+            warnings: ["Waktu mulai harus lebih awal dari waktu selesai"],
+            fieldValidations: {
+              waktuMulai: { status: "invalid", message: "Inverted time" },
+            },
+          },
+        ],
+        rawTextLength: 100,
+        extractionDurationMs: 1,
+        provider: "mock",
+      };
+
+      const quality = router.evaluateQuality(mockResult);
+      assert.equal(quality.totalItems, 1);
+      assert.equal(quality.hasTimeErrors, true);
+      assert.equal(quality.passRatePercent, 0);
+    });
+
+    it("ExternalGenerativeProvider strictly gates execution behind explicit user consent", async () => {
+      const externalProvider = new ExternalGenerativeProvider();
+      await assert.rejects(
+        async () => {
+          await externalProvider.extract(
+            {
+              buffer: Buffer.alloc(0),
+              mimeType: "text/plain",
+              fileName: "test.txt",
+            },
+            { userConsent: false } // No consent!
+          );
+        },
+        {
+          name: "Error",
+          message: "User consent required before calling external generative AI provider.",
+        }
+      );
+    });
+
+    it("bridgeCanonicalToLegacyItem produces full dual-key mapping for Web and iOS", () => {
+      const canonicalItem = {
+        id: "item_bridge_1",
+        namaMatkul: "Kecerdasan Buatan Terapan",
+        kodeMatkul: "IF253419",
+        kelas: "R.02",
+        hari: "Kamis",
+        waktuMulai: "13:30",
+        waktuSelesai: "16:00",
+        lokasi: "D.401",
+        dosen: "Dr. Budi Santoso",
+        sks: 3,
+        kategori: "Wajib",
+        recurrence: "weekly",
+        needsReview: false,
+        warnings: [],
+        fieldValidations: {
+          namaMatkul: { status: "valid" },
+          waktuMulai: { status: "valid" },
+        },
+      };
+
+      const bridged = bridgeCanonicalToLegacyItem(canonicalItem);
+
+      // Web camelCase
+      assert.equal(bridged.namaMatkul, "Kecerdasan Buatan Terapan");
+      assert.equal(bridged.waktuMulai, "13:30");
+      assert.equal(bridged.waktuSelesai, "16:00");
+      assert.equal(bridged.kodeMatkul, "IF253419");
+      assert.equal(bridged.lokasi, "D.401");
+      assert.equal(bridged.needsReview, false);
+
+      // iOS snake_case & alias keys
+      assert.equal(bridged.nama_matkul, "Kecerdasan Buatan Terapan");
+      assert.equal(bridged.waktu_mulai, "13:30");
+      assert.equal(bridged.waktu_selesai, "16:00");
+      assert.equal(bridged.kode_matkul, "IF253419");
+      assert.equal(bridged.ruang, "D.401");
+      assert.equal(bridged.needs_review, false);
+      assert.ok(Array.isArray(bridged.reviewReasons));
+      assert.equal(typeof bridged.field_confidence, "object");
+      assert.equal(bridged.field_confidence.namaMatkul, 0.95);
     });
   });
 });

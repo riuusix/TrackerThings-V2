@@ -1,0 +1,4 @@
+Hari | Mulai | Akhir | Ruang | Kode MK | Kls | Nama MK | SKS
+Senin | 08.00 | 10.30 | Lab. R01 | 1F253418 | R.01 | Rekayasa Perangkat Lunak | 3
+Kamis | 13.00 | 15.30 | R.301 | 1F253425 | R.01 | Kecerdasan Buatan | 3
+

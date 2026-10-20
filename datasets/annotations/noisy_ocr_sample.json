@@ -1,0 +1,31 @@
+{
+  "documentId": "DOC-NOISY-OCR-006",
+  "documentType": "class_schedule",
+  "items": [
+    {
+      "namaMatkul": "Rekayasa Perangkat Lunak",
+      "kodeMatkul": "IF253418",
+      "kelas": "R.01",
+      "hari": "Senin",
+      "tanggal": null,
+      "waktuMulai": "08:00",
+      "waktuSelesai": "10:30",
+      "lokasi": "Lab. R01",
+      "sks": 3,
+      "recurrence": "weekly"
+    },
+    {
+      "namaMatkul": "Kecerdasan Buatan",
+      "kodeMatkul": "IF253425",
+      "kelas": "R.01",
+      "hari": "Kamis",
+      "tanggal": null,
+      "waktuMulai": "13:00",
+      "waktuSelesai": "15:30",
+      "lokasi": "R.301",
+      "sks": 3,
+      "recurrence": "weekly"
+    }
+  ]
+}
+

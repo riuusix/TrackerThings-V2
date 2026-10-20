@@ -1,7 +1,7 @@
 {
-  "version": "1.0.0",
-  "description": "TrackerThings V2 Academic Document Benchmark Dataset Manifest",
-  "created_at": "2026-10-21T00:00:00Z",
+  "version": "2.0.0",
+  "description": "TrackerThings V2 Academic Document Benchmark Dataset Manifest (Phase 2)",
+  "created_at": "2026-10-21T01:00:00Z",
   "license": "Internal Synthetic Academic Benchmark (Zero PII)",
   "entries": [
     {
@@ -73,6 +73,62 @@
       "expected_record_count": 3,
       "difficulty": "medium",
       "notes": "Registered course list without time or room assignments (recurrence: none)."
+    },
+    {
+      "id": "DOC-NOISY-OCR-006",
+      "format": "tabular_text",
+      "category": "class_schedule",
+      "template_family": "noisy_ocr_table",
+      "university": "Scanned Document OCR Simulation",
+      "source_file": "datasets/fixtures/noisy_ocr_sample.txt",
+      "ground_truth_file": "datasets/annotations/noisy_ocr_sample.json",
+      "split": "test",
+      "annotation_status": "verified",
+      "expected_record_count": 2,
+      "difficulty": "high",
+      "notes": "Noisy time formats ('08.00') and code substitutions ('1F253418')."
+    },
+    {
+      "id": "DOC-MULTI-ROOM-007",
+      "format": "tabular_text",
+      "category": "class_schedule",
+      "template_family": "complex_text_table",
+      "university": "Urban Multi-Campus Institution",
+      "source_file": "datasets/fixtures/multi_room_sample.txt",
+      "ground_truth_file": "datasets/annotations/multi_room_sample.json",
+      "split": "test",
+      "annotation_status": "verified",
+      "expected_record_count": 2,
+      "difficulty": "medium",
+      "notes": "Multi-word rooms (e.g. 'Gedung Menara Saidah Lantai 3 R.304') and multiple titles."
+    },
+    {
+      "id": "DOC-SESSION-TIME-008",
+      "format": "tabular_text",
+      "category": "class_schedule",
+      "template_family": "session_notated_table",
+      "university": "Credit-Hour Period Schedule",
+      "source_file": "datasets/fixtures/session_time_sample.txt",
+      "ground_truth_file": "datasets/annotations/session_time_sample.json",
+      "split": "dev",
+      "annotation_status": "verified",
+      "expected_record_count": 2,
+      "difficulty": "medium",
+      "notes": "Session period notation: 'Sesi 1-2 (08:00 - 09:40)'."
+    },
+    {
+      "id": "DOC-REPLACEMENT-009",
+      "format": "tabular_text",
+      "category": "replacement_class",
+      "template_family": "replacement_lecture_notice",
+      "university": "Program Studi Informatika",
+      "source_file": "datasets/fixtures/replacement_class_sample.txt",
+      "ground_truth_file": "datasets/annotations/replacement_class_sample.json",
+      "split": "test",
+      "annotation_status": "verified",
+      "expected_record_count": 2,
+      "difficulty": "medium",
+      "notes": "Rescheduled / Replacement class announcements with exact dates."
     }
   ]
 }
