@@ -143,14 +143,19 @@ export async function POST(req: NextRequest) {
           );
         }
 
+        const isPdf = mimeType === "application/pdf";
         console.error(`[ImportPreview] Extraction failure (mime: ${mimeType}, size: ${file.size}, duration: ${ocrDurationMs}ms):`, errMsg);
         return apiError(
-          "Gagal memproses file jadwal. Pastikan gambar/PDF jelas dan tidak rusak.",
+          isPdf
+            ? "Gagal mengekstrak teks dari file PDF. Dokumen mungkin tidak memiliki lapisan teks digital atau memerlukan pemrosesan visual. Anda dapat mencoba menggunakan bantuan Vision AI atau mengunggah tangkapan layar jadwal."
+            : "Gagal memproses file jadwal. Pastikan gambar/PDF jelas dan tidak rusak.",
           422,
-          "CORRUPTED_DOCUMENT",
+          isPdf ? "PDF_EXTRACTION_FAILED" : "CORRUPTED_DOCUMENT",
           {
-            file_type: mimeType === "application/pdf" ? "pdf" : "image",
-            vision_fallback_eligible: mimeType !== "application/pdf",
+            file_type: isPdf ? "pdf" : "image",
+            insufficient_for_production: true,
+            vision_fallback_eligible: true,
+            recovery_action: "TRY_VISION_AI",
           }
         );
       }

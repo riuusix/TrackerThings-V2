@@ -167,6 +167,37 @@ test.describe("Phase 7E: End-to-End Route Execution & Integration Verification S
         "Message must instruct user to upload as image"
       );
     });
+
+    test("1.3 PDF extraction exception (e.g. serverless runtime / canvas failure) returns HTTP 422 with vision_fallback_eligible: true", async () => {
+      const formData = new FormData();
+      formData.append(
+        "file",
+        new Blob([Buffer.from("invalid binary data not conforming to pdf structure")], { type: "application/pdf" }),
+        "corrupted.pdf"
+      );
+
+      const req = createNextRequest("http://localhost:3000/api/jadwal/import/preview", "POST", formData);
+      const res = await previewPost(req);
+      const json = await res.json();
+
+      assert.equal(res.status, 422, "Failed PDF parse must return HTTP 422");
+      assert.equal(json.success, false);
+      assert.equal(json.error, "PDF_EXTRACTION_FAILED");
+      assert.equal(
+        json.extra?.vision_fallback_eligible ?? json.vision_fallback_eligible,
+        true,
+        "Must offer vision_fallback_eligible: true so user can recover via Vision AI"
+      );
+      assert.equal(
+        json.extra?.insufficient_for_production ?? json.insufficient_for_production,
+        true,
+        "Must flag insufficient_for_production: true on extraction exception"
+      );
+      assert.equal(
+        json.extra?.recovery_action ?? json.recovery_action,
+        "TRY_VISION_AI"
+      );
+    });
   });
 
   // =========================================================================
