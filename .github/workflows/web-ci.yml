@@ -1,4 +1,4 @@
-name: Web CI (Type Check, Deterministic Tests, Build)
+name: TrackerThings CI (Web, API & Swift Package)
 
 on:
   push:
@@ -13,10 +13,13 @@ permissions:
   contents: read
 
 jobs:
-  validate:
-    name: Typecheck, Test & Build
+  # =========================================================================
+  # 1. Web, Backend, and Quality Gates Validation Job (Ubuntu)
+  # =========================================================================
+  web-backend:
+    name: Web, API & Quality Gates (Node + Python)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Checkout repository
@@ -28,18 +31,32 @@ jobs:
           node-version: 24
           cache: "npm"
 
-      - name: Install dependencies
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install Node dependencies
         run: npm ci
 
       - name: Generate Prisma Client
         run: npx prisma generate
         env:
-          # Dummy connection strings for offline schema compilation and client generation
           DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/trackerthings"
           DIRECT_URL: "postgresql://postgres:postgres@localhost:5432/trackerthings"
 
+      - name: Setup & Verify Local Tesseract OCR Assets
+        run: npm run setup:ocr
+
       - name: TypeScript Static Typecheck
         run: npx tsc --noEmit
+
+      - name: Run Python Academic Real-Document & Serverless Tests
+        run: pytest tests/test_academic_real_extraction.py tests/test_vercel_python_serverless.py -v
 
       - name: Run Deterministic Multi-Timezone & Unit Tests
         run: node --test tests/date_timezone_audit.test.js
@@ -68,14 +85,46 @@ jobs:
       - name: Run Native Productivity Integration Tests (M4)
         run: node --test tests/test_native_productivity_integration.test.js
 
-      - name: Run Academic Extraction Benchmark & Hybrid Router (Phase 1 & 2)
+      - name: Run Academic Extraction Benchmark & Hybrid Router
         run: node --test tests/test_academic_extraction_benchmark.test.js
+
+      - name: Run iOS On-Device OCR Evidence Bridge Tests
+        run: node --test tests/test_ios_ocr_evidence_bridge.test.js
+
+      - name: Run Phase 3 & 4 Web Offline OCR & Quality Gates Suite
+        run: node --test tests/test_web_offline_ocr_and_quality_gates.test.js
 
       - name: Build Production Next.js Bundle
         run: npm run build
         env:
           NEXT_TELEMETRY_DISABLED: 1
-          # Dummy connection strings for Next.js build-time static page generation
           DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/trackerthings"
           DIRECT_URL: "postgresql://postgres:postgres@localhost:5432/trackerthings"
           JWT_SECRET: "ci_dummy_jwt_secret_key_minimum_32_characters_long_for_build!"
+
+  # =========================================================================
+  # 2. Native Swift Compilation & Unit Tests Job (macOS Runner)
+  # =========================================================================
+  swift-package:
+    name: Swift Package Compilation & Unit Tests (macOS)
+    runs-on: macos-14
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check Apple toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+          xcrun --show-sdk-path
+
+      - name: Resolve Swift Package Dependencies
+        run: swift package resolve
+
+      - name: Compile Swift Package
+        run: swift build -v
+
+      - name: Execute Swift Unit Tests (AppleVisionOcrTests)
+        run: swift test -v --filter AppleVisionOcrTests

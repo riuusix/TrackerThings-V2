@@ -49,3 +49,9 @@ tsconfig.tsbuildinfo
 
 # Local test & audit artifacts
 artifacts/
+
+# Python cache & virtual environment
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/

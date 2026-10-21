@@ -1,0 +1,8 @@
+# Binary assets
+*.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.bmp binary
+*.gz binary
+*.wasm.js binary

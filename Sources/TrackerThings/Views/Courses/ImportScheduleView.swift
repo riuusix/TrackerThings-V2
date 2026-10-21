@@ -28,9 +28,14 @@ public struct ImportScheduleView: View {
                     // MARK: - Banner Offline
                     if viewModel.isOffline {
                         OfflineBannerView(
-                            message: "Perangkat offline. Pemrosesan OCR dan Vision AI memerlukan koneksi internet ke server."
+                            message: "Perangkat offline. Foto jadwal diekstraksi langsung di perangkat (Apple Vision OCR) dan dapat disimpan sebagai draf offline."
                         )
                         .padding(.horizontal)
+                    }
+
+                    // MARK: - Draf Offline Tersimpan
+                    if !viewModel.pendingDrafts.isEmpty && !viewModel.isLoading && !viewModel.isVisionLoading {
+                        pendingDraftsSection
                     }
 
                     // MARK: - Pemilih File (Foto / PDF)
@@ -111,7 +116,109 @@ public struct ImportScheduleView: View {
                 Text("Gambar jadwal Anda akan dianalisis secara aman oleh layanan Google Gemini Vision untuk mengekstrak kolom tabel yang rumit. Data gambar tidak disimpan permanen oleh pihak ketiga.")
             }
             .feedbackToast(toast: $viewModel.toast)
+            .onAppear {
+                viewModel.loadPendingDrafts()
+            }
         }
+    }
+
+    // MARK: - Draf Offline Section
+    private var pendingDraftsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Label("Draf Jadwal Tersimpan (\(viewModel.pendingDrafts.count))", systemImage: "clock.arrow.circlepath")
+                    .font(AppTheme.Typography.captionBold)
+                    .foregroundStyle(AppTheme.Colors.brandPrimary)
+
+                Spacer()
+
+                if !viewModel.isOffline {
+                    Button {
+                        Task {
+                            await viewModel.syncDrafts()
+                            await courseViewModel.fetchCourses()
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            if viewModel.isSyncingDrafts {
+                                ProgressView()
+                                    .tint(AppTheme.Colors.brandPrimary)
+                                    .controlSize(.small)
+                            } else {
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                            }
+                            Text(viewModel.isSyncingDrafts ? "Menyinkronkan..." : "Sinkronkan")
+                                .font(AppTheme.Typography.captionBold)
+                        }
+                    }
+                    .disabled(viewModel.isSyncingDrafts)
+                }
+            }
+
+            Text("Draf di bawah disimpan saat offline. Anda dapat membukanya kembali untuk diedit atau menyinkronkannya saat terhubung internet.")
+                .font(AppTheme.Typography.caption)
+                .foregroundStyle(AppTheme.Colors.textSecondary)
+
+            ForEach(viewModel.pendingDrafts) { draft in
+                HStack(spacing: 10) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(draft.fileName)
+                            .font(AppTheme.Typography.cardTitle)
+                            .foregroundStyle(AppTheme.Colors.textPrimary)
+                            .lineLimit(1)
+                        Text("\(draft.items.count) mata kuliah • \(draft.createdAt.formatted(date: .abbreviated, time: .shortened))")
+                            .font(AppTheme.Typography.caption)
+                            .foregroundStyle(AppTheme.Colors.textSecondary)
+                    }
+
+                    Spacer()
+
+                    Button {
+                        viewModel.items = draft.items
+                        viewModel.selectedFileName = draft.fileName
+                        viewModel.toast = FeedbackToastData(
+                            message: "Draf '\(draft.fileName)' dimuat ke editor.",
+                            severity: .info
+                        )
+                    } label: {
+                        Text("Buka")
+                            .font(AppTheme.Typography.captionBold)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(AppTheme.Colors.brandPrimary.opacity(0.12))
+                            .foregroundStyle(AppTheme.Colors.brandPrimary)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        viewModel.deleteDraft(id: draft.id)
+                    } label: {
+                        Image(systemName: "trash")
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.Colors.urgent)
+                            .frame(width: 28, height: 28)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Hapus draf ini")
+                }
+                .padding(10)
+                .background(AppTheme.Colors.cardBackground)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(AppTheme.Colors.borderSubtle, lineWidth: 1)
+                )
+            }
+        }
+        .padding()
+        .background(AppTheme.Colors.cardBackground.opacity(0.6))
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Metrics.cornerRadiusMedium))
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.Metrics.cornerRadiusMedium)
+                .stroke(AppTheme.Colors.brandPrimary.opacity(0.2), lineWidth: 1)
+        )
+        .padding(.horizontal)
     }
 
     // MARK: - File Selection Section
@@ -550,7 +657,7 @@ public struct ImportScheduleView: View {
                             .tint(.white)
                             .padding(.trailing, 6)
                     }
-                    Text(viewModel.isConfirming ? "Menyimpan ke Jadwal..." : "Simpan \(viewModel.items.count) Mata Kuliah")
+                    Text(saveButtonTitle)
                         .font(AppTheme.Typography.cardTitle)
                         .fontWeight(.semibold)
                     Spacer()
@@ -559,11 +666,20 @@ public struct ImportScheduleView: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(AppTheme.Colors.brandPrimary)
-            .disabled(viewModel.items.isEmpty || viewModel.isConfirming || viewModel.isOffline)
+            .disabled(viewModel.items.isEmpty || viewModel.isConfirming)
             .padding(.horizontal)
             .padding(.bottom, 6)
         }
         .background(AppTheme.Colors.cardBackground)
+    }
+
+    private var saveButtonTitle: String {
+        if viewModel.isConfirming {
+            return viewModel.isOffline ? "Menyimpan Draf Offline..." : "Menyimpan ke Jadwal..."
+        }
+        return viewModel.isOffline
+            ? "Simpan \(viewModel.items.count) Mata Kuliah (Draf Offline)"
+            : "Simpan \(viewModel.items.count) Mata Kuliah"
     }
 
     // MARK: - Handlers

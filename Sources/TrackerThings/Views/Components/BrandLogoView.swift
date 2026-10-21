@@ -1,5 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 
 /// Landmark geometri kanonikal TrackerThings dari gambar referensi resmi (media_1792004406941_078456aa.webp).
 private enum BrandLogoGeometry {

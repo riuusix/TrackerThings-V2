@@ -16,10 +16,58 @@ import {
   Edit3,
   ChevronDown,
   ChevronUp,
+  ShieldCheck,
+  Check,
+  X,
+  RotateCcw,
 } from "lucide-react";
 import { Modal } from "./Modal";
 import { useToast } from "./ToastProvider";
 import { useRouter } from "next/navigation";
+import { runBrowserOcr, terminateBrowserOcr } from "@/lib/ocr/browserOcr";
+import { evaluateExtractionQuality } from "@/lib/intelligence/extractionQualityEvaluator";
+
+export interface ProposedAddedRow {
+  tempId: string;
+  namaMatkul: string;
+  hari?: string;
+  waktuMulai?: string;
+  waktuSelesai?: string;
+  lokasi?: string;
+  kodeMatkul?: string;
+  kelas?: string;
+  sks?: number;
+  dosen?: string;
+  visualEvidence: string;
+  reason: string;
+  confidence: number;
+}
+
+export interface ProposedRemovedRow {
+  itemId: string;
+  reason: string;
+  visualEvidence?: string;
+  confidence: number;
+}
+
+export interface VerificationDiffSummary {
+  originalRowCount: number;
+  proposedRowCount: number;
+  addedRowsCount: number;
+  removedRowsCount: number;
+  modifiedFieldsCount: number;
+  addedRows: ProposedAddedRow[];
+  removedRows: ProposedRemovedRow[];
+  modifiedFields: Array<{
+    itemId: string;
+    field: string;
+    before: any;
+    after: any;
+    evidence?: string;
+    reason?: string;
+    confidence?: number;
+  }>;
+}
 
 export type ScheduleFieldKey =
   | "hari"
@@ -55,6 +103,15 @@ export interface LayoutInfo {
   limitationReason?: string;
 }
 
+export interface VerificationFindingDetail {
+  field: string;
+  decision: "confirmed" | "corrected" | "uncertain" | "unreadable" | "missing";
+  proposedValue?: any;
+  evidence?: string;
+  reason?: string;
+  confidence?: number;
+}
+
 export interface EditableScheduleItem {
   id: string;
   namaMatkul: string;
@@ -72,10 +129,12 @@ export interface EditableScheduleItem {
   appliedCorrections?: string[];
   fieldConfidence?: Partial<Record<ScheduleFieldKey, FieldConfidenceInfo>>;
   tentativeSuggestions?: Partial<Record<ScheduleFieldKey, string>>;
+  verificationFindings?: Record<string, VerificationFindingDetail>;
   recognitionStatus?: "high_confidence" | "confirmed_assisted" | "needs_review";
   layoutKind?: string;
   needsReview?: boolean;
   warnings?: string[];
+  userEditedFields?: ScheduleFieldKey[];
 }
 
 export interface UserScheduleMappingItem {
@@ -143,6 +202,17 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
     model: string;
     duration_ms: number;
   } | null>(null);
+  const [isVerifying, setIsVerifying] = useState<boolean>(false);
+  const [verificationSummary, setVerificationSummary] = useState<{
+    totalChecked: number;
+    confirmedCount: number;
+    correctedCount: number;
+    uncertainCount: number;
+  } | null>(null);
+  const [originalSnapshot, setOriginalSnapshot] = useState<EditableScheduleItem[] | null>(null);
+  const [proposedAddedRows, setProposedAddedRows] = useState<ProposedAddedRow[]>([]);
+  const [proposedRemovedRows, setProposedRemovedRows] = useState<ProposedRemovedRow[]>([]);
+  const [verificationDiff, setVerificationDiff] = useState<VerificationDiffSummary | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -182,12 +252,19 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
     setDetectedLayout(null);
     setShowMappingsPanel(false);
     setEditingMapping(null);
+    setIsVerifying(false);
+    setVerificationSummary(null);
+    setOriginalSnapshot(null);
+    setProposedAddedRows([]);
+    setProposedRemovedRows([]);
+    setVerificationDiff(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleClose = () => {
     if (isLoading || isSaving) return;
     resetState();
+    terminateBrowserOcr();
     onClose();
   };
 
@@ -219,15 +296,16 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
   };
 
   /**
-   * Compresses oversized user schedule images in the browser before sending to Vision AI or OCR.
-   * Downscales images exceeding 1920px max dimension and encodes to JPEG (0.85 quality),
-   * reducing multi-megabyte camera photos by 90-95% while keeping schedule text razor-sharp.
+   * Prepares and optimizes user schedule images in the browser before sending to Vision AI or OCR.
+   * Preserves files under 1MB as-is to avoid lossy artifacts on small table fonts.
+   * For larger photos, rescales with a generous 2560px ceiling and encodes at 0.92 quality,
+   * retaining maximum contrast on delicate timetable grid lines.
    */
   const compressImageForVision = async (inputFile: File): Promise<File> => {
     if (!inputFile.type.startsWith("image/") || inputFile.type === "image/svg+xml") {
       return inputFile;
     }
-    if (inputFile.size <= 400 * 1024) {
+    if (inputFile.size <= 1024 * 1024) {
       return inputFile;
     }
 
@@ -238,7 +316,7 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
         img.onload = () => {
           URL.revokeObjectURL(objectUrl);
           const { width, height } = img;
-          const maxDim = 1920;
+          const maxDim = 2560;
           let targetWidth = width;
           let targetHeight = height;
 
@@ -278,7 +356,7 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
               resolve(compressedFile);
             },
             "image/jpeg",
-            0.85
+            0.92
           );
         };
         img.onerror = () => {
@@ -308,40 +386,24 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
       const formData = new FormData();
 
       if (isImage) {
-        setOcrStatus("Menyiapkan pemindai tabel & teks di peramban...");
+        setOcrStatus("Menyiapkan pemindai tabel & teks lokal (WebAssembly)...");
         try {
-          const { createWorker } = await import("tesseract.js");
-          const worker = await createWorker(["ind", "eng"], 1, {
-            logger: (m: any) => {
-              if (m.status === "recognizing text") {
-                const prog = Math.round((m.progress || 0) * 100);
-                setOcrStatus(`Mengenali struktur tabel & teks jadwal... ${prog}%`);
-                setOcrProgress(prog);
-              } else if (m.status === "loading tesseract core") {
-                setOcrStatus("Memuat mesin OCR...");
-              } else if (m.status === "loading language traineddata") {
-                setOcrStatus("Memuat kamus bahasa Indonesia & Inggris...");
-              }
+          const { text, tsv } = await runBrowserOcr(fileToProcess, {
+            onProgress: (p) => {
+              setOcrStatus(p.status);
+              setOcrProgress(p.progress);
             },
           });
 
-          setOcrStatus("Memindai kolom tabel jadwal kuliah...");
-          // Request text, blocks, and TSV so spatial word bounding boxes (x0, y0, x1, y1) are preserved!
-          const res = await worker.recognize(fileToProcess, {}, { text: true, blocks: true, tsv: true });
-          await worker.terminate();
-
-          const textOut = res?.data?.text?.trim() || "";
-          const tsvOut = res?.data?.tsv?.trim() || "";
-
-          if (textOut.length > 0 || tsvOut.length > 0) {
-            if (textOut) formData.append("rawText", textOut);
-            if (tsvOut) formData.append("ocrTsv", tsvOut);
+          if (text.length > 0 || tsv.length > 0) {
+            if (text) formData.append("rawText", text);
+            if (tsv) formData.append("ocrTsv", tsv);
             formData.append("fileName", fileToProcess.name);
           } else {
             formData.append("file", fileToProcess);
           }
         } catch (clientOcrErr) {
-          console.warn("Browser OCR gagal, beralih ke ekstraksi server:", clientOcrErr);
+          console.warn("Local browser OCR gagal, beralih ke ekstraksi server:", clientOcrErr);
           formData.append("file", fileToProcess);
         }
       } else {
@@ -409,6 +471,11 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
       }));
 
       setParsedItems(items);
+      setOriginalSnapshot(JSON.parse(JSON.stringify(items)));
+      setProposedAddedRows([]);
+      setProposedRemovedRows([]);
+      setVerificationDiff(null);
+      setVerificationSummary(null);
       setStep("preview");
     } catch (err: any) {
       setErrorMsg(err.message || "Terjadi kesalahan saat memproses file.");
@@ -430,7 +497,7 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
     setErrorMsg(null);
 
     try {
-      // Optimize image payload before network upload (JPEG 0.85, max 1920px) to minimize transmission & Gemini latency
+      // Optimize image payload before network upload (JPEG 0.92, max 2560px) to minimize transmission & Gemini latency
       const fileToSend = await compressImageForVision(file);
 
       const formData = new FormData();
@@ -488,6 +555,9 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
       }));
 
       setParsedItems(mergedItems);
+      if (!originalSnapshot) {
+        setOriginalSnapshot(JSON.parse(JSON.stringify(mergedItems)));
+      }
       setIsVisionEligible(false); // Vision has been executed for this upload
       showSuccess(`Pengenalan cerdas Vision AI selesai (${mergedItems.length} matkul dipadukan).`);
     } catch (err: any) {
@@ -495,6 +565,235 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
     } finally {
       setIsVisionLoading(false);
     }
+  };
+
+  const handleTriggerVerification = async () => {
+    if (!file) {
+      setErrorMsg("File dokumen tidak ditemukan untuk verifikasi visual.");
+      return;
+    }
+    if (parsedItems.length === 0) {
+      setErrorMsg("Tidak ada baris jadwal yang dapat diverifikasi.");
+      return;
+    }
+
+    setIsVerifying(true);
+    setErrorMsg(null);
+
+    try {
+      const fileToSend = await compressImageForVision(file);
+      const formData = new FormData();
+      formData.append("file", fileToSend);
+      formData.append("userConsent", "true");
+      formData.append("items", JSON.stringify(parsedItems));
+
+      const res = await fetch("/api/jadwal/import/verify", {
+        method: "POST",
+        body: formData,
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.message || "Gagal melakukan verifikasi AI.");
+      }
+
+      const verifiedItemsList = json.data?.verified_items || [];
+      const addedRows = json.data?.proposed_added_rows || [];
+      const removedRows = json.data?.proposed_removed_rows || [];
+      const diff = json.data?.diff || null;
+      const summary = json.data?.summary || null;
+      const conflicts = json.data?.schedule_conflicts || [];
+
+      setProposedAddedRows(addedRows);
+      setProposedRemovedRows(removedRows);
+      setVerificationDiff(diff);
+      setVerificationSummary(summary);
+
+      // Map verification findings back to existing parsedItems without creating duplicates
+      setParsedItems((prev) => {
+        if (!originalSnapshot) {
+          setOriginalSnapshot(JSON.parse(JSON.stringify(prev)));
+        }
+
+        const next = prev.map((item) => {
+          const match = verifiedItemsList.find((vi: any) => vi.id === item.id);
+          const rawFindings: Record<string, VerificationFindingDetail> = match?.findings || {};
+          const findings: Record<string, VerificationFindingDetail> = {};
+
+          for (const [fKey, finding] of Object.entries(rawFindings)) {
+            // Rule: Verification preserves user-confirmed edits and never silently overwrites them
+            if (item.userEditedFields?.includes(fKey as ScheduleFieldKey)) {
+              findings[fKey] = {
+                ...finding,
+                decision: "confirmed",
+                reason: "Nilai ini telah dikonfirmasi/diedit secara manual oleh pengguna.",
+                proposedValue: item[fKey as ScheduleFieldKey],
+              };
+            } else {
+              findings[fKey] = finding;
+            }
+          }
+
+          // Add any DB schedule conflicts as distinct warnings
+          const itemConflicts = conflicts
+            .filter((c: any) => c.itemId === item.id)
+            .map((c: any) => c.reason);
+
+          const updatedWarnings = Array.from(new Set([...(item.warnings || []), ...itemConflicts]));
+          const hasCorrections = Object.values(findings).some((f) => f.decision === "corrected");
+
+          return {
+            ...item,
+            verificationFindings: Object.keys(findings).length > 0 ? findings : item.verificationFindings,
+            warnings: updatedWarnings,
+            needsReview: item.needsReview || hasCorrections || itemConflicts.length > 0,
+          };
+        });
+
+        // Rule 9: Revalidate all records using existing deterministic quality gate
+        const quality = evaluateExtractionQuality(next);
+        if (!quality.isSufficientForProduction && quality.score.hasTimeErrors) {
+          for (const it of next) {
+            if (it.waktuMulai && it.waktuSelesai && it.waktuMulai >= it.waktuSelesai) {
+              it.needsReview = true;
+            }
+          }
+        }
+        return next;
+      });
+
+      if (summary) {
+        const extraNote =
+          addedRows.length > 0
+            ? ` (${addedRows.length} baris tambahan diusulkan)`
+            : "";
+        showSuccess(
+          `Verifikasi AI selesai: ${summary.confirmedCount} sesuai, ${summary.correctedCount} koreksi diusulkan${extraNote}.`
+        );
+      }
+    } catch (err: any) {
+      setErrorMsg(err?.message || "Gagal melakukan verifikasi visual AI.");
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleApplyVerificationCorrection = (
+    itemId: string,
+    field: ScheduleFieldKey,
+    proposedValue: any
+  ) => {
+    setParsedItems((prev) => {
+      const updatedList = prev.map((item) => {
+        if (item.id === itemId) {
+          const updatedFindings = { ...(item.verificationFindings || {}) };
+          delete updatedFindings[field];
+
+          const updatedUserEdited = Array.from(
+            new Set([...(item.userEditedFields || []), field])
+          );
+          const updated: EditableScheduleItem = {
+            ...item,
+            [field]: proposedValue,
+            userEditedFields: updatedUserEdited,
+            verificationFindings: Object.keys(updatedFindings).length > 0 ? updatedFindings : undefined,
+            appliedCorrections: [
+              ...(item.appliedCorrections || []),
+              `Koreksi AI diterapkan (${FIELD_LABELS[field] || field}): '${proposedValue}'`,
+            ],
+          };
+          return evaluateItemReviewState(updated, field);
+        }
+        return item;
+      });
+
+      // Rule 9: Revalidate all corrected records using the existing deterministic quality gate
+      const quality = evaluateExtractionQuality(updatedList);
+      if (quality.score.hasTimeErrors) {
+        for (const it of updatedList) {
+          if (it.waktuMulai && it.waktuSelesai && it.waktuMulai >= it.waktuSelesai) {
+            it.needsReview = true;
+            if (!it.warnings) it.warnings = [];
+            if (!it.warnings.some((w) => w.includes("Jam mulai harus lebih awal"))) {
+              it.warnings.push("Jam mulai harus lebih awal dari jam selesai.");
+            }
+          }
+        }
+      }
+      return updatedList;
+    });
+    showSuccess(`Koreksi AI diterapkan untuk ${FIELD_LABELS[field] || field}.`);
+  };
+
+  const handleAcceptAddedRow = (row: ProposedAddedRow) => {
+    const newItem: EditableScheduleItem = {
+      id: `added_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      namaMatkul: row.namaMatkul,
+      hari: row.hari || "",
+      waktuMulai: row.waktuMulai || "",
+      waktuSelesai: row.waktuSelesai || "",
+      lokasi: row.lokasi || "",
+      kodeMatkul: row.kodeMatkul || "",
+      kelas: row.kelas || "",
+      sks: row.sks ?? "",
+      dosen: row.dosen || "",
+      kategori: "Wajib",
+      appliedCorrections: [`Baris tambahan diverifikasi (bukti: ${row.visualEvidence})`],
+      warnings: [],
+      needsReview: false,
+    };
+    setParsedItems((prev) => {
+      const updated = [...prev, newItem];
+      evaluateExtractionQuality(updated);
+      return updated;
+    });
+    setProposedAddedRows((prev) => prev.filter((r) => r.tempId !== row.tempId));
+    showSuccess(`Baris '${row.namaMatkul}' berhasil ditambahkan ke jadwal.`);
+  };
+
+  const handleDismissAddedRow = (tempId: string) => {
+    setProposedAddedRows((prev) => prev.filter((r) => r.tempId !== tempId));
+  };
+
+  const handleAcceptRemovedRow = (itemId: string) => {
+    setParsedItems((prev) => {
+      const updated = prev.filter((r) => r.id !== itemId);
+      evaluateExtractionQuality(updated);
+      return updated;
+    });
+    setProposedRemovedRows((prev) => prev.filter((r) => r.itemId !== itemId));
+    showSuccess("Baris jadwal dihapus sesuai rekomendasi AI.");
+  };
+
+  const handleDismissRemovedRow = (itemId: string) => {
+    setProposedRemovedRows((prev) => prev.filter((r) => r.itemId !== itemId));
+  };
+
+  const handleRollbackAll = () => {
+    if (originalSnapshot) {
+      setParsedItems(JSON.parse(JSON.stringify(originalSnapshot)));
+      setProposedAddedRows([]);
+      setProposedRemovedRows([]);
+      setVerificationDiff(null);
+      setVerificationSummary(null);
+      showSuccess("Semua jadwal dikembalikan ke hasil ekstraksi awal.");
+    }
+  };
+
+  const handleDismissVerificationCorrection = (itemId: string, field: ScheduleFieldKey) => {
+    setParsedItems((prev) =>
+      prev.map((item) => {
+        if (item.id === itemId) {
+          const updatedFindings = { ...(item.verificationFindings || {}) };
+          delete updatedFindings[field];
+          return {
+            ...item,
+            verificationFindings: Object.keys(updatedFindings).length > 0 ? updatedFindings : undefined,
+          };
+        }
+        return item;
+      })
+    );
   };
 
   const evaluateItemReviewState = (
@@ -605,7 +904,17 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
     setParsedItems((prev) =>
       prev.map((item) => {
         if (item.id === id) {
-          const updated = { ...item, [field]: value };
+          const updatedFindings = { ...(item.verificationFindings || {}) };
+          delete updatedFindings[field as string];
+          const updatedUserEdited = Array.from(
+            new Set([...(item.userEditedFields || []), field as ScheduleFieldKey])
+          );
+          const updated = {
+            ...item,
+            [field]: value,
+            userEditedFields: updatedUserEdited,
+            verificationFindings: Object.keys(updatedFindings).length > 0 ? updatedFindings : undefined,
+          };
           return evaluateItemReviewState(updated, field as ScheduleFieldKey);
         }
         return item;
@@ -621,9 +930,13 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
     setParsedItems((prev) =>
       prev.map((item) => {
         if (item.id === id) {
+          const updatedUserEdited = Array.from(
+            new Set([...(item.userEditedFields || []), field])
+          );
           const updated: EditableScheduleItem = {
             ...item,
             [field]: suggestionValue,
+            userEditedFields: updatedUserEdited,
             appliedCorrections: [
               ...(item.appliedCorrections || []),
               `Saran kamus diterapkan (${FIELD_LABELS[field] || field}): '${suggestionValue}'`,
@@ -638,6 +951,58 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
 
   const isFieldUncertain = (item: EditableScheduleItem, field: ScheduleFieldKey): boolean => {
     return Boolean(item.fieldConfidence?.[field]?.needsReview);
+  };
+
+  const getFieldConfidenceBadge = (item: EditableScheduleItem, field: ScheduleFieldKey) => {
+    if (item.userEditedFields?.includes(field)) {
+      return (
+        <span
+          title="Dikonfirmasi/diedit secara manual oleh pengguna"
+          className="inline-block w-2 h-2 rounded-full bg-blue-500 shrink-0"
+        />
+      );
+    }
+    const finding = item.verificationFindings?.[field];
+    if (finding?.decision === "confirmed") {
+      return (
+        <span
+          title="Dikonfirmasi oleh AI verifikasi visual"
+          className="inline-block w-2 h-2 rounded-full bg-emerald-500 shrink-0"
+        />
+      );
+    }
+    if (finding?.decision === "corrected") {
+      return (
+        <span
+          title="Ada usulan koreksi AI"
+          className="inline-block w-2 h-2 rounded-full bg-purple-500 animate-pulse shrink-0"
+        />
+      );
+    }
+    const conf = item.fieldConfidence?.[field];
+    if (!conf) return null;
+    if (conf.level === "confirmed" || conf.level === "high") {
+      return (
+        <span
+          title="Tingkat keyakinan visual tinggi"
+          className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500/80 shrink-0"
+        />
+      );
+    }
+    if (conf.level === "medium") {
+      return (
+        <span
+          title="Tingkat keyakinan sedang"
+          className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0"
+        />
+      );
+    }
+    return (
+      <span
+        title="Keyakinan rendah / perlu ditinjau"
+        className="inline-block w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"
+      />
+    );
   };
 
   const getFieldReviewReasons = (item: EditableScheduleItem): { field: ScheduleFieldKey; reason: string }[] => {
@@ -1291,7 +1656,7 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
               </div>
             ) : null}
 
-            {/* Subheader: Item count, statuses, format badge, Vision badge, Add row */}
+            {/* Subheader: Item count, statuses, format badge, Vision badge, Verify button, Add row */}
             <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 text-xs py-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-bold text-slate-800 dark:text-slate-100">
@@ -1319,20 +1684,127 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
                     Vision AI ({activeVisionMeta.provider}: {activeVisionMeta.model})
                   </span>
                 )}
+                {verificationSummary && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-950/80 text-indigo-700 dark:text-indigo-300 font-bold flex items-center gap-1">
+                    <ShieldCheck className="w-2.5 h-2.5" />
+                    AI Verifikasi: {verificationSummary.confirmedCount} Sesuai, {verificationSummary.correctedCount} Koreksi
+                  </span>
+                )}
+                {verificationDiff && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 font-bold flex items-center gap-1">
+                    Diff: {verificationDiff.originalRowCount} &rarr; {verificationDiff.proposedRowCount} Baris ({verificationDiff.modifiedFieldsCount} sel dikoreksi)
+                    {verificationDiff.addedRowsCount > 0 && ` • +${verificationDiff.addedRowsCount} usulan baru`}
+                    {verificationDiff.removedRowsCount > 0 && ` • -${verificationDiff.removedRowsCount} usulan hapus`}
+                  </span>
+                )}
               </div>
 
-              <button
-                type="button"
-                onClick={handleAddNewItem}
-                className="flex items-center gap-1 text-accent hover:underline font-semibold text-xs shrink-0"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Tambah Baris</span>
-              </button>
+              <div className="flex items-center gap-2">
+                {originalSnapshot && (
+                  <button
+                    type="button"
+                    onClick={handleRollbackAll}
+                    className="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs flex items-center gap-1 transition-all"
+                    title="Kembalikan semua nilai ke hasil ekstraksi awal"
+                  >
+                    <RotateCcw className="w-3 h-3 text-slate-500" />
+                    <span>Kembalikan Nilai Asli</span>
+                  </button>
+                )}
+
+                {file && (
+                  <button
+                    type="button"
+                    onClick={handleTriggerVerification}
+                    disabled={isVerifying || parsedItems.length === 0}
+                    className="px-3 py-1 rounded-xl bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 font-bold transition-all border border-purple-200 dark:border-purple-800 flex items-center gap-1.5 text-xs disabled:opacity-50"
+                  >
+                    {isVerifying ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <ShieldCheck className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                    )}
+                    <span>{isVerifying ? "Memverifikasi..." : "Periksa ulang dengan AI"}</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleAddNewItem}
+                  className="flex items-center gap-1 text-accent hover:underline font-semibold text-xs shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Tambah Baris</span>
+                </button>
+              </div>
             </div>
 
             {/* Dedicated Scrollable Items Container */}
             <div className="flex-1 min-h-0 overflow-y-auto space-y-3 p-1.5 sm:p-2.5 pr-2 sm:pr-3 rounded-2xl border border-line bg-surface/30">
+              {/* Proposed Added Rows Panel (Rule 4 & 7: Explicit user approval required) */}
+              {proposedAddedRows.length > 0 && (
+                <div className="p-3 rounded-xl bg-purple-50/95 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800 space-y-2 mb-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 font-bold text-xs text-purple-900 dark:text-purple-200">
+                      <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                      <span>Usulan Baris Tambahan dari AI ({proposedAddedRows.length} Terdeteksi di Dokumen Asli)</span>
+                    </div>
+                    <span className="text-[11px] font-semibold text-purple-700 dark:text-purple-300">
+                      Memerlukan Persetujuan
+                    </span>
+                  </div>
+                  <div className="space-y-2">
+                    {proposedAddedRows.map((r) => (
+                      <div
+                        key={r.tempId}
+                        className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+                      >
+                        <div className="space-y-1 min-w-0 flex-1">
+                          <div className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 flex-wrap">
+                            <span>{r.namaMatkul}</span>
+                            {r.hari && (
+                              <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-semibold">
+                                {r.hari} {r.waktuMulai}-{r.waktuSelesai}
+                              </span>
+                            )}
+                            {r.lokasi && (
+                              <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-semibold">
+                                {r.lokasi}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-slate-600 dark:text-slate-400">
+                            <span className="font-semibold text-purple-700 dark:text-purple-400">Bukti Visual:</span>{" "}
+                            {r.visualEvidence}
+                          </div>
+                          <div className="text-[10px] text-slate-500 italic">
+                            Alasan: {r.reason} (Keyakinan: {r.confidence}%)
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
+                          <button
+                            type="button"
+                            onClick={() => handleAcceptAddedRow(r)}
+                            className="px-2.5 py-1 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs flex items-center gap-1 shadow-xs transition-colors"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Terima Baris</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDismissAddedRow(r.tempId)}
+                            className="px-2.5 py-1 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs flex items-center gap-1 transition-colors"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                            <span>Tolak</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {parsedItems.map((item, idx) => {
                 const fieldReasons = getFieldReviewReasons(item);
                 const tentativeEntries = Object.entries(item.tentativeSuggestions || {}).filter(
@@ -1353,6 +1825,7 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
                         <span className="font-bold text-content-muted w-5">
                           #{idx + 1}
                         </span>
+                        {getFieldConfidenceBadge(item, "namaMatkul")}
                         <input
                           type="text"
                           value={item.namaMatkul}
@@ -1395,6 +1868,136 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
                         </button>
                       </div>
                     </div>
+
+                    {/* Proposed Removal Recommendation (Rule 7 & 10: Explicit User Approval) */}
+                    {proposedRemovedRows.some((pr) => pr.itemId === item.id) && (
+                      <div className="p-2 sm:p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                        <div className="space-y-0.5 min-w-0 flex-1">
+                          <div className="font-bold text-rose-800 dark:text-rose-300 flex items-center gap-1.5">
+                            <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                            <span>Rekomendasi AI: Hapus Baris Ini</span>
+                          </div>
+                          <div className="text-[11px] text-rose-700 dark:text-rose-400">
+                            Alasan: {proposedRemovedRows.find((pr) => pr.itemId === item.id)?.reason}
+                          </div>
+                          {proposedRemovedRows.find((pr) => pr.itemId === item.id)?.visualEvidence && (
+                            <div className="text-[10px] text-slate-500">
+                              Bukti: {proposedRemovedRows.find((pr) => pr.itemId === item.id)?.visualEvidence}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
+                          <button
+                            type="button"
+                            onClick={() => handleAcceptRemovedRow(item.id)}
+                            className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center gap-1 shadow-xs transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Hapus Baris</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDismissRemovedRow(item.id)}
+                            className="px-2.5 py-1 rounded-lg bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs transition-colors"
+                          >
+                            <span>Pertahankan</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Verification Proposed Corrections Bar (Phase 6 & 6.1 AI Review Workflow) */}
+                    {Object.entries(item.verificationFindings || {}).filter(
+                      ([, val]) => val && val.decision === "corrected" && val.proposedValue !== undefined
+                    ).length > 0 && (
+                      <div className="space-y-1.5 pt-1">
+                        {Object.entries(item.verificationFindings || {})
+                          .filter(
+                            ([, val]) =>
+                              val && val.decision === "corrected" && val.proposedValue !== undefined
+                          )
+                          .map(([fKey, finding]) => (
+                            <div
+                              key={fKey}
+                              className="p-2 sm:p-2.5 rounded-xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                            >
+                              <div className="flex items-start sm:items-center gap-2 text-xs text-purple-950 dark:text-purple-200 min-w-0 flex-1">
+                                <Sparkles className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0 mt-0.5 sm:mt-0" />
+                                <div className="space-y-0.5">
+                                  <div>
+                                    <span className="font-semibold text-purple-900 dark:text-purple-200">
+                                      Usulan Koreksi ({FIELD_LABELS[fKey] || fKey}):
+                                    </span>{" "}
+                                    <span className="text-slate-500 line-through mr-1 text-[11px]">
+                                      {String(item[fKey as ScheduleFieldKey] || "(kosong)")}
+                                    </span>
+                                    <span className="font-bold text-purple-700 dark:text-purple-300 underline decoration-purple-400">
+                                      &quot;{String(finding.proposedValue)}&quot;
+                                    </span>
+                                    {finding.reason && (
+                                      <span className="text-purple-700/80 dark:text-purple-300/80 text-[11px] block sm:inline sm:ml-1.5">
+                                        ({finding.reason})
+                                      </span>
+                                    )}
+                                  </div>
+                                  {finding.evidence && (
+                                    <span className="text-[10px] text-slate-500 dark:text-slate-400 block">
+                                      Bukti visual: {finding.evidence}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleApplyVerificationCorrection(
+                                      item.id,
+                                      fKey as ScheduleFieldKey,
+                                      finding.proposedValue
+                                    )
+                                  }
+                                  className="px-2.5 py-1 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold text-[11px] flex items-center gap-1 shadow-xs transition-colors"
+                                >
+                                  <Check className="w-3 h-3" />
+                                  <span>Terima</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleDismissVerificationCorrection(item.id, fKey as ScheduleFieldKey)
+                                  }
+                                  className="px-2.5 py-1 rounded-lg bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 font-semibold text-[11px] flex items-center gap-1 transition-colors"
+                                >
+                                  <X className="w-3 h-3" />
+                                  <span>Tolak</span>
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    )}
+
+                    {/* Uncertain Findings (Rule 8: Kept original value and marked uncertain) */}
+                    {Object.entries(item.verificationFindings || {}).filter(
+                      ([, val]) => val && val.decision === "uncertain"
+                    ).length > 0 && (
+                      <div className="space-y-1">
+                        {Object.entries(item.verificationFindings || {})
+                          .filter(([, val]) => val && val.decision === "uncertain")
+                          .map(([fKey, finding]) => (
+                            <div
+                              key={fKey}
+                              className="p-1.5 rounded-lg bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 text-[11px] text-amber-800 dark:text-amber-300 flex items-center gap-1.5"
+                            >
+                              <AlertTriangle className="w-3 h-3 text-amber-600 shrink-0" />
+                              <span>
+                                Kolom <strong>{FIELD_LABELS[fKey] || fKey}</strong> ambigu pada dokumen ({finding.reason || "bukti visual minim"}). Nilai asli tetap dipertahankan.
+                              </span>
+                            </div>
+                          ))}
+                      </div>
+                    )}
 
                     {/* Metadata Badges (Kode MK, Kelas, Auto-Corrections, Tentative Suggestions) */}
                     {(item.kodeMatkul ||
@@ -1441,10 +2044,13 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
                       </div>
                     )}
 
-                    {/* Details Grid — Highlights ONLY uncertain fields */}
+                    {/* Details Grid — Highlights ONLY uncertain fields with confidence dots */}
                     <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1">
                       <div>
-                        <label className="text-[10px] text-slate-400 block mb-0.5">Hari</label>
+                        <label className="text-[10px] text-slate-400 flex items-center justify-between mb-0.5">
+                          <span>Hari</span>
+                          {getFieldConfidenceBadge(item, "hari")}
+                        </label>
                         <select
                           value={item.hari}
                           onChange={(e) => handleItemChange(item.id, "hari", e.target.value)}
@@ -1464,8 +2070,12 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
                       </div>
 
                       <div className="sm:col-span-2">
-                        <label className="text-[10px] text-slate-400 block mb-0.5">
-                          Jam Kuliah (Mulai - Akhir)
+                        <label className="text-[10px] text-slate-400 flex items-center justify-between mb-0.5">
+                          <span>Jam Kuliah (Mulai - Akhir)</span>
+                          <span className="flex items-center gap-1">
+                            {getFieldConfidenceBadge(item, "waktuMulai")}
+                            {getFieldConfidenceBadge(item, "waktuSelesai")}
+                          </span>
                         </label>
                         <div className="flex items-center gap-1">
                           <input
@@ -1497,7 +2107,10 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
                       </div>
 
                       <div>
-                        <label className="text-[10px] text-slate-400 block mb-0.5">Ruangan</label>
+                        <label className="text-[10px] text-slate-400 flex items-center justify-between mb-0.5">
+                          <span>Ruangan</span>
+                          {getFieldConfidenceBadge(item, "lokasi")}
+                        </label>
                         <input
                           type="text"
                           value={item.lokasi}
@@ -1512,7 +2125,10 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
                       </div>
 
                       <div>
-                        <label className="text-[10px] text-slate-400 block mb-0.5">SKS</label>
+                        <label className="text-[10px] text-slate-400 flex items-center justify-between mb-0.5">
+                          <span>SKS</span>
+                          {getFieldConfidenceBadge(item, "sks")}
+                        </label>
                         <input
                           type="number"
                           min={1}
@@ -1538,8 +2154,9 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
                     {/* Secondary Row: Dosen, Kode MK, Kelas */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                       <div>
-                        <label className="text-[10px] text-slate-400 block mb-0.5">
-                          Dosen Pengampu (Opsional)
+                        <label className="text-[10px] text-slate-400 flex items-center justify-between mb-0.5">
+                          <span>Dosen Pengampu (Opsional)</span>
+                          {getFieldConfidenceBadge(item, "dosen")}
                         </label>
                         <input
                           type="text"
@@ -1554,8 +2171,9 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
                         />
                       </div>
                       <div>
-                        <label className="text-[10px] text-slate-400 block mb-0.5">
-                          Kode MK (Opsional)
+                        <label className="text-[10px] text-slate-400 flex items-center justify-between mb-0.5">
+                          <span>Kode MK (Opsional)</span>
+                          {getFieldConfidenceBadge(item, "kodeMatkul")}
                         </label>
                         <input
                           type="text"
@@ -1570,8 +2188,9 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
                         />
                       </div>
                       <div>
-                        <label className="text-[10px] text-slate-400 block mb-0.5">
-                          Kelas (Opsional)
+                        <label className="text-[10px] text-slate-400 flex items-center justify-between mb-0.5">
+                          <span>Kelas (Opsional)</span>
+                          {getFieldConfidenceBadge(item, "kelas")}
                         </label>
                         <input
                           type="text"

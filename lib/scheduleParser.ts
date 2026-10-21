@@ -1690,6 +1690,167 @@ export function evaluateScheduleExtractionSufficiency(
   };
 }
 
+export function extractDistinguishingSuffix(name: string): string {
+  const norm = (name || "").trim().toLowerCase();
+  const match = norm.match(/\b(i{1,3}|iv|v|vi|[1-9]|[a-c]|teori|praktikum|lab)\b$/i);
+  return match ? match[1].toLowerCase() : "";
+}
+
+export function computeCourseMatchScore(
+  v: {
+    namaMatkul: string;
+    hari?: string | null;
+    waktuMulai?: string | null;
+    waktuSelesai?: string | null;
+    kodeMatkul?: string | null;
+    lokasi?: string | null;
+    kelas?: string | null;
+  },
+  l: {
+    namaMatkul: string;
+    hari?: string | null;
+    waktuMulai?: string | null;
+    waktuSelesai?: string | null;
+    kodeMatkul?: string | null;
+    lokasi?: string | null;
+    kelas?: string | null;
+  }
+): { score: number; isCompatible: boolean; reason?: string } {
+  const vKode = (v.kodeMatkul || "").trim().toUpperCase();
+  const lKode = (l.kodeMatkul || "").trim().toUpperCase();
+
+  // 1. Hard Incompatibility: Conflicting course codes
+  if (vKode && lKode && vKode !== lKode) {
+    return { score: -1, isCompatible: false, reason: "Kode mata kuliah berbeda" };
+  }
+
+  // 2. Hard Incompatibility: Conflicting class section (kelas) e.g. R.01 vs R.02
+  const vKelas = (v.kelas || "").trim().toUpperCase();
+  const lKelas = (l.kelas || "").trim().toUpperCase();
+  if (vKelas && lKelas && vKelas !== lKelas) {
+    return { score: -1, isCompatible: false, reason: `Kelas / seksi berbeda (${vKelas} vs ${lKelas})` };
+  }
+
+  const vNama = (v.namaMatkul || "").trim();
+  const lNama = (l.namaMatkul || "").trim();
+
+  // 3. Hard Incompatibility: Conflicting distinguishing suffix (e.g. Kalkulus I vs Kalkulus II, Teori vs Praktikum)
+  if (vNama && lNama) {
+    const vSuffix = extractDistinguishingSuffix(vNama);
+    const lSuffix = extractDistinguishingSuffix(lNama);
+    if (vSuffix && lSuffix && vSuffix !== lSuffix) {
+      return { score: -1, isCompatible: false, reason: `Suffix pembeda berbeda (${vSuffix} vs ${lSuffix})` };
+    }
+  }
+
+  // 4. Spatiotemporal Compatibility
+  const vHari = v.hari ? v.hari.trim().toLowerCase() : null;
+  const lHari = l.hari ? l.hari.trim().toLowerCase() : null;
+  const hasDayConflict = Boolean(vHari && lHari && vHari !== lHari);
+
+  const vMulai = v.waktuMulai ? v.waktuMulai.trim() : null;
+  const lMulai = l.waktuMulai ? l.waktuMulai.trim() : null;
+  const vSelesai = v.waktuSelesai ? v.waktuSelesai.trim() : null;
+  const lSelesai = l.waktuSelesai ? l.waktuSelesai.trim() : null;
+
+  let hasTimeConflict = false;
+  if (vMulai && lMulai && vSelesai && lSelesai) {
+    if (vMulai >= lSelesai || vSelesai <= lMulai) {
+      hasTimeConflict = true;
+    }
+  }
+
+  // 5. Hard Incompatibility: Different room on the same day and overlapping time (parallel classes)
+  const vRuangClean = cleanRoomName(v.lokasi || "").trim().toLowerCase();
+  const lRuangClean = cleanRoomName(l.lokasi || "").trim().toLowerCase();
+  if (
+    vRuangClean &&
+    lRuangClean &&
+    vRuangClean !== lRuangClean &&
+    !hasDayConflict &&
+    !hasTimeConflict &&
+    computeTextSimilarity(vRuangClean, lRuangClean) < 0.65
+  ) {
+    return {
+      score: -1,
+      isCompatible: false,
+      reason: `Ruang kuliah berbeda pada jam yang sama (${vRuangClean} vs ${lRuangClean})`,
+    };
+  }
+
+  // Repeated course sessions on different days or separate time slots
+  if (hasDayConflict && !vKode) {
+    return { score: -1, isCompatible: false, reason: "Hari kuliah berbeda" };
+  }
+  if (hasDayConflict && hasTimeConflict) {
+    return { score: -1, isCompatible: false, reason: "Sesi kuliah pada hari dan jam berbeda" };
+  }
+  if (!hasDayConflict && hasTimeConflict && vMulai && lMulai) {
+    const vHour = parseInt(vMulai.split(":")[0] || "0", 10);
+    const lHour = parseInt(lMulai.split(":")[0] || "0", 10);
+    if (Math.abs(vHour - lHour) >= 2) {
+      return { score: -1, isCompatible: false, reason: "Sesi kuliah pada jam terpisah" };
+    }
+  }
+
+  // 6. Identity Score (0 to 60)
+  let identityScore = 0;
+  if (vKode && lKode && vKode === lKode) {
+    identityScore += 50;
+  }
+
+  let sim = 0;
+  if (vNama && lNama) {
+    sim = computeTextSimilarity(vNama, lNama);
+    if (sim >= 0.85) {
+      identityScore += 45;
+    } else if (sim >= 0.65) {
+      identityScore += 30;
+    } else if (sim >= 0.45) {
+      identityScore += 15;
+    } else {
+      if (!vKode || !lKode || vKode !== lKode) {
+        return { score: -1, isCompatible: false, reason: "Nama mata kuliah tidak sesuai (< 45% kemiripan)" };
+      }
+    }
+  } else if (!vNama && !lNama) {
+    identityScore = 0;
+  } else {
+    // One course name is empty
+    if (vRuangClean && lRuangClean && vRuangClean === lRuangClean && !hasDayConflict && !hasTimeConflict) {
+      identityScore += 35;
+    } else {
+      return { score: -1, isCompatible: false, reason: "Data mata kuliah kosong tanpa kecocokan ruang" };
+    }
+  }
+
+  // Identity score must be >= 25. Time overlap alone can NEVER satisfy this!
+  if (identityScore < 25) {
+    return { score: -1, isCompatible: false, reason: "Kurang bukti identitas mata kuliah (nama/kode)" };
+  }
+
+  // 7. Context / Spatiotemporal Score (0 to 40)
+  let contextScore = 0;
+  if (vHari && lHari && vHari === lHari) {
+    contextScore += 15;
+  }
+  if (vMulai && lMulai && vMulai === lMulai) {
+    contextScore += 15;
+  } else if (vMulai && lMulai && vSelesai && lSelesai && !hasTimeConflict) {
+    contextScore += 10;
+  }
+  if (
+    vRuangClean &&
+    lRuangClean &&
+    (vRuangClean === lRuangClean || computeTextSimilarity(vRuangClean, lRuangClean) >= 0.75)
+  ) {
+    contextScore += 10;
+  }
+
+  const totalScore = identityScore + contextScore;
+  return { score: totalScore, isCompatible: totalScore >= 45 };
+}
+
 /**
  * Requirement Phase E: Merge and Validate.
  * Merges external vision-model output with existing local OCR results without blindly replacing local evidence.
@@ -1708,8 +1869,7 @@ export function mergeVisionWithOcrSchedule(
 
   const rawMergedCandidates: Partial<ParsedScheduleItem>[] = [];
 
-  // Match each vision row with the most relevant local OCR row
-  // Matching priority: exact day + time overlap OR high course name similarity OR matched course code
+  // Match each vision row with the most relevant local OCR row using identity & spatiotemporal rules
   const usedLocalIndices = new Set<number>();
 
   for (let vIdx = 0; vIdx < visionRows.length; vIdx++) {
@@ -1730,28 +1890,22 @@ export function mergeVisionWithOcrSchedule(
     for (let lIdx = 0; lIdx < localItems.length; lIdx++) {
       if (usedLocalIndices.has(lIdx)) continue;
       const lr = localItems[lIdx];
-      let score = 0;
 
-      // Same day and overlapping/exact times
-      if (vHari && lr.hari && vHari.toLowerCase() === lr.hari.toLowerCase()) {
-        score += 30;
-        if (vMulai && lr.waktuMulai && vMulai === lr.waktuMulai) score += 30;
-        if (vSelesai && lr.waktuSelesai && vSelesai === lr.waktuSelesai) score += 20;
-      }
+      const match = computeCourseMatchScore(
+        {
+          namaMatkul: vNama,
+          hari: vHari,
+          waktuMulai: vMulai,
+          waktuSelesai: vSelesai,
+          kodeMatkul: vKode,
+          lokasi: vRuang,
+          kelas: vKelas,
+        },
+        lr
+      );
 
-      // Course code match
-      if (vKode && lr.kodeMatkul && vKode.toUpperCase() === lr.kodeMatkul.toUpperCase()) {
-        score += 40;
-      }
-
-      // Course name similarity
-      if (vNama && lr.namaMatkul) {
-        const sim = computeTextSimilarity(vNama, lr.namaMatkul);
-        score += Math.round(sim * 40);
-      }
-
-      if (score > highestScore && score >= 35) {
-        highestScore = score;
+      if (match.isCompatible && match.score > highestScore) {
+        highestScore = match.score;
         matchedLocalIdx = lIdx;
       }
     }
@@ -1793,6 +1947,9 @@ export function mergeVisionWithOcrSchedule(
           finalMulai = lr.waktuMulai;
           finalSelesai = lr.waktuSelesai;
           appliedCorrections.push("Jam kuliah dipertahankan dari pembacaan OCR lokal.");
+        } else if (isLocalConfirmed) {
+          finalMulai = lr.waktuMulai;
+          finalSelesai = lr.waktuSelesai;
         } else if (finalMulai !== lr.waktuMulai || finalSelesai !== lr.waktuSelesai) {
           // Conflict between local OCR and Vision Model -> flag for user review
           warnings.push(
@@ -1803,7 +1960,7 @@ export function mergeVisionWithOcrSchedule(
         }
       }
 
-      // 3. Nama Mata Kuliah resolution
+      // 3. Nama Mata Kuliah resolution (Case E: partial OCR must not overwrite cleaner vision data)
       if (lr.namaMatkul && lr.namaMatkul.length >= 3) {
         if (!finalNama) {
           finalNama = lr.namaMatkul;
@@ -1815,9 +1972,22 @@ export function mergeVisionWithOcrSchedule(
               `Perbedaan nama mata kuliah: Vision '${finalNama}' vs OCR Lokal '${lr.namaMatkul}'. Harap pastikan nama yang benar.`
             );
             tentativeSuggestions.namaMatkul = lr.namaMatkul;
-          } else if (lr.namaMatkul.length > finalNama.length && !isLocalConfirmed) {
-            // Keep the more complete name if similar
+          } else if (isLocalConfirmed) {
             finalNama = lr.namaMatkul;
+          } else {
+            // Check if local OCR has noise or column leakage (SKS, lecturer titles like Dr., Prof., Ir., M.T)
+            const localHasNoise =
+              /\b(sks|dr|prof|ir|drs|dra|phd|m\s*\.?\s*t|m\s*\.?\s*kom|\d+)\b|[|_\t\\]/i.test(lr.namaMatkul);
+            const visionIsClean = !/[|_\t\\]/.test(finalNama);
+
+            if (localHasNoise && visionIsClean) {
+              // Keep clean vision name, do not overwrite with noisy local string
+            } else if (finalNama.includes(".") && !lr.namaMatkul.includes(".") && !localHasNoise) {
+              // Expand abbreviations (e.g. "Tek. Inf." -> "Teknologi Informasi")
+              finalNama = lr.namaMatkul;
+            } else if (lr.namaMatkul.length > finalNama.length && !localHasNoise) {
+              finalNama = lr.namaMatkul;
+            }
           }
         }
       }
@@ -1825,13 +1995,31 @@ export function mergeVisionWithOcrSchedule(
       // 4. Kode MK & SKS resolution
       if (!finalKode && lr.kodeMatkul) finalKode = lr.kodeMatkul;
       if (finalSks === null && lr.sks !== null) finalSks = lr.sks;
-      if (!finalRuang && lr.lokasi) finalRuang = lr.lokasi;
+      if (!finalRuang && lr.lokasi && !/[|_\t]/.test(lr.lokasi)) finalRuang = lr.lokasi;
       if (!finalKelas && lr.kelas) finalKelas = lr.kelas;
       if (!finalDosen && lr.dosen) finalDosen = lr.dosen;
     }
 
     if (vr.ambiguousFieldsReason) {
       warnings.push(`Catatan Vision Model: ${vr.ambiguousFieldsReason}`);
+    }
+
+    const fieldConfidence: Record<string, any> = {};
+    if (vr.fieldConfidence && typeof vr.fieldConfidence === "object") {
+      for (const [fName, fConf] of Object.entries(vr.fieldConfidence)) {
+        const numConf = Number(fConf);
+        const status =
+          (vr.fieldStatuses && vr.fieldStatuses[fName]) ||
+          (numConf >= 80 ? "read" : numConf >= 50 ? "uncertain" : "unreadable");
+        fieldConfidence[fName] = {
+          level: numConf >= 80 ? "high" : numConf >= 50 ? "medium" : "low",
+          source: "vision_ai",
+          ocrConfidence: numConf,
+          needsReview: numConf < 75 || status === "uncertain" || status === "unreadable",
+          reviewReason:
+            status === "uncertain" ? "Tingkat keyakinan visual di bawah ambang batas" : undefined,
+        };
+      }
     }
 
     rawMergedCandidates.push({
@@ -1846,7 +2034,7 @@ export function mergeVisionWithOcrSchedule(
       dosen: finalDosen,
       kategori: "Wajib",
       rawText: rawTextCombined,
-      rawFields: {
+      rawFields: vr.rawFields || {
         namaMatkul: finalNama,
         hari: finalHari,
         waktuMulai: finalMulai,
@@ -1860,23 +2048,43 @@ export function mergeVisionWithOcrSchedule(
       layoutKind: layoutKind || "unas_8col_table",
       appliedCorrections,
       warnings,
-      needsReview: warnings.length > 0,
+      needsReview: warnings.length > 0 || Object.values(fieldConfidence).some((fc) => fc.needsReview),
+      fieldConfidence: Object.keys(fieldConfidence).length > 0 ? fieldConfidence : undefined,
     });
   }
 
-  // Include any unmatched high-confidence local OCR items so local evidence is never silently discarded
+  // Include any unmatched high-confidence local OCR items ONLY IF they do not duplicate an already merged vision row
   for (let lIdx = 0; lIdx < localItems.length; lIdx++) {
     if (!usedLocalIndices.has(lIdx)) {
       const unmatchedLocal = localItems[lIdx];
       if (unmatchedLocal.namaMatkul && unmatchedLocal.hari && unmatchedLocal.waktuMulai && !unmatchedLocal.needsReview) {
-        rawMergedCandidates.push({
-          ...unmatchedLocal,
-          warnings: [
-            ...(unmatchedLocal.warnings || []),
-            "Baris ini ditemukan oleh OCR lokal tetapi tidak terdapat pada hasil vision model. Harap periksa.",
-          ],
-          needsReview: true,
+        // Prevent duplicate: Check if an existing merged candidate is genuinely the SAME course (identity + spatiotemporal)
+        const isDuplicate = rawMergedCandidates.some((c) => {
+          const matchResult = computeCourseMatchScore(
+            {
+              namaMatkul: c.namaMatkul || "",
+              hari: c.hari,
+              waktuMulai: c.waktuMulai,
+              waktuSelesai: c.waktuSelesai,
+              kodeMatkul: c.kodeMatkul,
+              lokasi: c.lokasi,
+              kelas: c.kelas,
+            },
+            unmatchedLocal
+          );
+          return matchResult.isCompatible;
         });
+
+        if (!isDuplicate) {
+          rawMergedCandidates.push({
+            ...unmatchedLocal,
+            warnings: [
+              ...(unmatchedLocal.warnings || []),
+              "Baris ini ditemukan oleh OCR lokal tetapi tidak terdapat pada hasil vision model. Harap periksa.",
+            ],
+            needsReview: true,
+          });
+        }
       }
     }
   }

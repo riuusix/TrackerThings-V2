@@ -261,3 +261,70 @@ public struct ScheduleImportConfirmResponse: Codable, Sendable {
     }
 }
 
+// MARK: - Spatial OCR Evidence Models
+
+/// Koordinat bounding box ternormalisasi (0.0 ... 1.0) dengan titik asal kiri-atas (top-left)
+public struct OcrBoundingBox: Codable, Sendable, Hashable {
+    public let x0: Double
+    public let y0: Double
+    public let x1: Double
+    public let y1: Double
+
+    public init(x0: Double, y0: Double, x1: Double, y1: Double) {
+        self.x0 = x0
+        self.y0 = y0
+        self.x1 = x1
+        self.y1 = y1
+    }
+}
+
+/// Token kata individual hasil ekstraksi OCR beserta confidence dan lokasi spasial
+public struct OcrWord: Codable, Sendable, Hashable {
+    public let text: String
+    public let confidence: Double
+    public let bbox: OcrBoundingBox
+
+    public init(text: String, confidence: Double, bbox: OcrBoundingBox) {
+        self.text = text
+        self.confidence = confidence
+        self.bbox = bbox
+    }
+}
+
+// MARK: - Offline Draft Persistence Models
+
+public enum ScheduleDraftStatus: String, Codable, Sendable {
+    case draft = "draft"
+    case pendingSync = "pending_sync"
+    case syncFailed = "sync_failed"
+    case synced = "synced"
+}
+
+/// Draf jadwal hasil impor offline yang tersimpan secara lokal dan siap disinkronkan ke server
+public struct OfflineScheduleDraft: Codable, Sendable, Identifiable, Hashable {
+    public let id: String
+    public let fileName: String
+    public let createdAt: Date
+    public var updatedAt: Date
+    public var items: [ImportScheduleItem]
+    public var status: ScheduleDraftStatus
+    public var syncErrorMessage: String?
+
+    public init(
+        id: String = UUID().uuidString,
+        fileName: String,
+        createdAt: Date = Date(),
+        updatedAt: Date = Date(),
+        items: [ImportScheduleItem],
+        status: ScheduleDraftStatus = .pendingSync,
+        syncErrorMessage: String? = nil
+    ) {
+        self.id = id
+        self.fileName = fileName
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.items = items
+        self.status = status
+        self.syncErrorMessage = syncErrorMessage
+    }
+}

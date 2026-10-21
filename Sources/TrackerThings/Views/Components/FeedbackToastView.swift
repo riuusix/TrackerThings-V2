@@ -1,5 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 
 /// Semantic feedback severity matching web vocabulary
 public enum FeedbackSeverity: Sendable, Equatable {
@@ -106,10 +108,12 @@ public struct FeedbackToastBanner: View {
         .accessibilityLabel("\(data.severity.localizedName): \(data.message)")
         .accessibilityAddTraits(.isStaticText)
         .onAppear {
+            #if canImport(UIKit)
             UIAccessibility.post(
                 notification: .announcement,
                 argument: "\(data.severity.localizedName): \(data.message)"
             )
+            #endif
         }
     }
 }

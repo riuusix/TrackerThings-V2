@@ -14,6 +14,7 @@ import { getUserScheduleMappings } from "@/lib/scheduleCorrections";
 import {
   AcademicHybridRouter,
   bridgeCanonicalToLegacyItem,
+  evaluateExtractionQuality,
   type CanonicalAcademicExtractionResult,
   type HybridRoutingDecision,
 } from "@/lib/intelligence/academicEngine";
@@ -253,7 +254,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const requiresReview = parsedItems.length === 0 || parsedItems.some((item) => item.needsReview);
+    const qualityDecision = evaluateExtractionQuality(parsedItems);
+    const requiresReview = !qualityDecision.isSufficientForProduction;
     const highConfidenceCount = parsedItems.filter(
       (item) => item.recognitionStatus === "high_confidence" || item.recognitionStatus === "confirmed_assisted"
     ).length;
@@ -262,11 +264,12 @@ export async function POST(req: NextRequest) {
     ).length;
     const needsReviewCount = parsedItems.filter((item) => item.needsReview).length;
 
-    const isInsufficient =
-      parsedItems.length === 0 ||
-      Boolean(recognition.insufficientForProduction) ||
-      parsedItems.some((item: any) => item.needsReview);
+    const isInsufficient = !qualityDecision.isSufficientForProduction || Boolean(recognition.insufficientForProduction);
     const visionFallbackEligible = isInsufficient;
+    const combinedReasons = Array.from(new Set([
+      ...(recognition.insufficiencyReasons || []),
+      ...qualityDecision.reasons,
+    ]));
 
     return apiSuccess(
       parsedItems.length > 0
@@ -283,7 +286,7 @@ export async function POST(req: NextRequest) {
         requires_review: requiresReview,
         layout: recognition.layout,
         insufficient_for_production: isInsufficient,
-        insufficiency_reasons: isInsufficient ? (recognition.insufficiencyReasons || []) : [],
+        insufficiency_reasons: isInsufficient ? combinedReasons : [],
         vision_fallback_eligible: visionFallbackEligible,
         recognition_summary: {
           high_confidence_count: highConfidenceCount,

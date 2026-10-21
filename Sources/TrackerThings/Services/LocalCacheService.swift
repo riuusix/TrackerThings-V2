@@ -140,5 +140,30 @@ public final class LocalCacheService: Sendable {
     public static let keyTugas = "cached_tugas_list"
     public static let keyUjian = "cached_ujian_list"
     public static let keyKelasPengganti = "cached_kelas_pengganti_list"
-}
+    public static let keyOfflineScheduleDrafts = "cached_offline_schedule_drafts"
 
+    // MARK: - Offline Schedule Drafts Persistence
+    public func saveScheduleDrafts(_ drafts: [OfflineScheduleDraft]) {
+        save(drafts, forKey: Self.keyOfflineScheduleDrafts)
+    }
+
+    public func loadScheduleDrafts() -> [OfflineScheduleDraft] {
+        load(forKey: Self.keyOfflineScheduleDrafts) ?? []
+    }
+
+    public func saveScheduleDraft(_ draft: OfflineScheduleDraft) {
+        var existing = loadScheduleDrafts()
+        if let index = existing.firstIndex(where: { $0.id == draft.id }) {
+            existing[index] = draft
+        } else {
+            existing.append(draft)
+        }
+        saveScheduleDrafts(existing)
+    }
+
+    public func removeScheduleDraft(id: String) {
+        var existing = loadScheduleDrafts()
+        existing.removeAll { $0.id == id }
+        saveScheduleDrafts(existing)
+    }
+}

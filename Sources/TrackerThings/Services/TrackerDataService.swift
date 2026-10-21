@@ -24,9 +24,29 @@ public protocol TrackerDataServiceProtocol: Sendable {
     func deleteKelasPengganti(id: Int) async throws -> BaseResponse
 
     // MARK: - Schedule Import (OCR & AI Vision)
-    func previewScheduleImport(fileData: Data, fileName: String, mimeType: String) async throws -> ScheduleImportPreviewResponse
+    func previewScheduleImport(
+        fileData: Data,
+        fileName: String,
+        mimeType: String,
+        rawText: String?,
+        ocrWordsJson: String?
+    ) async throws -> ScheduleImportPreviewResponse
+
     func visionScheduleImport(fileData: Data, fileName: String, mimeType: String, localItemsJson: String?) async throws -> ScheduleImportPreviewResponse
     func confirmScheduleImport(items: [ImportScheduleItem], learnCorrections: Bool) async throws -> ScheduleImportConfirmResponse
+    func syncPendingScheduleDrafts() async throws -> [ScheduleImportConfirmResponse]
+}
+
+public extension TrackerDataServiceProtocol {
+    func previewScheduleImport(fileData: Data, fileName: String, mimeType: String) async throws -> ScheduleImportPreviewResponse {
+        try await previewScheduleImport(
+            fileData: fileData,
+            fileName: fileName,
+            mimeType: mimeType,
+            rawText: nil,
+            ocrWordsJson: nil
+        )
+    }
 }
 
 public actor TrackerDataService: TrackerDataServiceProtocol {
@@ -167,13 +187,27 @@ public actor TrackerDataService: TrackerDataServiceProtocol {
     }
 
     // MARK: - Schedule Import (OCR & AI Vision)
-    public func previewScheduleImport(fileData: Data, fileName: String, mimeType: String) async throws -> ScheduleImportPreviewResponse {
+    public func previewScheduleImport(
+        fileData: Data,
+        fileName: String,
+        mimeType: String,
+        rawText: String? = nil,
+        ocrWordsJson: String? = nil
+    ) async throws -> ScheduleImportPreviewResponse {
+        var extra: [String: String] = [:]
+        if let text = rawText, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            extra["rawText"] = text
+        }
+        if let words = ocrWordsJson, !words.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            extra["ocrWords"] = words
+        }
         return try await network.uploadMultipart(
             endpoint: "jadwal/import/preview",
             fileData: fileData,
             fileName: fileName,
             mimeType: mimeType,
-            fieldName: "file"
+            fieldName: "file",
+            extraFields: extra
         )
     }
 
@@ -208,5 +242,56 @@ public actor TrackerDataService: TrackerDataServiceProtocol {
         _ = try? await getJadwalList()
         return response
     }
-}
 
+    /// Menyinkronkan semua draf jadwal offline berstatus .pendingSync ke server backend saat online
+    /// Menerapkan deduplikasi agar tidak menduplikasi jadwal yang sudah tersimpan sebelumnya
+    public func syncPendingScheduleDrafts() async throws -> [ScheduleImportConfirmResponse] {
+        guard NetworkMonitor.shared.isConnected else { return [] }
+
+        var drafts = LocalCacheService.shared.loadScheduleDrafts()
+        let pending = drafts.filter { $0.status == .pendingSync }
+        guard !pending.isEmpty else { return [] }
+
+        var results: [ScheduleImportConfirmResponse] = []
+        let currentJadwal = (try? await getJadwalList()) ?? (LocalCacheService.shared.load(forKey: LocalCacheService.keyJadwal) ?? [])
+
+        for draft in pending {
+            // Deduplikasi: hindari menambahkan mata kuliah yang sudah ada di database / jadwal pengguna
+            let uniqueItems = draft.items.filter { draftItem in
+                let cleanDraftName = draftItem.namaMatkul.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                let cleanDraftDay = draftItem.hari.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                return !currentJadwal.contains { existing in
+                    existing.namaMatkul.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == cleanDraftName &&
+                    existing.hari.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == cleanDraftDay &&
+                    existing.waktuMulai == draftItem.waktuMulai
+                }
+            }
+
+            if uniqueItems.isEmpty {
+                // Semua item pada draf sudah tersinkron sebelumnya
+                if let idx = drafts.firstIndex(where: { $0.id == draft.id }) {
+                    drafts[idx].status = .synced
+                }
+                continue
+            }
+
+            do {
+                let res = try await confirmScheduleImport(items: uniqueItems, learnCorrections: true)
+                results.append(res)
+                if let idx = drafts.firstIndex(where: { $0.id == draft.id }) {
+                    drafts[idx].status = .synced
+                }
+            } catch {
+                if let idx = drafts.firstIndex(where: { $0.id == draft.id }) {
+                    drafts[idx].status = .syncFailed
+                    drafts[idx].syncErrorMessage = error.localizedDescription
+                }
+            }
+        }
+
+        // Simpan pembaruan draf dan hapus yang sudah berhasil disinkronkan dari antrean
+        drafts.removeAll { $0.status == .synced }
+        LocalCacheService.shared.saveScheduleDrafts(drafts)
+        return results
+    }
+}

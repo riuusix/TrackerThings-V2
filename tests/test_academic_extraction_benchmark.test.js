@@ -2,7 +2,11 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { register } from "node:module";
+
+// Register custom loader for dynamic next/server and @ path resolution
+register("./tests/loader.mjs", pathToFileURL("./"));
 
 import {
   validateCanonicalAcademicItem,

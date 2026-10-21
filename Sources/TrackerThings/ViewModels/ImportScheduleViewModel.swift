@@ -2,8 +2,9 @@ import Foundation
 import SwiftUI
 
 /// ViewModel untuk mengelola proses pengunggahan dokumen jadwal (Foto/PDF),
-/// ekstraksi OCR deterministik, fallback AI Vision dengan persetujuan eksplisit,
-/// peninjauan serta pengeditan data per kolom, dan konfirmasi penyimpanan atomik.
+/// ekstraksi OCR on-device (Apple Vision), parsing deterministik offline,
+/// fallback AI Vision dengan persetujuan eksplisit, penyimpanan draf offline,
+/// dan sinkronisasi atomik ke backend.
 @Observable
 @MainActor
 public final class ImportScheduleViewModel {
@@ -27,16 +28,19 @@ public final class ImportScheduleViewModel {
     public var isVisionLoading: Bool = false
     public var showVisionConsentSheet: Bool = false
 
-    // MARK: - State Konfirmasi & Penyimpanan
+    // MARK: - State Konfirmasi & Draf Offline
     public var isConfirming: Bool = false
     public var learnCorrections: Bool = true
     public var isImportSuccess: Bool = false
     public var importedCount: Int = 0
+    public var pendingDrafts: [OfflineScheduleDraft] = []
+    public var isSyncingDrafts: Bool = false
 
     private let dataService: TrackerDataServiceProtocol
 
     public init(dataService: TrackerDataServiceProtocol = TrackerDataService()) {
         self.dataService = dataService
+        loadPendingDrafts()
     }
 
     public var isOffline: Bool {
@@ -49,17 +53,51 @@ public final class ImportScheduleViewModel {
 
     public var visionEligible: Bool {
         guard !isDocumentPdf, selectedFileData != nil else { return false }
+        if isOffline { return false } // Vision AI fallback requires network
         if let prev = previewResponse {
             return prev.visionFallbackEligible
         }
-        // If local OCR preview failed or returned empty items on an image, allow user to trigger Vision AI
         return errorMessage != nil && items.isEmpty
+    }
+
+    // MARK: - Draf Offline Management
+    public func loadPendingDrafts() {
+        self.pendingDrafts = LocalCacheService.shared.loadScheduleDrafts()
+    }
+
+    public func deleteDraft(id: String) {
+        LocalCacheService.shared.removeScheduleDraft(id: id)
+        loadPendingDrafts()
+    }
+
+    public func syncDrafts() async {
+        guard !isOffline else {
+            toast = FeedbackToastData(message: "Perangkat masih offline. Hubungkan ke internet untuk menyinkronkan draf.", severity: .warning)
+            return
+        }
+        guard !pendingDrafts.isEmpty else { return }
+
+        isSyncingDrafts = true
+        do {
+            let responses = try await dataService.syncPendingScheduleDrafts()
+            isSyncingDrafts = false
+            loadPendingDrafts()
+            let totalSynced = responses.reduce(0) { $0 + $1.count }
+            toast = FeedbackToastData(message: "Berhasil menyinkronkan \(totalSynced) mata kuliah dari draf offline!", severity: .success)
+        } catch {
+            isSyncingDrafts = false
+            loadPendingDrafts()
+            toast = FeedbackToastData(message: "Gagal menyinkronkan sebagian draf: \(error.localizedDescription)", severity: .error)
+        }
     }
 
     // MARK: - Pemilihan File
     public func handleFileSelected(data: Data, fileName: String, mimeType: String) {
-        guard !isOffline else {
-            errorMessage = "Perangkat sedang offline. Hubungkan ke internet untuk melakukan impor jadwal."
+        let isPdf = mimeType.lowercased().contains("pdf") || fileName.lowercased().hasSuffix(".pdf")
+
+        // PDF digital table extraction requires backend server parser
+        if isPdf && isOffline {
+            errorMessage = "Impor PDF digital memerlukan koneksi internet untuk membaca struktur tabel server. Harap gunakan foto atau tangkapan layar jadwal untuk pemrosesan offline."
             toast = FeedbackToastData(message: errorMessage!, severity: .warning)
             return
         }
@@ -73,7 +111,7 @@ public final class ImportScheduleViewModel {
         self.selectedFileData = data
         self.selectedFileName = fileName
         self.selectedFileMimeType = mimeType
-        self.isDocumentPdf = mimeType.lowercased().contains("pdf") || fileName.lowercased().hasSuffix(".pdf")
+        self.isDocumentPdf = isPdf
         self.errorMessage = nil
         self.items = []
         self.previewResponse = nil
@@ -83,62 +121,135 @@ public final class ImportScheduleViewModel {
         }
     }
 
-    // MARK: - Ekstraksi OCR Preview
+    // MARK: - Ekstraksi OCR Preview (Hybrid: On-Device Apple Vision + Online Bridge)
     public func runOcrPreview() async {
         guard let data = selectedFileData else {
             errorMessage = "Silakan pilih dokumen PDF atau gambar jadwal terlebih dahulu."
             return
         }
 
-        guard !isOffline else {
-            errorMessage = "Tidak dapat memproses jadwal saat offline."
-            toast = FeedbackToastData(message: errorMessage!, severity: .warning)
-            return
-        }
-
         isLoading = true
-        loadingMessage = isDocumentPdf ? "Membaca teks dari dokumen PDF..." : "Mengekstrak baris jadwal dengan OCR lokal..."
         errorMessage = nil
 
-        do {
-            let result = try await dataService.previewScheduleImport(
-                fileData: data,
-                fileName: selectedFileName.isEmpty ? "jadwal" : selectedFileName,
-                mimeType: selectedFileMimeType.isEmpty ? (isDocumentPdf ? "application/pdf" : "image/jpeg") : selectedFileMimeType
-            )
+        if isDocumentPdf {
+            // Jalur PDF: Memerlukan koneksi server
+            guard !isOffline else {
+                isLoading = false
+                errorMessage = "Tidak dapat memproses dokumen PDF saat offline."
+                toast = FeedbackToastData(message: errorMessage!, severity: .warning)
+                return
+            }
 
-            self.previewResponse = result
-            self.items = result.items
-            self.isLoading = false
+            loadingMessage = "Mengekstrak tabel dari dokumen PDF..."
+            do {
+                let result = try await dataService.previewScheduleImport(
+                    fileData: data,
+                    fileName: selectedFileName.isEmpty ? "jadwal.pdf" : selectedFileName,
+                    mimeType: "application/pdf"
+                )
+                self.previewResponse = result
+                self.items = result.items
+                self.isLoading = false
+                handleExtractionCompletion(result.items)
+            } catch {
+                self.isLoading = false
+                self.errorMessage = error.localizedDescription
+                self.toast = FeedbackToastData(message: error.localizedDescription, severity: .error)
+            }
+        } else {
+            // Jalur Gambar: On-Device Apple Vision OCR terlebih dahulu (100% offline-ready)
+            loadingMessage = "Mengekstrak teks dengan Apple Vision di perangkat..."
 
-            if result.items.isEmpty {
-                self.errorMessage = "Tidak ada jadwal yang berhasil dideteksi otomatis. Anda dapat mencoba bantuan Vision AI atau menambahkan mata kuliah secara manual."
-            } else {
-                let reviewCount = result.items.filter { $0.needsReview }.count
-                if reviewCount > 0 {
-                    toast = FeedbackToastData(
-                        message: "Ditemukan \(result.items.count) mata kuliah (\(reviewCount) baris perlu ditinjau).",
-                        severity: .warning
-                    )
+            let localOcrResult: LocalOcrResult?
+            do {
+                localOcrResult = try await AppleVisionOcrService.shared.recognizeText(from: data)
+            } catch {
+                localOcrResult = nil
+            }
+
+            let fullText = localOcrResult?.fullText ?? ""
+            let words = localOcrResult?.words ?? []
+
+            if !isOffline {
+                // Online: Kirim evidence OCR lokal ke server untuk alignment spasial & kamus koreksi user
+                loadingMessage = "Memetakan kolom tabel dan kamus preferensi akademik..."
+                let wordsJson: String?
+                if !words.isEmpty, let encoded = try? JSONEncoder().encode(words), let str = String(data: encoded, encoding: .utf8) {
+                    wordsJson = str
                 } else {
-                    toast = FeedbackToastData(
-                        message: "Berhasil mendeteksi \(result.items.count) mata kuliah dengan akurasi tinggi!",
-                        severity: .success
+                    wordsJson = nil
+                }
+
+                do {
+                    let result = try await dataService.previewScheduleImport(
+                        fileData: data,
+                        fileName: selectedFileName.isEmpty ? "jadwal_foto.jpg" : selectedFileName,
+                        mimeType: selectedFileMimeType.isEmpty ? "image/jpeg" : selectedFileMimeType,
+                        rawText: fullText.isEmpty ? nil : fullText,
+                        ocrWordsJson: wordsJson
                     )
+                    self.previewResponse = result
+                    self.items = result.items
+                    self.isLoading = false
+                    handleExtractionCompletion(result.items)
+                    return
+                } catch {
+                    // Jika server gagal, fallback transparan ke parser lokal tanpa crash
                 }
             }
-        } catch let err as AppError {
-            self.isLoading = false
-            self.errorMessage = err.errorDescription ?? "Gagal memproses dokumen jadwal."
-            self.toast = FeedbackToastData(message: self.errorMessage!, severity: .error)
-        } catch {
-            self.isLoading = false
-            self.errorMessage = error.localizedDescription
-            self.toast = FeedbackToastData(message: error.localizedDescription, severity: .error)
+
+            // Jalur Offline atau Fallback Lokal dari Apple Vision OCR
+            if let ocr = localOcrResult, !ocr.lines.isEmpty {
+                let localParsedItems = LocalScheduleExtractor.extract(from: ocr)
+                self.items = localParsedItems
+                self.previewResponse = ScheduleImportPreviewResponse(
+                    items: localParsedItems,
+                    total: localParsedItems.count,
+                    requiresReview: localParsedItems.contains { $0.needsReview },
+                    layout: "apple_vision_offline",
+                    insufficientForProduction: localParsedItems.isEmpty,
+                    visionFallbackEligible: false,
+                    filename: selectedFileName
+                )
+                self.isLoading = false
+
+                if localParsedItems.isEmpty {
+                    self.errorMessage = "Teks terdeteksi (\(ocr.lines.count) baris), namun kolom jadwal tidak dapat dipetakan secara otomatis. Anda dapat menambahkan baris secara manual."
+                } else {
+                    let reviewCount = localParsedItems.filter { $0.needsReview }.count
+                    let msg = isOffline
+                        ? "OCR Apple Vision offline selesai! Ditemukan \(localParsedItems.count) mata kuliah (\(reviewCount) baris perlu ditinjau)."
+                        : "Ekstraksi lokal Apple Vision berhasil! Ditemukan \(localParsedItems.count) mata kuliah."
+                    toast = FeedbackToastData(message: msg, severity: reviewCount > 0 ? .warning : .success)
+                }
+            } else {
+                self.isLoading = false
+                self.errorMessage = "Tidak ada teks yang dapat dikenali dari gambar. Pastikan gambar cukup terang dan tajam."
+                self.toast = FeedbackToastData(message: self.errorMessage!, severity: .error)
+            }
         }
     }
 
-    // MARK: - Fallback Vision AI
+    private func handleExtractionCompletion(_ extractedItems: [ImportScheduleItem]) {
+        if extractedItems.isEmpty {
+            self.errorMessage = "Tidak ada jadwal yang berhasil dideteksi otomatis. Anda dapat mencoba bantuan Vision AI atau menambahkan mata kuliah secara manual."
+        } else {
+            let reviewCount = extractedItems.filter { $0.needsReview }.count
+            if reviewCount > 0 {
+                toast = FeedbackToastData(
+                    message: "Ditemukan \(extractedItems.count) mata kuliah (\(reviewCount) baris perlu ditinjau).",
+                    severity: .warning
+                )
+            } else {
+                toast = FeedbackToastData(
+                    message: "Berhasil mendeteksi \(extractedItems.count) mata kuliah dengan akurasi tinggi!",
+                    severity: .success
+                )
+            }
+        }
+    }
+
+    // MARK: - Fallback Vision AI (Strict Explicit Consent)
     public func runVisionAIFallback() async {
         guard let data = selectedFileData, !isDocumentPdf else {
             errorMessage = "Vision AI hanya mendukung input gambar (PNG/JPEG)."
@@ -155,7 +266,6 @@ public final class ImportScheduleViewModel {
         loadingMessage = "Menganalisis tata letak jadwal dengan Gemini Vision AI..."
         errorMessage = nil
 
-        // Encode current local items as context for merging
         let localJsonString: String?
         if !items.isEmpty, let encoded = try? JSONEncoder().encode(items), let str = String(data: encoded, encoding: .utf8) {
             localJsonString = str
@@ -190,14 +300,14 @@ public final class ImportScheduleViewModel {
         }
     }
 
-    // MARK: - Konfirmasi & Simpan Jadwal
+    // MARK: - Konfirmasi & Simpan Jadwal (Online Atomic Transaction atau Offline Draft)
     public func confirmAndSave(onSuccess: @escaping () -> Void) async {
         guard !items.isEmpty else {
             errorMessage = "Daftar mata kuliah kosong."
             return
         }
 
-        // Validasi data inline sebelum dikirim ke server
+        // Validasi data inline per baris
         for (index, item) in items.enumerated() {
             let rowNum = index + 1
             let trimmedTitle = item.namaMatkul.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -221,39 +331,55 @@ public final class ImportScheduleViewModel {
             }
         }
 
-        guard !isOffline else {
-            errorMessage = "Tidak dapat menyimpan jadwal saat offline. Hubungkan ke internet terlebih dahulu."
-            toast = FeedbackToastData(message: errorMessage!, severity: .warning)
-            return
-        }
-
         isConfirming = true
         errorMessage = nil
 
-        do {
-            let response = try await dataService.confirmScheduleImport(
+        if isOffline {
+            // Simpan draf offline secara persisten
+            let draft = OfflineScheduleDraft(
+                fileName: selectedFileName.isEmpty ? "jadwal_offline.jpg" : selectedFileName,
                 items: items,
-                learnCorrections: learnCorrections
+                status: .pendingSync
             )
+            LocalCacheService.shared.saveScheduleDraft(draft)
+            loadPendingDrafts()
 
             self.isConfirming = false
-            self.importedCount = response.count
+            self.importedCount = items.count
             self.isImportSuccess = true
 
             toast = FeedbackToastData(
-                message: "Berhasil mengimpor \(response.count) mata kuliah ke jadwal Anda!",
-                severity: .success
+                message: "Jadwal berhasil disimpan sebagai draf offline! Akan disinkronkan ke server saat terhubung kembali.",
+                severity: .info
             )
-
             onSuccess()
-        } catch let err as AppError {
-            self.isConfirming = false
-            self.errorMessage = err.errorDescription ?? "Gagal menyimpan jadwal ke database."
-            self.toast = FeedbackToastData(message: self.errorMessage!, severity: .error)
-        } catch {
-            self.isConfirming = false
-            self.errorMessage = error.localizedDescription
-            self.toast = FeedbackToastData(message: error.localizedDescription, severity: .error)
+        } else {
+            // Simpan langsung ke server backend
+            do {
+                let response = try await dataService.confirmScheduleImport(
+                    items: items,
+                    learnCorrections: learnCorrections
+                )
+
+                self.isConfirming = false
+                self.importedCount = response.count
+                self.isImportSuccess = true
+
+                toast = FeedbackToastData(
+                    message: "Berhasil mengimpor \(response.count) mata kuliah ke jadwal Anda!",
+                    severity: .success
+                )
+
+                onSuccess()
+            } catch let err as AppError {
+                self.isConfirming = false
+                self.errorMessage = err.errorDescription ?? "Gagal menyimpan jadwal ke database."
+                self.toast = FeedbackToastData(message: self.errorMessage!, severity: .error)
+            } catch {
+                self.isConfirming = false
+                self.errorMessage = error.localizedDescription
+                self.toast = FeedbackToastData(message: error.localizedDescription, severity: .error)
+            }
         }
     }
 
@@ -297,6 +423,6 @@ public final class ImportScheduleViewModel {
         errorMessage = nil
         isImportSuccess = false
         importedCount = 0
+        loadPendingDrafts()
     }
 }
-

@@ -12,6 +12,300 @@
  * 8. Backward-Compatible Bridge to Legacy Web & iOS Models
  */
 
+export interface QualityGateConfig {
+  /** Provisional pass rate threshold percent (default: 75, configurable) */
+  minPassRatePercent: number;
+  /** Minimum required items before qualifying as production ready without review (default: 1) */
+  minTotalItems: number;
+  /** Maximum allowable ratio of uncertain / review-flagged rows (default: 0.25, configurable) */
+  maxUncertainRatio: number;
+  /** Minimum acceptable course title length (default: 2) */
+  minTitleLength: number;
+  /** High confidence threshold (default: 80) */
+  highConfidenceThreshold: number;
+  /** Medium confidence cutoff (default: 50) */
+  mediumConfidenceThreshold: number;
+}
+
+export const DEFAULT_QUALITY_GATE_CONFIG: QualityGateConfig = {
+  minPassRatePercent: 75,
+  minTotalItems: 1,
+  maxUncertainRatio: 0.25,
+  minTitleLength: 2,
+  highConfidenceThreshold: 80,
+  mediumConfidenceThreshold: 50,
+};
+
+export const VALID_INDONESIAN_DAYS = new Set([
+  "Senin",
+  "Selasa",
+  "Rabu",
+  "Kamis",
+  "Jumat",
+  "Sabtu",
+  "Minggu",
+]);
+
+export interface QualityGateScore {
+  totalItems: number;
+  validItemsCount: number;
+  uncertainItemsCount: number;
+  passRatePercent: number;
+  hasTimeErrors: boolean;
+  hasWeekdayErrors: boolean;
+  hasMissingTitleErrors: boolean;
+  timeErrorCount: number;
+  weekdayErrorCount: number;
+  missingTitleCount: number;
+}
+
+export interface QualityGateDecision {
+  isSufficientForProduction: boolean;
+  visionFallbackEligible: boolean;
+  score: QualityGateScore;
+  reasons: string[];
+  recommendation: "accept" | "manual_review" | "offer_vision_fallback";
+  warningCategories?: {
+    ocrExtractionErrors: string[];
+    scheduleConflicts: string[];
+    verificationSuggestions: string[];
+  };
+}
+
+function isValid24hTime(timeStr?: string | null): boolean {
+  if (!timeStr) return false;
+  const match = timeStr.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return false;
+  const h = parseInt(match[1], 10);
+  const m = parseInt(match[2], 10);
+  return h >= 0 && h < 24 && m >= 0 && m < 60;
+}
+
+function timeToMinutes(timeStr: string): number {
+  const [h, m] = timeStr.split(":").map((v) => parseInt(v, 10));
+  return h * 60 + m;
+}
+
+export function evaluateExtractionQuality(
+  input: { items: any[]; reviewReasons?: string[]; insufficientForPersistence?: boolean } | any[],
+  customConfig?: Partial<QualityGateConfig>
+): QualityGateDecision {
+  const config: QualityGateConfig = { ...DEFAULT_QUALITY_GATE_CONFIG, ...customConfig };
+  const items: any[] = Array.isArray(input) ? input : input.items || [];
+  const reasons: string[] = [];
+
+  const total = items.length;
+
+  if (total === 0) {
+    const emptyReasons =
+      !Array.isArray(input) && input.reviewReasons && input.reviewReasons.length > 0
+        ? input.reviewReasons
+        : ["Tidak ada jadwal kuliah yang berhasil diekstraksi dari dokumen."];
+
+    return {
+      isSufficientForProduction: false,
+      visionFallbackEligible: true,
+      score: {
+        totalItems: 0,
+        validItemsCount: 0,
+        uncertainItemsCount: 0,
+        passRatePercent: 0,
+        hasTimeErrors: false,
+        hasWeekdayErrors: false,
+        hasMissingTitleErrors: false,
+        timeErrorCount: 0,
+        weekdayErrorCount: 0,
+        missingTitleCount: 0,
+      },
+      reasons: emptyReasons,
+      recommendation: "offer_vision_fallback",
+    };
+  }
+
+  let timeErrorCount = 0;
+  let weekdayErrorCount = 0;
+  let missingTitleCount = 0;
+  let uncertainItemsCount = 0;
+  let validItemsCount = 0;
+
+  for (let idx = 0; idx < items.length; idx++) {
+    const it = items[idx];
+    const rowNum = idx + 1;
+    let itemHasError = false;
+
+    // 1. Title validation
+    const title = (it.namaMatkul || it.nama_matkul || "").trim();
+    if (!title || title.length < config.minTitleLength) {
+      missingTitleCount++;
+      itemHasError = true;
+      reasons.push(`Baris #${rowNum}: Nama mata kuliah tidak lengkap atau kosong.`);
+    }
+
+    // 2. Weekday validation
+    const isWeekly = !it.recurrence || it.recurrence === "weekly" || !it.tanggal;
+    const day = (it.hari || "").trim();
+    if (isWeekly) {
+      if (!day || !VALID_INDONESIAN_DAYS.has(day)) {
+        weekdayErrorCount++;
+        itemHasError = true;
+        reasons.push(
+          `Baris #${rowNum} (${title || "Tanpa Judul"}): Hari kuliah '${day || "kosong"}' tidak valid.`
+        );
+      }
+    }
+
+    // 3. Time validation
+    const start = (it.waktuMulai || it.waktu_mulai || "").trim();
+    const end = (it.waktuSelesai || it.waktu_selesai || "").trim();
+
+    const isStartValid = isValid24hTime(start);
+    const isEndValid = isValid24hTime(end);
+
+    if (!isStartValid || !isEndValid) {
+      timeErrorCount++;
+      itemHasError = true;
+      reasons.push(
+        `Baris #${rowNum} (${title || "Tanpa Judul"}): Format jam kuliah tidak valid (${
+          start || "?"
+        } - ${end || "?"}).`
+      );
+    } else {
+      const startMin = timeToMinutes(start);
+      const endMin = timeToMinutes(end);
+      if (startMin >= endMin) {
+        timeErrorCount++;
+        itemHasError = true;
+        reasons.push(
+          `Baris #${rowNum} (${title || "Tanpa Judul"}): Jam mulai (${start}) mendahului atau sama dengan jam selesai (${end}).`
+        );
+      } else {
+        const durationMin = endMin - startMin;
+        if (durationMin < 15) {
+          timeErrorCount++;
+          itemHasError = true;
+          reasons.push(
+            `Baris #${rowNum} (${title || "Tanpa Judul"}): Durasi kuliah terlalu singkat (< 15 menit).`
+          );
+        } else if (durationMin > 720) {
+          timeErrorCount++;
+          itemHasError = true;
+          reasons.push(
+            `Baris #${rowNum} (${title || "Tanpa Judul"}): Durasi kuliah melebihi batas wajar (> 12 jam).`
+          );
+        }
+      }
+    }
+
+    // 4. Field-level confidence checks (when provided by Vision AI or spatial engine)
+    const fieldConf = it.fieldConfidence || it.field_confidence;
+    let hasLowConfidenceRequiredField = false;
+    if (fieldConf && typeof fieldConf === "object") {
+      const requiredFields = ["namaMatkul", "hari", "waktuMulai", "waktuSelesai"];
+      for (const rf of requiredFields) {
+        const fc = fieldConf[rf];
+        if (fc) {
+          const score = typeof fc.ocrConfidence === "number" ? fc.ocrConfidence : fc.confidence;
+          if (typeof score === "number" && score < config.mediumConfidenceThreshold) {
+            hasLowConfidenceRequiredField = true;
+            reasons.push(
+              `Baris #${rowNum} (${title || "Tanpa Judul"}): Bidang '${rf}' memiliki estimasi keyakinan visual rendah (${score}%).`
+            );
+          }
+        }
+      }
+    }
+
+    // 5. External item warnings (e.g., schedule conflicts, carrier notices)
+    if (Array.isArray(it.warnings)) {
+      for (const w of it.warnings) {
+        if (!reasons.includes(w)) {
+          reasons.push(w);
+        }
+      }
+    }
+
+    // 6. Uncertainty & Review Flag
+    const isFlaggedForReview = Boolean(
+      it.needsReview ||
+        it.needs_review ||
+        hasLowConfidenceRequiredField ||
+        (it.warnings && it.warnings.length > 0)
+    );
+    if (isFlaggedForReview || itemHasError) {
+      uncertainItemsCount++;
+    } else {
+      validItemsCount++;
+    }
+  }
+
+  // Categorize reasons
+  const ocrExtractionErrors: string[] = [];
+  const scheduleConflicts: string[] = [];
+  const verificationSuggestions: string[] = [];
+
+  for (const r of reasons) {
+    if (r.toLowerCase().includes("bentrok") || r.toLowerCase().includes("duplikat")) {
+      scheduleConflicts.push(r);
+    } else if (r.toLowerCase().includes("usul") || r.toLowerCase().includes("koreksi")) {
+      verificationSuggestions.push(r);
+    } else {
+      ocrExtractionErrors.push(r);
+    }
+  }
+
+  const passRatePercent = Math.round((validItemsCount / total) * 100);
+  const uncertainRatio = uncertainItemsCount / total;
+
+  const hasTimeErrors = timeErrorCount > 0;
+  const hasWeekdayErrors = weekdayErrorCount > 0;
+  const hasMissingTitleErrors = missingTitleCount > 0;
+
+  // Strict Decision logic:
+  // Invariant: High model confidence must NEVER override invalid dates, impossible times, or missing title.
+  const meetsPassRate = passRatePercent >= config.minPassRatePercent;
+  const meetsUncertaintyRatio = uncertainRatio <= config.maxUncertainRatio;
+  const meetsMinimumItems = total >= config.minTotalItems;
+  const hasZeroFatalErrors = !hasTimeErrors && !hasMissingTitleErrors;
+
+  const isSufficientForProduction =
+    meetsMinimumItems && meetsPassRate && meetsUncertaintyRatio && hasZeroFatalErrors;
+
+  const visionFallbackEligible = !isSufficientForProduction;
+
+  let recommendation: "accept" | "manual_review" | "offer_vision_fallback";
+  if (isSufficientForProduction) {
+    recommendation = "accept";
+  } else if (total > 0 && validItemsCount > 0 && !hasTimeErrors) {
+    recommendation = "manual_review";
+  } else {
+    recommendation = "offer_vision_fallback";
+  }
+
+  return {
+    isSufficientForProduction,
+    visionFallbackEligible,
+    score: {
+      totalItems: total,
+      validItemsCount,
+      uncertainItemsCount,
+      passRatePercent,
+      hasTimeErrors,
+      hasWeekdayErrors,
+      hasMissingTitleErrors,
+      timeErrorCount,
+      weekdayErrorCount,
+      missingTitleCount,
+    },
+    reasons,
+    warningCategories: {
+      ocrExtractionErrors,
+      scheduleConflicts,
+      verificationSuggestions,
+    },
+    recommendation,
+  };
+}
+
 // ============================================================================
 // 1. Canonical Academic Data Contracts
 // ============================================================================
@@ -456,9 +750,18 @@ export class SelfHostedServerProvider implements AcademicExtractionProvider {
         text: input.preExtractedText || input.buffer.toString("utf8"),
       };
 
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const serviceKey =
+        process.env.SELF_HOSTED_ML_KEY ||
+        process.env.SERVICE_API_KEY ||
+        "trackerthings_dev_secret_key_8f7b2c9a1d4e6f3b0a2c5e8d";
+      if (serviceKey) {
+        headers["Authorization"] = `Bearer ${serviceKey}`;
+      }
+
       const res = await fetch(`${this.endpointUrl}/extract`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(payload),
         signal: options?.signal || controller.signal,
       });
@@ -909,9 +1212,14 @@ export class DeterministicAcademicExtractor implements AcademicExtractionProvide
       waktuSelesai = normalizeTimeString(timeMatch[2]);
     }
 
-    const lastTok = tokens[tokens.length - 1];
-    if (/^[1-8]$/.test(lastTok)) {
-      sks = parseInt(lastTok, 10);
+    const sksMatch = line.match(/\b([1-8])\s*sks\b/i);
+    if (sksMatch) {
+      sks = parseInt(sksMatch[1], 10);
+    } else {
+      const lastTok = tokens[tokens.length - 1];
+      if (/^[1-8]$/.test(lastTok)) {
+        sks = parseInt(lastTok, 10);
+      }
     }
 
     const parsedDate = parseDateFromIndonesianText(line);
@@ -924,7 +1232,11 @@ export class DeterministicAcademicExtractor implements AcademicExtractionProvide
     if (hari) cleaned = cleaned.replace(new RegExp(`\\b${hari}\\b`, "i"), "");
     if (kodeMatkul) cleaned = cleaned.replace(new RegExp(`\\b${kodeMatkul}\\b`, "i"), "");
     if (timeMatch) cleaned = cleaned.replace(timeMatch[0], "");
-    if (sks) cleaned = cleaned.replace(new RegExp(`\\b${sks}\\b$`), "");
+    if (sks) {
+      cleaned = cleaned.replace(new RegExp(`\\b${sks}\\s*sks\\b`, "i"), "");
+      cleaned = cleaned.replace(new RegExp(`\\b${sks}\\b\\s*$`), "");
+    }
+    cleaned = cleaned.replace(/\bsks\b/gi, "");
 
     const namaMatkul = cleaned.replace(/[^a-zA-Z0-9\s()\-]/g, " ").replace(/\s+/g, " ").trim();
     if (!namaMatkul || namaMatkul.length < 3) return null;
@@ -987,35 +1299,31 @@ export class AcademicHybridRouter {
   readonly deterministicExtractor: AcademicExtractionProvider;
   readonly selfHostedProvider?: AcademicExtractionProvider;
   readonly externalProvider?: AcademicExtractionProvider;
+  readonly config: QualityGateConfig;
 
   constructor(options?: {
     deterministicExtractor?: AcademicExtractionProvider;
     selfHostedProvider?: AcademicExtractionProvider;
     externalProvider?: AcademicExtractionProvider;
+    config?: Partial<QualityGateConfig>;
   }) {
     this.deterministicExtractor = options?.deterministicExtractor || new DeterministicAcademicExtractor();
     this.selfHostedProvider = options?.selfHostedProvider || new SelfHostedServerProvider();
     this.externalProvider = options?.externalProvider || new ExternalGenerativeProvider();
+    this.config = { ...DEFAULT_QUALITY_GATE_CONFIG, ...options?.config };
   }
 
   evaluateQuality(result: CanonicalAcademicExtractionResult) {
-    const total = result.items.length;
-    if (total === 0) {
-      return { totalItems: 0, validItemsCount: 0, passRatePercent: 0, ambiguityCount: 0, hasTimeErrors: false };
-    }
-    const validCount = result.items.filter((i) => !i.needsReview && i.namaMatkul.length >= 2).length;
-    const ambiguityCount = result.items.filter((i) => i.needsReview).length;
-    const hasTimeErrors = result.items.some(
-      (i) => i.waktuMulai && i.waktuSelesai && i.waktuMulai >= i.waktuSelesai
-    );
-    const passRate = (validCount / total) * 100;
-
+    const decision = evaluateExtractionQuality(result, this.config);
     return {
-      totalItems: total,
-      validItemsCount: validCount,
-      passRatePercent: Math.round(passRate),
-      ambiguityCount,
-      hasTimeErrors,
+      totalItems: decision.score.totalItems,
+      validItemsCount: decision.score.validItemsCount,
+      passRatePercent: decision.score.passRatePercent,
+      ambiguityCount: decision.score.uncertainItemsCount,
+      hasTimeErrors: decision.score.hasTimeErrors,
+      isSufficientForProduction: decision.isSufficientForProduction,
+      visionFallbackEligible: decision.visionFallbackEligible,
+      reasons: decision.reasons,
     };
   }
 
@@ -1027,15 +1335,15 @@ export class AcademicHybridRouter {
     const deterministicResult = await this.deterministicExtractor.extract(input, options);
     const quality = this.evaluateQuality(deterministicResult);
 
-    // High quality deterministic threshold: at least 1 item, pass rate >= 75%, zero time errors
-    if (quality.totalItems > 0 && quality.passRatePercent >= 75 && !quality.hasTimeErrors) {
+    // High quality deterministic threshold
+    if (quality.isSufficientForProduction) {
       return {
         result: deterministicResult,
         decision: {
           selectedProviderId: this.deterministicExtractor.id,
           providerName: this.deterministicExtractor.name,
           processingMode: "deterministic",
-          reason: "Deterministic extractor succeeded with high confidence (pass rate >= 75%)",
+          reason: `Deterministic extractor succeeded with high confidence (pass rate: ${quality.passRatePercent}%)`,
           documentType: deterministicResult.documentType,
           qualitySignals: quality,
         },

@@ -9,6 +9,7 @@
     "lint": "next lint",
     "test": "node tests/verify-endpoints.mjs",
     "test:crud": "node tests/test-api-crud-authenticated.mjs",
+    "setup:ocr": "node scripts/setup-ocr-assets.mjs",
     "postinstall": "prisma generate"
   },
   "dependencies": {

@@ -1,0 +1,118 @@
+{
+  "digital_schedule.pdf": {
+    "documentType": "class_schedule",
+    "insufficientForPersistence": false,
+    "totalItems": 4,
+    "items": [
+      {
+        "namaMatkul": "Rekayasa Perangkat Lunak",
+        "hari": "Senin",
+        "waktuMulai": "08:00",
+        "waktuSelesai": "10:30",
+        "lokasi": "Lab RPL",
+        "kodeMatkul": "IF253418",
+        "kelas": "R.01",
+        "sks": 3,
+        "dosen": "Dr. Budi Santoso",
+        "recurrence": "weekly"
+      },
+      {
+        "namaMatkul": "Sistem Terdistribusi",
+        "hari": "Senin",
+        "waktuMulai": "10:40",
+        "waktuSelesai": "13:10",
+        "lokasi": "R.402",
+        "kodeMatkul": "IF253420",
+        "kelas": "R.01",
+        "sks": 3,
+        "dosen": "Prof. Hendra Wijaya",
+        "recurrence": "weekly"
+      },
+      {
+        "namaMatkul": "Basis Data Lanjut",
+        "hari": "Selasa",
+        "waktuMulai": "09:00",
+        "waktuSelesai": "11:30",
+        "lokasi": "Lab Basis Data",
+        "kodeMatkul": "IF253422",
+        "kelas": "R.02",
+        "sks": 3,
+        "dosen": "Ir. Siti Rahma M.T",
+        "recurrence": "weekly"
+      },
+      {
+        "namaMatkul": "Kecerdasan Buatan",
+        "hari": "Kamis",
+        "waktuMulai": "13:00",
+        "waktuSelesai": "15:30",
+        "lokasi": "R.301",
+        "kodeMatkul": "IF253425",
+        "kelas": "R.01",
+        "sks": 3,
+        "dosen": "Dr. Eng. Hendra",
+        "recurrence": "weekly"
+      }
+    ]
+  },
+  "scanned_schedule.pdf": {
+    "documentType": "unknown",
+    "insufficientForPersistence": true,
+    "totalItems": 0,
+    "items": [],
+    "requiresVisionFallback": true
+  },
+  "schedule_image.png": {
+    "documentType": "class_schedule",
+    "without_ocr": {
+      "insufficientForPersistence": true,
+      "totalItems": 0,
+      "requiresVisionFallback": true
+    },
+    "with_ocr": {
+      "insufficientForPersistence": false,
+      "totalItems": 4,
+      "items": [
+        {
+          "namaMatkul": "Rekayasa Perangkat Lunak",
+          "hari": "Senin",
+          "waktuMulai": "08:00",
+          "waktuSelesai": "10:30",
+          "lokasi": "Lab RPL",
+          "kodeMatkul": "IF253418",
+          "kelas": "R.01",
+          "sks": 3
+        },
+        {
+          "namaMatkul": "Sistem Terdistribusi",
+          "hari": "Senin",
+          "waktuMulai": "10:40",
+          "waktuSelesai": "13:10",
+          "lokasi": "R.402",
+          "kodeMatkul": "IF253420",
+          "kelas": "R.01",
+          "sks": 3
+        },
+        {
+          "namaMatkul": "Basis Data Lanjut",
+          "hari": "Selasa",
+          "waktuMulai": "09:00",
+          "waktuSelesai": "11:30",
+          "lokasi": "Lab Basis Data",
+          "kodeMatkul": "IF253422",
+          "kelas": "R.02",
+          "sks": 3
+        },
+        {
+          "namaMatkul": "Kecerdasan Buatan",
+          "hari": "Kamis",
+          "waktuMulai": "13:00",
+          "waktuSelesai": "15:30",
+          "lokasi": "R.301",
+          "kodeMatkul": "IF253425",
+          "kelas": "R.01",
+          "sks": 3
+        }
+      ]
+    }
+  }
+}
