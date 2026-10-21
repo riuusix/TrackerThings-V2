@@ -218,6 +218,80 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
     }
   };
 
+  /**
+   * Compresses oversized user schedule images in the browser before sending to Vision AI or OCR.
+   * Downscales images exceeding 1920px max dimension and encodes to JPEG (0.85 quality),
+   * reducing multi-megabyte camera photos by 90-95% while keeping schedule text razor-sharp.
+   */
+  const compressImageForVision = async (inputFile: File): Promise<File> => {
+    if (!inputFile.type.startsWith("image/") || inputFile.type === "image/svg+xml") {
+      return inputFile;
+    }
+    if (inputFile.size <= 400 * 1024) {
+      return inputFile;
+    }
+
+    return new Promise((resolve) => {
+      try {
+        const img = new Image();
+        const objectUrl = URL.createObjectURL(inputFile);
+        img.onload = () => {
+          URL.revokeObjectURL(objectUrl);
+          const { width, height } = img;
+          const maxDim = 1920;
+          let targetWidth = width;
+          let targetHeight = height;
+
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              targetWidth = maxDim;
+              targetHeight = Math.round((height * maxDim) / width);
+            } else {
+              targetHeight = maxDim;
+              targetWidth = Math.round((width * maxDim) / height);
+            }
+          }
+
+          const canvas = document.createElement("canvas");
+          canvas.width = targetWidth;
+          canvas.height = targetHeight;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            resolve(inputFile);
+            return;
+          }
+
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, targetWidth, targetHeight);
+          ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+          canvas.toBlob(
+            (blob) => {
+              if (!blob || blob.size >= inputFile.size) {
+                resolve(inputFile);
+                return;
+              }
+              const compressedFile = new File([blob], inputFile.name.replace(/\.[^.]+$/, ".jpg"), {
+                type: "image/jpeg",
+                lastModified: Date.now(),
+              });
+              resolve(compressedFile);
+            },
+            "image/jpeg",
+            0.85
+          );
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(objectUrl);
+          resolve(inputFile);
+        };
+        img.src = objectUrl;
+      } catch {
+        resolve(inputFile);
+      }
+    });
+  };
+
   const handleUploadAndPreview = async () => {
     if (!file) {
       setErrorMsg("Pilih file jadwal kuliah terlebih dahulu.");
@@ -229,8 +303,9 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
     setOcrProgress(0);
 
     try {
-      const formData = new FormData();
       const isImage = file.type.startsWith("image/");
+      const fileToProcess = isImage ? await compressImageForVision(file) : file;
+      const formData = new FormData();
 
       if (isImage) {
         setOcrStatus("Menyiapkan pemindai tabel & teks di peramban...");
@@ -252,7 +327,7 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
 
           setOcrStatus("Memindai kolom tabel jadwal kuliah...");
           // Request text, blocks, and TSV so spatial word bounding boxes (x0, y0, x1, y1) are preserved!
-          const res = await worker.recognize(file, {}, { text: true, blocks: true, tsv: true });
+          const res = await worker.recognize(fileToProcess, {}, { text: true, blocks: true, tsv: true });
           await worker.terminate();
 
           const textOut = res?.data?.text?.trim() || "";
@@ -261,17 +336,17 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
           if (textOut.length > 0 || tsvOut.length > 0) {
             if (textOut) formData.append("rawText", textOut);
             if (tsvOut) formData.append("ocrTsv", tsvOut);
-            formData.append("fileName", file.name);
+            formData.append("fileName", fileToProcess.name);
           } else {
-            formData.append("file", file);
+            formData.append("file", fileToProcess);
           }
         } catch (clientOcrErr) {
           console.warn("Browser OCR gagal, beralih ke ekstraksi server:", clientOcrErr);
-          formData.append("file", file);
+          formData.append("file", fileToProcess);
         }
       } else {
         setOcrStatus("Mengekstrak dokumen PDF...");
-        formData.append("file", file);
+        formData.append("file", fileToProcess);
       }
 
       setOcrStatus("Memetakan kolom jadwal, tingkat keyakinan, dan cek bentrok...");
@@ -355,8 +430,11 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
     setErrorMsg(null);
 
     try {
+      // Optimize image payload before network upload (JPEG 0.85, max 1920px) to minimize transmission & Gemini latency
+      const fileToSend = await compressImageForVision(file);
+
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", fileToSend);
       formData.append("userConsent", "true");
       formData.append("localItems", JSON.stringify(parsedItems));
 
@@ -720,6 +798,7 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
+      maxWidth="max-w-4xl lg:max-w-5xl"
       title={
         step === "upload"
           ? "Impor Jadwal Kuliah Cerdas (Foto / PDF)"
@@ -731,35 +810,112 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
           : "Periksa hasil pembacaan sebelum disimpan. Hanya kolom yang belum pasti ditandai kuning beserta alasan peninjauannya."
       }
     >
-      <div className="space-y-4">
-        {errorMsg && (
-          <div className="space-y-2">
-            <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/40 flex items-start gap-2.5 text-xs text-rose-700 dark:text-rose-300">
-              <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400 mt-0.5" />
-              <div className="flex-1 font-medium">{errorMsg}</div>
-            </div>
-            {isVisionEligible && file && !isVisionLoading && (
-              <div className="p-3 rounded-xl bg-purple-50/80 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/50 flex items-center justify-between gap-2 text-xs">
-                <div className="flex items-center gap-1.5 text-purple-900 dark:text-purple-200 font-semibold">
-                  <Sparkles className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
-                  <span>
-                    {file.type === "application/pdf"
-                      ? "Dokumen PDF sulit dibaca otomatis? Coba gunakan bantuan Gemini Vision AI"
-                      : "Gambar tidak terbaca OCR lokal? Coba gunakan bantuan Gemini Vision AI"}
-                  </span>
+      <div className="flex-1 min-h-0 flex flex-col space-y-4">
+        {step === "upload" ? (
+          <div className="flex-1 min-h-0 flex flex-col space-y-4 overflow-y-auto pr-1">
+            {/* Unified Mutually Exclusive Banner in Upload Step */}
+            {showConsentModal ? (
+              <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border-2 border-purple-400 dark:border-purple-600 shadow-lg text-xs space-y-3 shrink-0">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0 mt-0.5">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div className="space-y-1 flex-1">
+                    <p className="font-bold text-slate-800 dark:text-slate-100 text-sm">
+                      Konfirmasi Persetujuan Pemrosesan Vision Eksternal
+                    </p>
+                    <p className="text-slate-600 dark:text-slate-300 text-[11px] sm:text-xs leading-relaxed">
+                      Dokumen jadwal Anda akan dikirimkan ke server untuk diproses melalui model visual (Google Gemini API). Dokumen hanya diproses sementara untuk mengekstrak teks jadwal dan tunduk pada ketentuan privasi.
+                    </p>
+                    <p className="text-slate-500 italic text-[11px]">
+                      Hasil vision akan dipadukan dengan bukti ekstraksi lokal dan tidak akan disimpan ke database sebelum Anda meninjau dan mengonfirmasi secara manual.
+                    </p>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowConsentModal(true)}
-                  className="shrink-0 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold transition-all shadow-xs flex items-center gap-1.5"
-                >
-                  <Sparkles className="w-3 h-3" />
-                  <span>Coba Vision AI</span>
-                </button>
+                <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setShowConsentModal(false)}
+                    className="px-3.5 py-1.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExecuteVisionFallback}
+                    className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold transition-all shadow-xs flex items-center gap-1.5"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Saya Setuju & Mulai Pemindaian Vision</span>
+                  </button>
+                </div>
               </div>
-            )}
-          </div>
-        )}
+            ) : isVisionLoading ? (
+              <div className="p-4 rounded-2xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/50 flex flex-row items-center gap-3 text-xs text-purple-800 dark:text-purple-200 font-semibold shrink-0">
+                <Loader2 className="w-4 h-4 animate-spin text-purple-600 dark:text-purple-400 shrink-0" />
+                <span>Memproses dokumen melalui Vision Model & memadukan dengan bukti ekstraksi lokal...</span>
+              </div>
+            ) : errorMsg ? (
+              isVisionEligible && file && !isVisionLoading ? (
+                <div className="p-3.5 sm:p-4 rounded-2xl bg-purple-50/90 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 flex flex-row items-center justify-between gap-3.5 text-xs shrink-0">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+                      <Sparkles className="w-4 h-4 sm:w-5 sm:h-5" />
+                    </div>
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      <p className="font-bold text-purple-900 dark:text-purple-200 text-xs sm:text-sm">
+                        {file.type === "application/pdf"
+                          ? "Ekstraksi PDF Kurang Maksimal"
+                          : "OCR Gambar Mengalami Kendala"}
+                      </p>
+                      <p className="text-purple-700/90 dark:text-purple-300/80 text-[11px] sm:text-xs truncate sm:line-clamp-2">
+                        {errorMsg} Anda dapat melanjutkan dengan bantuan Gemini Vision AI.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setErrorMsg(null)}
+                      className="px-3 py-2 rounded-xl text-slate-500 hover:bg-purple-100 dark:hover:bg-purple-900/30 text-xs font-semibold transition-colors"
+                    >
+                      Tutup
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowConsentModal(true)}
+                      className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold transition-all shadow-xs flex items-center gap-1.5 text-xs shrink-0"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Coba Vision AI</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3.5 sm:p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/50 flex flex-row items-center justify-between gap-3.5 text-xs shrink-0">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-rose-100 dark:bg-rose-900/50 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                      <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5" />
+                    </div>
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      <p className="font-bold text-rose-900 dark:text-rose-200 text-xs sm:text-sm">
+                        Gagal Memproses Dokumen
+                      </p>
+                      <p className="text-rose-700 dark:text-rose-300 text-[11px] sm:text-xs">
+                        {errorMsg}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setErrorMsg(null)}
+                    className="shrink-0 px-3 py-1.5 rounded-xl bg-rose-100 dark:bg-rose-900/50 hover:bg-rose-200 dark:hover:bg-rose-800/50 text-rose-800 dark:text-rose-200 font-semibold transition-colors"
+                  >
+                    Tutup
+                  </button>
+                </div>
+              )
+            ) : null}
 
         {/* Saved User Corrections Manager Toggle */}
         <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50 overflow-hidden">
@@ -912,10 +1068,8 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
           )}
         </div>
 
-        {step === "upload" ? (
-          <div className="space-y-4">
-            {/* Dropzone */}
-            <div
+          {/* Dropzone */}
+          <div
               onDragOver={(e) => e.preventDefault()}
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
@@ -1012,120 +1166,157 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
           </div>
         ) : (
           /* Step 2: Interactive Editable Preview Table */
-          <div className="space-y-4">
-            {/* Detected Layout & Limitation Info Banner */}
-            {detectedLayout && (
-              <div
-                className={`px-3 py-2 rounded-xl border text-xs flex flex-col gap-1 ${
-                  detectedLayout.limitationReason
-                    ? "bg-amber-50/70 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/50 text-amber-800 dark:text-amber-300"
-                    : "bg-accent-muted/40 border-line-subtle text-content-primary"
-                }`}
-              >
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <span className="font-bold">Format Terdeteksi: {detectedLayout.label}</span>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {activeVisionMeta && (
-                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 font-bold flex items-center gap-1">
-                        <Sparkles className="w-2.5 h-2.5" />
-                        Vision AI ({activeVisionMeta.provider}: {activeVisionMeta.model})
-                      </span>
-                    )}
-                    <span className="text-[10px] px-2 py-0.5 rounded-md bg-white/70 dark:bg-slate-900/60 font-semibold">
-                      {detectedLayout.hasRecognizedHeaders ? "Header Tabel Dikenali" : "Pola Baris Otomatis"}
-                    </span>
+          <div className="flex-1 min-h-0 flex flex-col space-y-3">
+            {/* Dedicated Single Banner Slot */}
+            {errorMsg ? (
+              isVisionEligible && file && !isVisionLoading ? (
+                <div className="p-3.5 sm:p-4 rounded-2xl bg-purple-50/90 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 flex flex-col md:flex-row md:items-center justify-between gap-3.5 text-xs shrink-0">
+                  <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+                    <div className="w-8 h-8 rounded-xl bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+                      <Sparkles className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      <p className="font-bold text-purple-900 dark:text-purple-200 text-xs sm:text-sm">
+                        Kendala Ekstraksi Dokumen
+                      </p>
+                      <p className="text-purple-700/90 dark:text-purple-300/80 text-[11px] sm:text-xs">
+                        {errorMsg} Anda dapat mencoba pemindaian ulang menggunakan Gemini Vision AI.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 self-end md:self-auto">
+                    <button
+                      type="button"
+                      onClick={() => setErrorMsg(null)}
+                      className="px-3 py-1.5 rounded-xl text-slate-500 hover:bg-purple-100 dark:hover:bg-purple-900/30 text-xs font-semibold transition-colors"
+                    >
+                      Tutup
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowConsentModal(true)}
+                      className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold transition-all shadow-xs flex items-center gap-1.5 text-xs"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Coba Vision AI</span>
+                    </button>
                   </div>
                 </div>
-                {detectedLayout.limitationReason && (
-                  <p className="text-[11px] opacity-90">{detectedLayout.limitationReason}</p>
-                )}
-              </div>
-            )}
-
-            {/* Vision Model Fallback Offer Banner (Phase C: Hybrid Decision Logic) */}
-            {isVisionEligible && !isVisionLoading && (
-              <div className="p-3 rounded-xl bg-purple-50/80 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/50 text-xs space-y-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="space-y-0.5">
-                    <p className="font-bold text-purple-900 dark:text-purple-200 flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                      Hasil OCR lokal belum maksimal? Gunakan Bantuan Vision AI
-                    </p>
-                    <p className="text-[11px] text-purple-700/90 dark:text-purple-300/80">
-                      {insufficiencyReasons.length > 0
-                        ? insufficiencyReasons.join(" • ")
-                        : "Deteksi tata letak atau teks tabel kurang jelas. Anda dapat mengaktifkan pemindaian berbasis Vision AI untuk mengenali baris yang terlewat."}
-                    </p>
+              ) : (
+                <div className="p-3 sm:p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/50 flex items-start sm:items-center justify-between gap-3 text-xs shrink-0">
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1 text-rose-700 dark:text-rose-300">
+                    <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400" />
+                    <span className="font-medium">{errorMsg}</span>
                   </div>
                   <button
                     type="button"
-                    onClick={() => setShowConsentModal(true)}
-                    className="shrink-0 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold transition-all shadow-xs flex items-center gap-1.5"
+                    onClick={() => setErrorMsg(null)}
+                    className="px-2.5 py-1 rounded-lg text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/40 text-xs font-semibold shrink-0"
                   >
-                    <Sparkles className="w-3 h-3" />
-                    <span>Coba Vision AI</span>
+                    Tutup
                   </button>
                 </div>
-              </div>
-            )}
-
-            {isVisionLoading && (
-              <div className="p-3.5 rounded-xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/50 flex items-center gap-2.5 text-xs text-purple-800 dark:text-purple-200 font-semibold">
-                <Loader2 className="w-4 h-4 animate-spin text-purple-600 dark:text-purple-400 shrink-0" />
-                <span>Memproses dokumen melalui Vision Model & memadukan dengan bukti ekstraksi lokal...</span>
-              </div>
-            )}
-
-            {/* User Consent Dialog (Requirement Phase C.4 & C.5) */}
-            {showConsentModal && (
-              <div className="p-3.5 rounded-xl bg-white dark:bg-slate-900 border-2 border-purple-400 dark:border-purple-600 shadow-lg text-xs space-y-2.5">
-                <div className="flex items-start gap-2">
-                  <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0 mt-0.5" />
-                  <div className="space-y-1">
-                    <p className="font-bold text-slate-800 dark:text-slate-100">
+              )
+            ) : showConsentModal ? (
+              <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border-2 border-purple-400 dark:border-purple-600 shadow-lg text-xs space-y-3 shrink-0">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0 mt-0.5">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div className="space-y-1 flex-1 min-w-0">
+                    <p className="font-bold text-slate-800 dark:text-slate-100 text-sm">
                       Konfirmasi Persetujuan Pemrosesan Vision Eksternal
                     </p>
-                    <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
-                      Gambar jadwal Anda akan dikirimkan ke server untuk diproses melalui penyedia model vision eksternal (Google Gemini API). Gambar hanya diproses sementara untuk mengekstrak teks jadwal dan tunduk pada ketentuan penggunaan data penyedia layanan.
+                    <p className="text-[11px] sm:text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                      Dokumen gambar jadwal Anda akan dikirimkan ke server untuk diproses melalui model vision (Google Gemini API). Gambar hanya diproses sementara untuk ekstraksi teks tabel dan tunduk pada ketentuan privasi.
                     </p>
                     <p className="text-[11px] text-slate-500 italic">
-                      Hasil vision akan dipadukan dengan hasil OCR lokal dan tidak akan disimpan ke database sebelum Anda meninjau dan mengonfirmasi secara manual.
+                      Hasil vision akan dipadukan dengan hasil ekstraksi lokal dan tidak akan disimpan sebelum Anda meninjau dan menyetujuinya secara manual.
                     </p>
                   </div>
                 </div>
-                <div className="flex justify-end gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
+                <div className="flex justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
                   <button
                     type="button"
                     onClick={() => setShowConsentModal(false)}
-                    className="px-3 py-1.5 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium"
+                    className="px-3.5 py-2 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold text-xs"
                   >
                     Batal (Lanjut Manual)
                   </button>
                   <button
                     type="button"
                     onClick={handleExecuteVisionFallback}
-                    className="px-3.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold transition-all shadow-xs"
+                    className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold transition-all shadow-xs text-xs flex items-center gap-1.5"
                   >
-                    Saya Setuju & Mulai Pemindaian Vision
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Saya Setuju & Mulai Pemindaian Vision</span>
                   </button>
                 </div>
               </div>
-            )}
+            ) : isVisionLoading ? (
+              <div className="p-3.5 sm:p-4 rounded-2xl bg-purple-50/80 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/50 flex items-center gap-3 text-xs text-purple-900 dark:text-purple-200 font-semibold shrink-0">
+                <Loader2 className="w-4 h-4 animate-spin text-purple-600 dark:text-purple-400 shrink-0" />
+                <span>Memproses dokumen melalui Vision Model & memadukan dengan bukti ekstraksi lokal...</span>
+              </div>
+            ) : isVisionEligible ? (
+              <div className="p-3.5 sm:p-4 rounded-2xl bg-purple-50/90 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs shrink-0">
+                <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+                  <div className="w-8 h-8 rounded-xl bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-0.5">
+                    <p className="font-bold text-purple-900 dark:text-purple-200 text-xs sm:text-sm">
+                      Hasil ekstraksi lokal belum maksimal? Gunakan Bantuan Vision AI
+                    </p>
+                    <p className="text-purple-700/90 dark:text-purple-300/80 text-[11px] sm:text-xs">
+                      {insufficiencyReasons.length > 0
+                        ? insufficiencyReasons.join(" • ")
+                        : "Deteksi tata letak atau teks tabel kurang jelas. Anda dapat mengaktifkan pemindaian berbasis Vision AI untuk mengenali baris yang terlewat."}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowConsentModal(true)}
+                  className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 text-xs shrink-0 self-end md:self-auto"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Coba Vision AI</span>
+                </button>
+              </div>
+            ) : detectedLayout?.limitationReason ? (
+              <div className="p-3 sm:p-3.5 rounded-2xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 flex items-start sm:items-center gap-2.5 text-xs text-amber-800 dark:text-amber-300 shrink-0">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                <span className="font-medium text-[11px] sm:text-xs">{detectedLayout.limitationReason}</span>
+              </div>
+            ) : null}
 
-            <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+            {/* Subheader: Item count, statuses, format badge, Vision badge, Add row */}
+            <div className="shrink-0 flex flex-wrap items-center justify-between gap-2 text-xs py-1">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-semibold text-slate-700 dark:text-slate-200">
+                <span className="font-bold text-slate-800 dark:text-slate-100">
                   {parsedItems.length} Baris Jadwal Terdeteksi
                 </span>
                 {parsedItems.some((i) => i.needsReview) ? (
-                  <span className="px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 font-bold flex items-center gap-1">
+                  <span className="px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 font-bold flex items-center gap-1 text-[11px]">
                     <AlertTriangle className="w-3 h-3" />
                     {parsedItems.filter((i) => i.needsReview).length} Baris Perlu Ditinjau
                   </span>
                 ) : (
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold flex items-center gap-1">
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold flex items-center gap-1 text-[11px]">
                     <CheckCircle2 className="w-3 h-3" />
                     Siap Disimpan
+                  </span>
+                )}
+                {detectedLayout && (
+                  <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 font-medium text-slate-600 dark:text-slate-300 text-[11px]">
+                    Format: {detectedLayout.label}
+                  </span>
+                )}
+                {activeVisionMeta && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 font-bold flex items-center gap-1">
+                    <Sparkles className="w-2.5 h-2.5" />
+                    Vision AI ({activeVisionMeta.provider}: {activeVisionMeta.model})
                   </span>
                 )}
               </div>
@@ -1133,15 +1324,15 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
               <button
                 type="button"
                 onClick={handleAddNewItem}
-                className="flex items-center gap-1 text-accent hover:underline font-semibold"
+                className="flex items-center gap-1 text-accent hover:underline font-semibold text-xs shrink-0"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Tambah Baris</span>
               </button>
             </div>
 
-            {/* Editable List Container */}
-            <div className="max-h-96 overflow-y-auto space-y-3 pr-1">
+            {/* Dedicated Scrollable Items Container */}
+            <div className="flex-1 min-h-0 overflow-y-auto space-y-3 p-1.5 sm:p-2.5 pr-2 sm:pr-3 rounded-2xl border border-line bg-surface/30">
               {parsedItems.map((item, idx) => {
                 const fieldReasons = getFieldReviewReasons(item);
                 const tentativeEntries = Object.entries(item.tentativeSuggestions || {}).filter(
@@ -1437,56 +1628,59 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
               })}
             </div>
 
-            {/* Opt-in Learning Checkbox */}
-            <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 cursor-pointer select-none pt-1">
-              <input
-                type="checkbox"
-                checked={learnCorrections}
-                onChange={(e) => setLearnCorrections(e.target.checked)}
-                className="rounded border-line text-accent focus:ring-accent"
-              />
-              <span>
-                Ingat koreksi nama mata kuliah, kode MK, dan ruangan yang saya perbaiki untuk impor berikutnya
-              </span>
-            </label>
+            {/* Pinned Bottom Footer */}
+            <div className="shrink-0 space-y-2 pt-2 border-t border-line">
+              {/* Opt-in Learning Checkbox */}
+              <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={learnCorrections}
+                  onChange={(e) => setLearnCorrections(e.target.checked)}
+                  className="rounded border-line text-accent focus:ring-accent"
+                />
+                <span>
+                  Ingat koreksi nama mata kuliah, kode MK, dan ruangan yang saya perbaiki untuk impor berikutnya
+                </span>
+              </label>
 
-            {/* Bottom Actions */}
-            <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-800">
-              <button
-                type="button"
-                onClick={() => setStep("upload")}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              >
-                Pilih File Lain
-              </button>
-
-              <div className="flex items-center gap-2">
+              {/* Bottom Actions */}
+              <div className="flex items-center justify-between pt-1">
                 <button
                   type="button"
-                  onClick={handleClose}
+                  onClick={() => setStep("upload")}
                   className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                 >
-                  Batal
+                  Pilih File Lain
                 </button>
 
-                <button
-                  type="button"
-                  disabled={parsedItems.length === 0 || isSaving}
-                  onClick={handleConfirmSave}
-                  className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 transition-all shadow-md shadow-emerald-500/20 flex items-center gap-2"
-                >
-                  {isSaving ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>Menyimpan ke Jadwal...</span>
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>Konfirmasi & Simpan ({parsedItems.length})</span>
-                    </>
-                  )}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleClose}
+                    className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    Batal
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={parsedItems.length === 0 || isSaving}
+                    onClick={handleConfirmSave}
+                    className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 transition-all shadow-md shadow-emerald-500/20 flex items-center gap-2"
+                  >
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Menyimpan ke Jadwal...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Konfirmasi & Simpan ({parsedItems.length})</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

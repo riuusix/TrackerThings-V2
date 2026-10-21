@@ -16,6 +16,7 @@ import { getUserScheduleMappings } from "@/lib/scheduleCorrections";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10 MB limit
 const ALLOWED_MIME_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp", "application/pdf"];

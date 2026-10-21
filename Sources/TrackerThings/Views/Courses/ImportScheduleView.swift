@@ -571,8 +571,33 @@ public struct ImportScheduleView: View {
         guard let item = item else { return }
         Task {
             if let data = try? await item.loadTransferable(type: Data.self) {
+                #if canImport(UIKit)
+                let processedData: Data
+                if let image = UIImage(data: data) {
+                    let maxDim: CGFloat = 1920
+                    let size = image.size
+                    if max(size.width, size.height) > maxDim {
+                        let scale = maxDim / max(size.width, size.height)
+                        let newSize = CGSize(width: size.width * scale, height: size.height * scale)
+                        let renderer = UIGraphicsImageRenderer(size: newSize)
+                        let resized = renderer.image { _ in
+                            image.draw(in: CGRect(origin: .zero, size: newSize))
+                        }
+                        processedData = resized.jpegData(compressionQuality: 0.85) ?? data
+                    } else if let compressed = image.jpegData(compressionQuality: 0.85), compressed.count < data.count {
+                        processedData = compressed
+                    } else {
+                        processedData = data
+                    }
+                } else {
+                    processedData = data
+                }
+                #else
+                let processedData = data
+                #endif
+
                 await MainActor.run {
-                    viewModel.handleFileSelected(data: data, fileName: "jadwal_foto.jpg", mimeType: "image/jpeg")
+                    viewModel.handleFileSelected(data: processedData, fileName: "jadwal_foto.jpg", mimeType: "image/jpeg")
                 }
             }
         }

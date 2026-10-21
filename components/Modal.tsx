@@ -46,9 +46,9 @@ export function Modal({
 
       {/* Modal Dialog */}
       <div
-        className={`relative w-full ${maxWidth} rounded-3xl p-6 sm:p-7 bg-surface-elevated border border-line shadow-xl z-10 animate-in zoom-in-95 duration-150`}
+        className={`relative w-full ${maxWidth} max-h-[90vh] flex flex-col rounded-3xl p-6 sm:p-7 bg-surface-elevated border border-line shadow-xl z-10 animate-in zoom-in-95 duration-150`}
       >
-        <div className="flex items-start justify-between mb-4 border-b border-line pb-3.5">
+        <div className="flex items-start justify-between mb-4 border-b border-line pb-3.5 shrink-0">
           <div>
             <h3 className="text-xl font-bold text-content-primary tracking-tight">
               {title}
@@ -69,7 +69,7 @@ export function Modal({
           </button>
         </div>
 
-        <div>{children}</div>
+        <div className="flex-1 min-h-0 overflow-hidden flex flex-col">{children}</div>
       </div>
     </div>
   );

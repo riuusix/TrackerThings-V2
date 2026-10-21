@@ -1306,7 +1306,7 @@ startxref
         delete process.env.VISION_TIMEOUT_MS;
         const defaultConfig = getVisionProviderConfig();
         assert.equal(defaultConfig.modelId, "gemini-3.5-flash-lite", "Default model ID must be gemini-3.5-flash-lite");
-        assert.equal(defaultConfig.timeoutMs, 25000, "Default timeout for flash-lite must be 25000ms");
+        assert.equal(defaultConfig.timeoutMs, 60000, "Default timeout for flash-lite must be 60000ms");
 
         process.env.GEMINI_MODEL_ID = "gemini-3.8-flash";
         const customConfig = getVisionProviderConfig();

@@ -88,10 +88,12 @@ export function getVisionProviderConfig(): VisionProviderConfig {
   const apiKey = process.env.GEMINI_API_KEY || process.env.VISION_API_KEY || "";
   const modelId = process.env.GEMINI_MODEL_ID || process.env.VISION_MODEL_ID || "gemini-3.5-flash-lite";
 
-  // Adaptive timeout: gemini-3.8-flash performs extensive thinking (~60s),
-  // whereas flash-lite completes in ~2s. Provide safe ceilings if not explicitly set.
-  const defaultTimeout = modelId.includes("3.8") ? 85000 : 25000;
-  const timeoutMs = process.env.VISION_TIMEOUT_MS ? parseInt(process.env.VISION_TIMEOUT_MS, 10) : defaultTimeout;
+  // Adaptive timeout: default to 60,000ms (aligned with Vercel maxDuration = 60s)
+  // or 85,000ms for deep reasoning models (e.g. gemini-3.8-flash).
+  // Guarantee a safe ceiling of at least 60,000ms unless configured higher.
+  const defaultTimeout = modelId.includes("3.8") ? 85000 : 60000;
+  const envTimeout = process.env.VISION_TIMEOUT_MS ? parseInt(process.env.VISION_TIMEOUT_MS, 10) : NaN;
+  const timeoutMs = !isNaN(envTimeout) ? Math.max(60000, envTimeout) : defaultTimeout;
   const maxRetries = parseInt(process.env.VISION_MAX_RETRIES || "1", 10);
   const endpointUrl = process.env.VISION_ENDPOINT_URL;
 
@@ -216,13 +218,16 @@ export class GeminiVisionProvider implements ScheduleVisionProvider {
       model
     )}:generateContent?key=${encodeURIComponent(this.config.apiKey!)}`;
 
+    let normalizedMime = (mimeType || "image/jpeg").toLowerCase();
+    if (normalizedMime === "image/jpg") normalizedMime = "image/jpeg";
+
     const payload = {
       contents: [
         {
           parts: [
             {
               inlineData: {
-                mimeType: mimeType || "image/jpeg",
+                mimeType: normalizedMime,
                 data: base64Data,
               },
             },
