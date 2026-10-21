@@ -246,7 +246,8 @@ public actor TrackerDataService: TrackerDataServiceProtocol {
     /// Menyinkronkan semua draf jadwal offline berstatus .pendingSync ke server backend saat online
     /// Menerapkan deduplikasi agar tidak menduplikasi jadwal yang sudah tersimpan sebelumnya
     public func syncPendingScheduleDrafts() async throws -> [ScheduleImportConfirmResponse] {
-        guard NetworkMonitor.shared.isConnected else { return [] }
+        let isConnected = await NetworkMonitor.shared.isConnected
+        guard isConnected else { return [] }
 
         var drafts = LocalCacheService.shared.loadScheduleDrafts()
         let pending = drafts.filter { $0.status == .pendingSync }

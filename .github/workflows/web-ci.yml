@@ -56,7 +56,9 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Run Python Academic Real-Document & Serverless Tests
-        run: pytest tests/test_academic_real_extraction.py tests/test_vercel_python_serverless.py -v
+        run: python -m pytest tests/test_academic_real_extraction.py tests/test_vercel_python_serverless.py -v
+        env:
+          PYTHONPATH: .
 
       - name: Run Deterministic Multi-Timezone & Unit Tests
         run: node --test tests/date_timezone_audit.test.js
@@ -107,12 +109,22 @@ jobs:
   # =========================================================================
   swift-package:
     name: Swift Package Compilation & Unit Tests (macOS)
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 20
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Select Xcode 16 (Swift 6)
+        run: |
+          if [ -d "/Applications/Xcode_16.2.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+          elif [ -d "/Applications/Xcode_16.1.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_16.1.app/Contents/Developer
+          elif [ -d "/Applications/Xcode_16.0.app" ]; then
+            sudo xcode-select -s /Applications/Xcode_16.0.app/Contents/Developer
+          fi
 
       - name: Check Apple toolchain
         run: |
