@@ -3853,11 +3853,51 @@ export function ensurePdfEnvironmentPolyfills(): void {
 ensurePdfEnvironmentPolyfills();
 
 /**
+ * Ensures PDF.js uses an embedded inline worker so it never attempts to load
+ * external 'pdf.worker.mjs' from disk in serverless runtimes (such as Vercel AWS Lambda).
+ */
+export async function setupPdfWorkerEnvironment(): Promise<void> {
+  const g = typeof globalThis !== "undefined" ? globalThis : typeof global !== "undefined" ? global : ({} as any);
+  if (typeof (g as any).pdfjsWorker !== "undefined") {
+    return;
+  }
+
+  try {
+    const pdfWorker = nodeRequire("pdf-parse/worker");
+    if (pdfWorker && typeof pdfWorker.getData === "function") {
+      const dataUri = pdfWorker.getData();
+      const workerModule = await import(dataUri);
+      if (workerModule?.WorkerMessageHandler) {
+        (g as any).pdfjsWorker = {
+          WorkerMessageHandler: workerModule.WorkerMessageHandler,
+        };
+        return;
+      }
+    }
+  } catch {
+    // Continue to legacy fallback
+  }
+
+  try {
+    // @ts-ignore - Module lacks TypeScript declarations in standard bundle
+    const legacyWorker = await import("pdfjs-dist/legacy/build/pdf.worker.mjs");
+    if (legacyWorker?.WorkerMessageHandler) {
+      (g as any).pdfjsWorker = {
+        WorkerMessageHandler: legacyWorker.WorkerMessageHandler,
+      };
+    }
+  } catch {
+    // Fallback: If both fail, let PDFParse attempt its default resolution
+  }
+}
+
+/**
  * Extracts raw text from PDF buffer using pdf-parse (supports both v1 and v2 API).
  * Strips automatic page footers ("-- 1 of 1 --") and falls back to OCR on embedded images for scanned PDFs.
  */
 export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
   ensurePdfEnvironmentPolyfills();
+  await setupPdfWorkerEnvironment();
   const pdfModule = nodeRequire("pdf-parse");
   if (pdfModule && pdfModule.PDFParse) {
     const parser = new pdfModule.PDFParse({
@@ -3904,7 +3944,11 @@ export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
       throw parseErr;
     } finally {
       if (typeof parser.destroy === "function") {
-        await parser.destroy();
+        try {
+          await parser.destroy();
+        } catch {
+          // Ignore destroy errors
+        }
       }
     }
   } else if (typeof pdfModule === "function") {

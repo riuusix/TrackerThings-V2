@@ -160,11 +160,20 @@ test.describe("Phase 7E: End-to-End Route Execution & Integration Verification S
       assert.equal(json.success, false);
       assert.equal(json.error, "SCANNED_PDF_NO_TEXT");
       assert.equal(json.file_type, "pdf");
-      assert.equal(json.recovery_action, "CONVERT_TO_IMAGE");
-      assert.equal(json.vision_fallback_eligible, false, "PDFs are not sent directly to vision AI");
+      assert.equal(json.recovery_action, "TRY_VISION_AI");
+      assert.equal(
+        json.extra?.vision_fallback_eligible ?? json.vision_fallback_eligible,
+        true,
+        "Must offer vision_fallback_eligible: true for scanned PDF so user can use Vision AI"
+      );
+      assert.equal(
+        json.extra?.insufficient_for_production ?? json.insufficient_for_production,
+        true,
+        "Must flag insufficient_for_production: true on scanned PDF"
+      );
       assert.ok(
         json.message.includes("scan/gambar tanpa lapisan teks digital"),
-        "Message must instruct user to upload as image"
+        "Message must instruct user about scanned document"
       );
     });
 
@@ -196,6 +205,44 @@ test.describe("Phase 7E: End-to-End Route Execution & Integration Verification S
       assert.equal(
         json.extra?.recovery_action ?? json.recovery_action,
         "TRY_VISION_AI"
+      );
+    });
+
+    test("1.4 PDF upload producing parsed items with needsReview returns HTTP 200 with vision_fallback_eligible: true", async () => {
+      const rawPdf =
+        "%PDF-1.4\n" +
+        "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n" +
+        "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n" +
+        "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n" +
+        "4 0 obj\n<< /Length 190 >>\nstream\n" +
+        "BT\n/F1 14 Tf\n72 700 Td\n(JADWAL KULIAH AMBIGU) Tj\n" +
+        "0 -25 Td\n(1. Sistem Terdistribusi) Tj\n" +
+        "0 -20 Td\n(Senin 14:00 - 10:00 3 SKS Ruang Lab-1) Tj\nET\n" +
+        "endstream\nendobj\n" +
+        "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n" +
+        "xref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \n0000000234 00000 n \n0000000475 00000 n \n" +
+        "trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n550\n%%EOF";
+
+      const formData = new FormData();
+      formData.append("file", new Blob([Buffer.from(rawPdf)], { type: "application/pdf" }), "ambiguous.pdf");
+
+      const req = createNextRequest("http://localhost:3000/api/jadwal/import/preview", "POST", formData);
+      const res = await previewPost(req);
+      const json = await res.json();
+
+      assert.equal(res.status, 200);
+      assert.equal(json.success, true);
+      assert.ok(json.data.items.length >= 1);
+      assert.equal(json.data.requires_review, true);
+      assert.equal(
+        json.data.vision_fallback_eligible,
+        true,
+        "Must offer vision_fallback_eligible: true when PDF requires review"
+      );
+      assert.equal(
+        json.data.insufficient_for_production,
+        true,
+        "Must flag insufficient_for_production: true when PDF requires review"
       );
     });
   });

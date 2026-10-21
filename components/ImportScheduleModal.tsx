@@ -177,6 +177,7 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
     setOcrProgress(0);
     setIsSaving(false);
     setErrorMsg(null);
+    setIsVisionEligible(false);
     setParsedItems([]);
     setDetectedLayout(null);
     setShowMappingsPanel(false);
@@ -192,6 +193,7 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setErrorMsg(null);
+    setIsVisionEligible(false);
     if (e.target.files && e.target.files[0]) {
       const selected = e.target.files[0];
       if (selected.size > 10 * 1024 * 1024) {
@@ -205,6 +207,7 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setErrorMsg(null);
+    setIsVisionEligible(false);
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const selected = e.dataTransfer.files[0];
       if (selected.size > 10 * 1024 * 1024) {
@@ -343,7 +346,7 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
 
   const handleExecuteVisionFallback = async () => {
     if (!file) {
-      setErrorMsg("File gambar tidak ditemukan untuk fallback vision.");
+      setErrorMsg("File dokumen tidak ditemukan untuk fallback vision.");
       return;
     }
 
@@ -735,11 +738,15 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
               <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600 dark:text-rose-400 mt-0.5" />
               <div className="flex-1 font-medium">{errorMsg}</div>
             </div>
-            {isVisionEligible && file && file.type.startsWith("image/") && !isVisionLoading && (
+            {isVisionEligible && file && !isVisionLoading && (
               <div className="p-3 rounded-xl bg-purple-50/80 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/50 flex items-center justify-between gap-2 text-xs">
                 <div className="flex items-center gap-1.5 text-purple-900 dark:text-purple-200 font-semibold">
                   <Sparkles className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
-                  <span>Gambar tidak terbaca OCR lokal? Coba gunakan bantuan Gemini Vision AI</span>
+                  <span>
+                    {file.type === "application/pdf"
+                      ? "Dokumen PDF sulit dibaca otomatis? Coba gunakan bantuan Gemini Vision AI"
+                      : "Gambar tidak terbaca OCR lokal? Coba gunakan bantuan Gemini Vision AI"}
+                  </span>
                 </div>
                 <button
                   type="button"
@@ -1065,7 +1072,7 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
             {isVisionLoading && (
               <div className="p-3.5 rounded-xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/50 flex items-center gap-2.5 text-xs text-purple-800 dark:text-purple-200 font-semibold">
                 <Loader2 className="w-4 h-4 animate-spin text-purple-600 dark:text-purple-400 shrink-0" />
-                <span>Memproses gambar melalui Vision Model & memadukan dengan bukti OCR lokal...</span>
+                <span>Memproses dokumen melalui Vision Model & memadukan dengan bukti ekstraksi lokal...</span>
               </div>
             )}
 

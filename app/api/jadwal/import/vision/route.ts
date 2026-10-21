@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10 MB limit
-const ALLOWED_MIME_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
+const ALLOWED_MIME_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp", "application/pdf"];
 
 export async function POST(req: NextRequest) {
   try {
@@ -58,16 +58,16 @@ export async function POST(req: NextRequest) {
     // 5. File Validation
     const file = formData.get("file") as File | null;
     if (!file) {
-      return apiError("File gambar jadwal wajib disertakan untuk vision fallback.", 400);
+      return apiError("File dokumen jadwal wajib disertakan untuk vision fallback.", 400);
     }
 
     if (file.size > MAX_IMAGE_SIZE) {
-      return apiError("Ukuran file gambar melebihi batas 10MB.", 400);
+      return apiError("Ukuran file melebihi batas 10MB.", 400);
     }
 
     const mimeType = file.type.toLowerCase();
     if (!ALLOWED_MIME_TYPES.includes(mimeType)) {
-      return apiError("Format file tidak didukung. Vision fallback hanya mendukung gambar (PNG, JPG, WebP).", 400);
+      return apiError("Format file tidak didukung. Vision fallback mendukung gambar (PNG, JPG, WebP) dan dokumen PDF.", 400);
     }
 
     // 6. Check Provider Availability

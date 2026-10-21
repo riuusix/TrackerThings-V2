@@ -166,13 +166,14 @@ export async function POST(req: NextRequest) {
       if (extractionSource === "pdf_stream") {
         console.warn(`[ImportPreview] Scanned PDF with no digital text (duration: ${ocrDurationMs}ms)`);
         return apiError(
-          "Tidak dapat mengekstrak teks dari file PDF yang diunggah. Dokumen tampaknya merupakan hasil scan/gambar tanpa lapisan teks digital. Silakan unggah tangkapan layar (screenshot) atau foto dokumen dalam format gambar (PNG/JPG) agar dapat dibaca oleh OCR atau dianalisis oleh Vision AI.",
+          "Tidak dapat mengekstrak teks dari file PDF yang diunggah. Dokumen tampaknya merupakan hasil scan/gambar tanpa lapisan teks digital. Silakan coba bantuan Vision AI atau unggah foto/screenshot jadwal.",
           422,
           "SCANNED_PDF_NO_TEXT",
           {
             file_type: "pdf",
-            recovery_action: "CONVERT_TO_IMAGE",
-            vision_fallback_eligible: false,
+            insufficient_for_production: true,
+            vision_fallback_eligible: true,
+            recovery_action: "TRY_VISION_AI",
           }
         );
       }
@@ -184,8 +185,9 @@ export async function POST(req: NextRequest) {
         "EMPTY_OCR_IMAGE",
         {
           file_type: "image",
-          recovery_action: "TRY_VISION_AI",
+          insufficient_for_production: true,
           vision_fallback_eligible: true,
+          recovery_action: "TRY_VISION_AI",
         }
       );
     }
@@ -264,8 +266,7 @@ export async function POST(req: NextRequest) {
       parsedItems.length === 0 ||
       Boolean(recognition.insufficientForProduction) ||
       parsedItems.some((item: any) => item.needsReview);
-    const isImageUpload = extractionSource === "client_ocr" || extractionSource === "server_ocr";
-    const visionFallbackEligible = isImageUpload && isInsufficient;
+    const visionFallbackEligible = isInsufficient;
 
     return apiSuccess(
       parsedItems.length > 0
