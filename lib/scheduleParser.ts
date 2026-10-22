@@ -1731,8 +1731,11 @@ export function recognizeScheduleData(
     }
   }
 
-  if (items.length === 0 && typeof input.text === "string" && input.text.trim().length > 0) {
-    items = parseScheduleText(input.text, existingCourses, userMappings);
+  if (typeof input.text === "string" && input.text.trim().length > 0) {
+    const textItems = parseScheduleText(input.text, existingCourses, userMappings);
+    if (textItems.length > items.length || items.length === 0) {
+      items = textItems;
+    }
   }
 
   // Tag local OCR source

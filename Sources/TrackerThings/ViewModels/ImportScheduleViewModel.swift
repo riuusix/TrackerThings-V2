@@ -245,7 +245,7 @@ public final class ImportScheduleViewModel {
             // Tampilkan status pertajaman analisis & unggah dokumen beserta bukti OCR ke server hybrid
             if !isOffline {
                 activeEngine = .serverInternet
-                loadingMessage = ScheduleImportViewModel.serverRefinementStatusMessage
+                loadingMessage = Self.serverRefinementStatusMessage
                 let wordsJson: String?
                 if !words.isEmpty, let encoded = try? JSONEncoder().encode(words), let str = String(data: encoded, encoding: .utf8) {
                     wordsJson = str
@@ -547,3 +547,6 @@ public final class ImportScheduleViewModel {
         loadPendingDrafts()
     }
 }
+
+public typealias ScheduleImportViewModel = ImportScheduleViewModel
+

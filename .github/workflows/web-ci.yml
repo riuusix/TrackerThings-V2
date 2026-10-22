@@ -96,6 +96,9 @@ jobs:
       - name: Run Phase 3 & 4 Web Offline OCR & Quality Gates Suite
         run: node --test tests/test_web_offline_ocr_and_quality_gates.test.js
 
+      - name: Run Centralized Schedule Import & Layout Generalization Benchmark Suite
+        run: node --test tests/test_centralized_schedule_import.test.js
+
       - name: Build Production Next.js Bundle
         run: npm run build
         env:
