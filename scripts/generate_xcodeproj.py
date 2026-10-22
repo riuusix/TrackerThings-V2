@@ -23,6 +23,7 @@ def generate_project(repo_root: str):
     # Asset catalog and Info.plist
     assets_rel = "xtool/assets/Assets.xcassets"
     infoplist_rel = "xtool/assets/Info.plist"
+    loaders_rel = "xtool/assets/Loaders"
 
     # UUIDs
     proj_uuid = make_uuid("PROJECT_ROOT")
@@ -58,6 +59,8 @@ def generate_project(repo_root: str):
     assets_file_uuid = make_uuid(f"FILE_{assets_rel}")
     assets_build_uuid = make_uuid(f"BUILDFILE_{assets_rel}")
     infoplist_file_uuid = make_uuid(f"FILE_{infoplist_rel}")
+    loaders_file_uuid = make_uuid(f"FILE_{loaders_rel}")
+    loaders_build_uuid = make_uuid(f"BUILDFILE_{loaders_rel}")
 
     # Build PBX objects
     pbx_objects = []
@@ -68,6 +71,7 @@ def generate_project(repo_root: str):
         basename = os.path.basename(sf)
         pbx_objects.append(f"\t\t{build_files[sf]} /* {basename} in Sources */ = {{isa = PBXBuildFile; fileRef = {file_refs[sf]} /* {basename} */; }};")
     pbx_objects.append(f"\t\t{assets_build_uuid} /* Assets.xcassets in Resources */ = {{isa = PBXBuildFile; fileRef = {assets_file_uuid} /* Assets.xcassets */; }};")
+    pbx_objects.append(f"\t\t{loaders_build_uuid} /* Loaders in Resources */ = {{isa = PBXBuildFile; fileRef = {loaders_file_uuid} /* Loaders */; }};")
     pbx_objects.append("/* End PBXBuildFile section */\n")
 
     # 2. PBXFileReference section
@@ -78,6 +82,7 @@ def generate_project(repo_root: str):
         pbx_objects.append(f"\t\t{file_refs[sf]} /* {basename} */ = {{isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = {basename}; sourceTree = \"<group>\"; }};")
     pbx_objects.append(f"\t\t{assets_file_uuid} /* Assets.xcassets */ = {{isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = \"<group>\"; }};")
     pbx_objects.append(f"\t\t{infoplist_file_uuid} /* Info.plist */ = {{isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = \"<group>\"; }};")
+    pbx_objects.append(f"\t\t{loaders_file_uuid} /* Loaders */ = {{isa = PBXFileReference; lastKnownFileType = folder; path = Loaders; sourceTree = \"<group>\"; }};")
     pbx_objects.append("/* End PBXFileReference section */\n")
 
     # 3. PBXFrameworksBuildPhase section
@@ -147,6 +152,7 @@ def generate_project(repo_root: str):
     pbx_objects.append("\t\t\tchildren = (")
     pbx_objects.append(f"\t\t\t\t{assets_file_uuid} /* Assets.xcassets */,")
     pbx_objects.append(f"\t\t\t\t{infoplist_file_uuid} /* Info.plist */,")
+    pbx_objects.append(f"\t\t\t\t{loaders_file_uuid} /* Loaders */,")
     pbx_objects.append("\t\t\t);")
     pbx_objects.append("\t\t\tpath = assets;")
     pbx_objects.append("\t\t\tsourceTree = \"<group>\";")
@@ -251,6 +257,7 @@ def generate_project(repo_root: str):
     pbx_objects.append("\t\t\tbuildActionMask = 2147483647;")
     pbx_objects.append("\t\t\tfiles = (")
     pbx_objects.append(f"\t\t\t\t{assets_build_uuid} /* Assets.xcassets in Resources */,")
+    pbx_objects.append(f"\t\t\t\t{loaders_build_uuid} /* Loaders in Resources */,")
     pbx_objects.append("\t\t\t);")
     pbx_objects.append("\t\t\trunOnlyForDeploymentPostprocessing = 0;")
     pbx_objects.append("\t\t};")

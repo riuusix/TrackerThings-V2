@@ -577,6 +577,34 @@ export function validateCanonicalAcademicItem(
 // 3. Provider Abstraction Interface & Lifecycle
 // ============================================================================
 
+export type HybridEngineUsed =
+  | "typescript_parser"
+  | "python_pdfplumber"
+  | "server_ocr"
+  | "apple_vision_local"
+  | "gemini_vision";
+
+export type HybridProcessingStage =
+  | "typescript_initial"
+  | "python_refinement"
+  | "ocr_extraction"
+  | "vision_fallback"
+  | "quality_gate_rejected";
+
+export type HybridQualityStatus =
+  | "sufficient"
+  | "needs_review"
+  | "insufficient"
+  | "empty";
+
+export interface HybridProcessingMetadata {
+  engineUsed: HybridEngineUsed;
+  processingStage: HybridProcessingStage;
+  qualityStatus: HybridQualityStatus;
+  warnings: string[];
+  visionFallbackEligible: boolean;
+}
+
 export interface AcademicDocumentInput {
   /** Raw file binary buffer */
   buffer: Buffer;
@@ -608,6 +636,9 @@ export interface ExtractionOptions {
 
   /** Abort signal for cancellation */
   signal?: AbortSignal;
+
+  /** Optional callback invoked when active processing stage changes */
+  onStageChange?: (stage: HybridProcessingStage, engine: HybridEngineUsed) => void;
 }
 
 export interface AcademicExtractionProvider {
@@ -716,65 +747,206 @@ export class SelfHostedServerProvider implements AcademicExtractionProvider {
     this.endpointUrl = endpointUrl || process.env.SELF_HOSTED_ML_URL || "";
   }
 
+  private getEffectiveEndpointUrl(): string {
+    let base = (this.endpointUrl || process.env.SELF_HOSTED_ML_URL || "").trim().replace(/\/+$/, "");
+    if (!base) {
+      const vercelDomain =
+        process.env.VERCEL_PROJECT_PRODUCTION_URL ||
+        process.env.VERCEL_URL ||
+        (process.env.NEXT_PUBLIC_APP_URL ? process.env.NEXT_PUBLIC_APP_URL.replace(/^https?:\/\//, "") : null);
+
+      if (vercelDomain) {
+        const cleanHost = vercelDomain.replace(/\/+$/, "");
+        base = `https://${cleanHost}`;
+      } else if (process.env.PYTHON_DEV_PORT) {
+        base = `http://127.0.0.1:${process.env.PYTHON_DEV_PORT}`;
+      }
+    }
+
+    if (base && !base.endsWith("/api/python")) {
+      base = `${base}/api/python`;
+    }
+    return base;
+  }
+
   async isAvailable(): Promise<boolean> {
-    if (!this.endpointUrl || this.endpointUrl.trim().length === 0) {
+    const endpoint = this.getEffectiveEndpointUrl();
+    if (endpoint) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
+        const res = await fetch(`${endpoint}/health`, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (res.ok) return true;
+      } catch {
+        // Fall through to local check if not in serverless
+      }
+    }
+    // Only attempt local python in non-serverless dev/test environment
+    if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
+      return await this.checkLocalPythonAvailable();
+    }
+    return false;
+  }
+
+  private static cachedLocalPythonAvailable: boolean | null = null;
+
+  private async checkLocalPythonAvailable(): Promise<boolean> {
+    if (typeof window !== "undefined" || process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
       return false;
+    }
+    if (SelfHostedServerProvider.cachedLocalPythonAvailable !== null) {
+      return SelfHostedServerProvider.cachedLocalPythonAvailable;
     }
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1500);
-      const res = await fetch(`${this.endpointUrl}/health`, { signal: controller.signal });
-      clearTimeout(timeoutId);
-      return res.ok;
+      const { execFileSync } = await import("child_process");
+      execFileSync("python", ["-c", "import api.extractor; import pdfplumber"], {
+        timeout: 8000,
+        stdio: "ignore",
+      });
+      SelfHostedServerProvider.cachedLocalPythonAvailable = true;
+      return true;
     } catch {
+      SelfHostedServerProvider.cachedLocalPythonAvailable = false;
       return false;
     }
+  }
+
+  /**
+   * Verifies that the document is a genuine digital PDF before invoking Python pdfplumber.
+   * Image files, plain text, and scanned PDFs without a digital text layer are never sent to pdfplumber.
+   */
+  canProcessDocument(input: AcademicDocumentInput): boolean {
+    if (input.mimeType !== "application/pdf") {
+      return false;
+    }
+    if (!input.buffer || input.buffer.length < 5) {
+      return false;
+    }
+    const pdfHeader = input.buffer.subarray(0, 5).toString("ascii");
+    if (pdfHeader !== "%PDF-") {
+      return false;
+    }
+    if (input.preExtractedText !== undefined && input.preExtractedText.trim().length === 0) {
+      return false;
+    }
+    return true;
   }
 
   async extract(
     input: AcademicDocumentInput,
     options?: ExtractionOptions
   ): Promise<CanonicalAcademicExtractionResult> {
+    if (!this.canProcessDocument(input)) {
+      throw new Error("SelfHostedServerProvider only supports digital PDFs with valid %PDF- binary buffer and digital text stream.");
+    }
     if (!(await this.isAvailable())) {
       throw new Error("Self-hosted ML microservice is not available or unreachable.");
     }
 
-    const controller = new AbortController();
-    const timeoutMs = options?.timeoutMs || 25000;
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    const endpoint = this.getEffectiveEndpointUrl();
+    const serviceKey =
+      process.env.SELF_HOSTED_ML_KEY ||
+      process.env.SERVICE_API_KEY ||
+      "trackerthings_dev_secret_key_8f7b2c9a1d4e6f3b0a2c5e8d";
 
-    try {
-      const payload = {
-        fileName: input.fileName,
-        mimeType: input.mimeType,
-        text: input.preExtractedText || input.buffer.toString("utf8"),
-      };
+    // 1. HTTP endpoint if configured / deployed
+    if (endpoint) {
+      const controller = new AbortController();
+      const timeoutMs = options?.timeoutMs || 25000;
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      const serviceKey =
-        process.env.SELF_HOSTED_ML_KEY ||
-        process.env.SERVICE_API_KEY ||
-        "trackerthings_dev_secret_key_8f7b2c9a1d4e6f3b0a2c5e8d";
-      if (serviceKey) {
-        headers["Authorization"] = `Bearer ${serviceKey}`;
+      try {
+        let res: Response;
+        // If we have binary buffer (PDF or image), send as multipart/form-data
+        if (input.buffer && input.buffer.length > 0) {
+          const formData = new FormData();
+          const mime = input.mimeType || "application/pdf";
+          const blob = new Blob([new Uint8Array(input.buffer)], { type: mime });
+          formData.append("file", blob, input.fileName || "document.pdf");
+          if (input.preExtractedText) {
+            formData.append("preExtractedText", input.preExtractedText);
+          }
+
+          res = await fetch(`${endpoint}/extract/academic`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${serviceKey}`,
+              "X-TrackerThings-Service-Key": serviceKey,
+            },
+            body: formData,
+            signal: options?.signal || controller.signal,
+          });
+        } else {
+          // JSON fallback for text-only payload
+          const payload = {
+            fileName: input.fileName,
+            mimeType: input.mimeType,
+            text: input.preExtractedText || "",
+          };
+
+          res = await fetch(`${endpoint}/extract`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${serviceKey}`,
+              "X-TrackerThings-Service-Key": serviceKey,
+            },
+            body: JSON.stringify(payload),
+            signal: options?.signal || controller.signal,
+          });
+        }
+
+        if (res.ok) {
+          const json = await res.json();
+          return json as CanonicalAcademicExtractionResult;
+        } else {
+          console.warn(`[SelfHostedServerProvider] Server responded with status ${res.status}`);
+        }
+      } catch (httpErr) {
+        console.warn("[SelfHostedServerProvider] HTTP extraction error:", httpErr);
+      } finally {
+        clearTimeout(timeoutId);
       }
-
-      const res = await fetch(`${this.endpointUrl}/extract`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload),
-        signal: options?.signal || controller.signal,
-      });
-
-      if (!res.ok) {
-        throw new Error(`Self-hosted ML returned status ${res.status}`);
-      }
-
-      const json = await res.json();
-      return json as CanonicalAcademicExtractionResult;
-    } finally {
-      clearTimeout(timeoutId);
     }
+
+    // 2. Local Python table extractor (strictly for dev / testing environments)
+    if (!process.env.VERCEL && !process.env.AWS_LAMBDA_FUNCTION_NAME && typeof window === "undefined") {
+      const isLocalAvailable = await this.checkLocalPythonAvailable();
+      if (isLocalAvailable) {
+        const { execFileSync } = await import("child_process");
+        const fs = await import("fs");
+        const path = await import("path");
+        const os = await import("os");
+
+        const tempFile = path.join(
+          os.tmpdir(),
+          `tt_sched_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.pdf`
+        );
+        fs.writeFileSync(tempFile, input.buffer);
+        try {
+          const rawOutput = execFileSync(
+            "python",
+            ["-m", "api.extractor", tempFile, "--mime", input.mimeType || "application/pdf"],
+            {
+              encoding: "utf8",
+              timeout: options?.timeoutMs || 25000,
+              maxBuffer: 10 * 1024 * 1024,
+            }
+          );
+          const lines = rawOutput.trim().split("\n");
+          const jsonStr = lines[lines.length - 1];
+          const res = JSON.parse(jsonStr) as CanonicalAcademicExtractionResult;
+          return res;
+        } finally {
+          try {
+            if (fs.existsSync(tempFile)) fs.unlinkSync(tempFile);
+          } catch {}
+        }
+      }
+    }
+
+    throw new Error("No available extraction runtime.");
   }
 }
 
@@ -1282,6 +1454,11 @@ export interface RoutingDecision {
   selectedProviderId: string;
   providerName: string;
   processingMode: "deterministic" | "self_hosted_model" | "external_provider" | "local_fallback";
+  engineUsed: HybridEngineUsed;
+  processingStage: HybridProcessingStage;
+  qualityStatus: HybridQualityStatus;
+  warnings: string[];
+  visionFallbackEligible: boolean;
   reason: string;
   documentType: AcademicDocumentType;
   qualitySignals: {
@@ -1332,6 +1509,7 @@ export class AcademicHybridRouter {
     options?: ExtractionOptions
   ): Promise<{ result: CanonicalAcademicExtractionResult; decision: RoutingDecision }> {
     // 1. Always evaluate deterministic local extractor first (fast, free, zero network)
+    options?.onStageChange?.("typescript_initial", "typescript_parser");
     const deterministicResult = await this.deterministicExtractor.extract(input, options);
     const quality = this.evaluateQuality(deterministicResult);
 
@@ -1343,6 +1521,11 @@ export class AcademicHybridRouter {
           selectedProviderId: this.deterministicExtractor.id,
           providerName: this.deterministicExtractor.name,
           processingMode: "deterministic",
+          engineUsed: "typescript_parser",
+          processingStage: "typescript_initial",
+          qualityStatus: "sufficient",
+          warnings: quality.reasons,
+          visionFallbackEligible: false,
           reason: `Deterministic extractor succeeded with high confidence (pass rate: ${quality.passRatePercent}%)`,
           documentType: deterministicResult.documentType,
           qualitySignals: quality,
@@ -1350,18 +1533,34 @@ export class AcademicHybridRouter {
       };
     }
 
-    // 2. If deterministic extraction was insufficient, check if self-hosted ML microservice is available
-    if (this.selfHostedProvider && (await this.selfHostedProvider.isAvailable())) {
+    // 2. If deterministic extraction was insufficient, check if document is a digital PDF and Python ML service is available
+    const canUsePython =
+      this.selfHostedProvider instanceof SelfHostedServerProvider
+        ? this.selfHostedProvider.canProcessDocument(input)
+        : input.mimeType === "application/pdf";
+
+    if (canUsePython && this.selfHostedProvider && (await this.selfHostedProvider.isAvailable())) {
       try {
+        options?.onStageChange?.("python_refinement", "python_pdfplumber");
         const mlResult = await this.selfHostedProvider.extract(input, options);
         const mlQuality = this.evaluateQuality(mlResult);
-        if (mlQuality.totalItems > 0 && mlQuality.passRatePercent >= quality.passRatePercent) {
+        if (
+          mlQuality.totalItems > 0 &&
+          (mlQuality.isSufficientForProduction ||
+            mlQuality.passRatePercent >= quality.passRatePercent ||
+            mlQuality.totalItems > quality.totalItems)
+        ) {
           return {
             result: mlResult,
             decision: {
               selectedProviderId: this.selfHostedProvider.id,
               providerName: this.selfHostedProvider.name,
               processingMode: "self_hosted_model",
+              engineUsed: "python_pdfplumber",
+              processingStage: "python_refinement",
+              qualityStatus: mlQuality.isSufficientForProduction ? "sufficient" : "needs_review",
+              warnings: mlQuality.reasons,
+              visionFallbackEligible: mlQuality.visionFallbackEligible,
               reason: "Self-hosted ML microservice resolved ambiguous document layout",
               documentType: mlResult.documentType,
               qualitySignals: mlQuality,
@@ -1375,12 +1574,24 @@ export class AcademicHybridRouter {
 
     // 3. Fallback & Resilience: Return best deterministic items with review markers
     // Never silently discard records when offline or models are unavailable
+    const fallbackQualityStatus: HybridQualityStatus =
+      quality.totalItems === 0
+        ? "empty"
+        : quality.validItemsCount > 0
+        ? "needs_review"
+        : "insufficient";
+
     return {
       result: deterministicResult,
       decision: {
         selectedProviderId: this.deterministicExtractor.id,
         providerName: this.deterministicExtractor.name,
         processingMode: "local_fallback",
+        engineUsed: "typescript_parser",
+        processingStage: "typescript_initial",
+        qualityStatus: fallbackQualityStatus,
+        warnings: quality.reasons,
+        visionFallbackEligible: quality.visionFallbackEligible,
         reason: quality.totalItems > 0
           ? "Deterministic result returned with review warnings (advanced ML models offline)"
           : "Deterministic extraction found no confident rows; manual review required",
@@ -1410,16 +1621,25 @@ export function bridgeCanonicalToLegacyItem(item: CanonicalAcademicItem): Record
     };
   }
 
+  const isMissingRequired = !item.namaMatkul || !item.hari || !item.waktuMulai || !item.waktuSelesai;
+  const effectiveNeedsReview = Boolean(item.needsReview || isMissingRequired);
+  const effectiveWarnings = [
+    ...(item.warnings || []),
+    ...(isMissingRequired && !(item.warnings || []).some(w => w.includes("belum lengkap") || w.includes("tidak valid"))
+      ? ["Informasi jadwal (hari atau jam) belum lengkap dari dokumen."]
+      : [])
+  ];
+
   return {
     id: item.id,
     namaMatkul: item.namaMatkul,
     nama_matkul: item.namaMatkul,
-    hari: item.hari || "Senin",
+    hari: item.hari || "",
     tanggal: item.tanggal,
-    waktuMulai: item.waktuMulai || "08:00",
-    waktu_mulai: item.waktuMulai || "08:00",
-    waktuSelesai: item.waktuSelesai || "10:00",
-    waktu_selesai: item.waktuSelesai || "10:00",
+    waktuMulai: item.waktuMulai || "",
+    waktu_mulai: item.waktuMulai || "",
+    waktuSelesai: item.waktuSelesai || "",
+    waktu_selesai: item.waktuSelesai || "",
     dosen: item.dosen,
     lokasi: item.lokasi,
     ruang: item.lokasi, // iOS alternative key
@@ -1429,16 +1649,16 @@ export function bridgeCanonicalToLegacyItem(item: CanonicalAcademicItem): Record
     kelas: item.kelas,
     kategori: item.kategori || "Wajib",
     recurrence: item.recurrence,
-    needsReview: item.needsReview,
-    needs_review: item.needsReview,
-    warnings: item.warnings,
-    reviewReasons: item.warnings, // iOS alternative key
+    needsReview: effectiveNeedsReview,
+    needs_review: effectiveNeedsReview,
+    warnings: effectiveWarnings,
+    reviewReasons: effectiveWarnings, // iOS alternative key
     fieldConfidence: fieldConfMap,
     field_confidence: Object.fromEntries(
       Object.entries(fieldConfMap).map(([k, v]) => [k, v.level === "high" ? 0.95 : 0.6])
     ),
-    recognitionStatus: item.needsReview ? "needs_review" : "high_confidence",
-    recognition_status: item.needsReview ? "needs_review" : "high_confidence",
+    recognitionStatus: effectiveNeedsReview ? "needs_review" : "high_confidence",
+    recognition_status: effectiveNeedsReview ? "needs_review" : "high_confidence",
     rawFields: {
       namaMatkul: item.namaMatkul,
       hari: item.hari || "",

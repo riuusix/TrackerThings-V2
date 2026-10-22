@@ -251,11 +251,14 @@ def map_header_columns(header_cells: List[str]) -> Dict[str, int]:
             col_map["selesai"] = idx
         elif re.search(r"\b(waktu|jam|sesi|time)\b", c) and "waktu" not in col_map and "mulai" not in col_map:
             col_map["waktu"] = idx
-        elif re.search(r"\b(kode|code)\b", c) and "kode" not in col_map:
-            col_map["kode"] = idx
+        elif re.search(r"\b(mata\s*kuliah|matakuliah|nama\s*mk|course|subject)\b", c) and re.search(r"\b(kode|code)\b", c):
+            col_map["nama"] = idx
+            col_map["compound_kode"] = idx
         elif re.search(r"\b(mata\s*kuliah|matakuliah|nama\s*mk|course|subject)\b", c) and "nama" not in col_map:
             col_map["nama"] = idx
-        elif re.search(r"\b(ruang|ruangan|lokasi|room)\b", c) and "lokasi" not in col_map:
+        elif re.search(r"\b(kode|code)\b", c) and "kode" not in col_map:
+            col_map["kode"] = idx
+        elif re.search(r"\b(ruang|ruangan|lokasi|room|studio)\b", c) and "lokasi" not in col_map:
             col_map["lokasi"] = idx
         elif re.search(r"\b(kls|kelas|class|section)\b", c) and "kelas" not in col_map:
             col_map["kelas"] = idx
@@ -414,7 +417,7 @@ def parse_cells_with_map(
     def get_col(name: str) -> Optional[str]:
         idx = col_map.get(name)
         if idx is not None and idx < len(cells) and cells[idx]:
-            val = cells[idx].strip()
+            val = re.sub(r"\s+", " ", cells[idx].strip())
             return val if val else None
         return None
 
@@ -446,6 +449,25 @@ def parse_cells_with_map(
             single_match = re.search(r"(\d{1,2}[:.]\d{2})", waktu_val)
             if single_match and not mulai_val:
                 mulai_val = single_match.group(1)
+
+    # Clean noise from times (e.g. "08:00 - 13:00 (5 Jam Penuh)")
+    if mulai_val:
+        mulai_val = re.sub(r"\(.*?\)", "", mulai_val).strip()
+    if selesai_val:
+        selesai_val = re.sub(r"\(.*?\)", "", selesai_val).strip()
+
+    # If code is absent or compound column detected, extract embedded course code from nama_val
+    if (not kode_val or "compound_kode" in col_map) and nama_val:
+        code_match = re.search(r"\b([A-Z]{2,4}[-\s]?\d{3,6})\b", nama_val)
+        if code_match:
+            if not kode_val:
+                kode_val = code_match.group(1)
+            nama_val = nama_val.replace(code_match.group(0), "")
+
+    # Clean annotations from course title
+    if nama_val:
+        nama_val = re.sub(r"\((?:Mata\s*Kuliah\s*Inti|Mata\s*Kuliah\s*Pilihan|Wajib|Pilihan|[0-9]+\s*Jam[^\)]*)\)", "", nama_val, flags=re.IGNORECASE)
+        nama_val = re.sub(r"\s+", " ", nama_val).strip()
 
     sks_val: Optional[int] = None
     raw_sks = get_col("sks")
@@ -485,10 +507,12 @@ def parse_unmapped_row(
     if len(clean_cells) < 2:
         return None
 
-    # Skip header row if it contains keywords
-    first_two = " ".join(clean_cells[:3]).lower()
-    if any(k in first_two for k in ["mata kuliah", "matakuliah", "kode mk", "ruang", "waktu", "sks"]):
-        return None
+    # Skip header row if it contains keywords, but never skip rows containing time ranges
+    has_time = any(re.search(r"\d{1,2}[:.]\d{2}", c) for c in clean_cells)
+    if not has_time and row_idx <= 2:
+        first_two = " ".join(clean_cells[:3]).lower()
+        if any(k in first_two for k in ["mata kuliah", "matakuliah", "kode mk", "ruang", "waktu", "sks"]):
+            return None
 
     hari: Optional[str] = None
     tanggal: Optional[str] = None
@@ -558,12 +582,12 @@ def parse_unmapped_row(
             continue
 
         # 7. Room / Lokasi
-        if re.search(r"\b(?:Lab|Ruang|R\.|Gedung|D\.\d+|L\.\d+|Online|Zoom|Auditorium)\b", cell, re.IGNORECASE) and not lokasi:
+        if re.search(r"\b(?:Lab|Ruang|R\.|Studio|Gedung|D\.\d+|L\.\d+|Online|Zoom|Auditorium)\b", cell, re.IGNORECASE) and not lokasi:
             lokasi = cell
             continue
 
-        # 8. Lecturer (contains Gelar: Dr, M.Kom, S.T, Prof)
-        if re.search(r"\b(?:Dr|Prof|M\.Kom|S\.T|M\.T|S\.Kom|Ph\.D|Ir\.)\b", cell, re.IGNORECASE) and not dosen:
+        # 8. Lecturer (contains Gelar: Dr, M.Kom, S.T, Prof, Ar., M.Arch, M.Pd, etc.)
+        if re.search(r"\b(?:Dr|Prof|M\.Kom|S\.T|M\.T|S\.Kom|Ph\.D|Ir\.|Ar\.|M\.Arch|M\.Pd|M\.Ds|M\.Sc)\b", cell, re.IGNORECASE) and not dosen:
             dosen = cell
             continue
 
@@ -576,6 +600,19 @@ def parse_unmapped_row(
                 nama_matkul = cell
 
     if not nama_matkul:
+        return None
+
+    # If code is absent, extract embedded course code from nama_matkul
+    if not kode_matkul and nama_matkul:
+        code_match = re.search(r"\b([A-Z]{2,4}[-\s]?\d{3,6})\b", nama_matkul)
+        if code_match:
+            kode_matkul = code_match.group(1)
+            nama_matkul = nama_matkul.replace(code_match.group(0), "")
+
+    # Clean annotations from course title
+    if nama_matkul:
+        nama_matkul = re.sub(r"\((?:Mata\s*Kuliah\s*Inti|Mata\s*Kuliah\s*Pilihan|Wajib|Pilihan|[0-9]+\s*Jam[^\)]*)\)", "", nama_matkul, flags=re.IGNORECASE)
+        nama_matkul = re.sub(r"\s+", " ", nama_matkul).strip()
         return None
 
     row_id = f"row_{page_idx}_{row_idx}"
@@ -791,8 +828,21 @@ def extract_from_digital_pdf(
                     col_map = map_header_columns(header_row)
 
                     start_row = 1 if len(col_map) >= 2 else 0
+                    last_valid_day: Optional[str] = None
+
                     for row_idx, row in enumerate(table[start_row:], start=start_row + 1):
                         cell_strings = [str(c or "").strip() for c in row]
+
+                        # Merged day propagation
+                        if col_map and "hari" in col_map:
+                            day_idx = col_map["hari"]
+                            if day_idx < len(cell_strings) and cell_strings[day_idx]:
+                                norm_d = normalize_indonesian_day(cell_strings[day_idx])
+                                if norm_d:
+                                    last_valid_day = norm_d
+                            elif last_valid_day and day_idx < len(cell_strings):
+                                cell_strings[day_idx] = last_valid_day
+
                         item: Optional[CanonicalAcademicItem] = None
                         if col_map and "nama" in col_map:
                             item = parse_cells_with_map(
@@ -812,6 +862,9 @@ def extract_from_digital_pdf(
                                 method="text_stream",
                             )
                         if item:
+                            # Propagate last valid day if item still lacks day
+                            if not item.hari and last_valid_day and item.recurrence == AcademicRecurrenceType.WEEKLY:
+                                item.hari = last_valid_day
                             page_extracted_items.append(item)
 
                 if page_extracted_items:
@@ -928,3 +981,28 @@ def extract_academic_document(
     # 4. Fallback if content was pure text or unspecified
     text_content = contents.decode("utf-8", errors="replace")
     return extract_from_delimited_text(text_content, method="text_stream")
+
+
+if __name__ == "__main__":
+    import argparse
+    import os
+    import sys
+    import json
+    import logging
+    import warnings
+
+    warnings.filterwarnings("ignore")
+    logging.getLogger("pdfminer").setLevel(logging.ERROR)
+    logging.getLogger("pdfplumber").setLevel(logging.ERROR)
+
+    parser = argparse.ArgumentParser(description="Extract academic items from document")
+    parser.add_argument("file_path", help="Path to PDF or document file")
+    parser.add_argument("--mime", default="application/pdf", help="File MIME type")
+    args = parser.parse_args()
+
+    with open(args.file_path, "rb") as f:
+        file_bytes = f.read()
+
+    result = extract_academic_document(file_bytes, os.path.basename(args.file_path), args.mime)
+    sys.stdout.write(result.model_dump_json() + "\n")
+    sys.stdout.flush()

@@ -92,6 +92,10 @@ jobs:
           if [ -f compiled_assets/Assets.car ]; then
             cp -v compiled_assets/Assets.car "$APP_DIR/"
           fi
+          if [ -d xtool/assets/Loaders ]; then
+            echo "Injecting Loaders animation assets into $APP_DIR/Loaders"
+            cp -rv xtool/assets/Loaders "$APP_DIR/"
+          fi
           cp -v xtool/assets/Info.plist "$APP_DIR/"
 
           # 3. Repackage into dist/TrackerThings.ipa
@@ -101,7 +105,7 @@ jobs:
           rm -rf ipa_extracted compiled_assets
 
           echo "Verifying contents of dist/TrackerThings.ipa:"
-          unzip -l dist/TrackerThings.ipa | grep -E "AppIcon|Assets.car|Info.plist"
+          unzip -l dist/TrackerThings.ipa | grep -E "AppIcon|Assets.car|Info.plist|Loaders"
           ls -lh dist/TrackerThings.ipa
 
       - name: Upload IPA artifact

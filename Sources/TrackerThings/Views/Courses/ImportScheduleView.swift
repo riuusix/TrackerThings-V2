@@ -38,12 +38,11 @@ public struct ImportScheduleView: View {
                         pendingDraftsSection
                     }
 
-                    // MARK: - Pemilih File (Foto / PDF)
-                    fileSelectionSection
-
-                    // MARK: - Loading Progress
+                    // MARK: - Pemilih File (Foto / PDF) atau Dedicated Loading Card
                     if viewModel.isLoading || viewModel.isVisionLoading {
                         loadingCard
+                    } else {
+                        fileSelectionSection
                     }
 
                     // MARK: - Pesan Error
@@ -304,23 +303,19 @@ public struct ImportScheduleView: View {
 
     // MARK: - Loading Card
     private var loadingCard: some View {
-        VStack(spacing: 12) {
-            ProgressView()
-                .controlSize(.large)
-                .tint(AppTheme.Colors.brandPrimary)
-            Text(viewModel.loadingMessage)
-                .font(AppTheme.Typography.body)
-                .foregroundStyle(AppTheme.Colors.textPrimary)
-                .multilineTextAlignment(.center)
-            Text("Harap tunggu beberapa saat...")
-                .font(AppTheme.Typography.caption)
-                .foregroundStyle(AppTheme.Colors.textSecondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 28)
-        .padding(.horizontal)
+        EngineLoaderView(
+            engine: viewModel.activeEngine,
+            customMessage: viewModel.loadingMessage.isEmpty ? nil : viewModel.loadingMessage,
+            onCancel: {
+                viewModel.cancelProcessing()
+            }
+        )
         .background(AppTheme.Colors.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.Metrics.cornerRadiusMedium))
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.Metrics.cornerRadiusMedium)
+                .stroke(AppTheme.Colors.borderSubtle, lineWidth: 1)
+        )
         .padding(.horizontal)
     }
 
@@ -531,6 +526,7 @@ public struct ImportScheduleView: View {
                         .font(AppTheme.Typography.captionBold)
                         .foregroundStyle(AppTheme.Colors.textSecondary)
                     Picker("Hari", selection: item.hari) {
+                        Text("Pilih Hari").tag("")
                         ForEach(hariOptions, id: \.self) { h in
                             Text(h).tag(h)
                         }

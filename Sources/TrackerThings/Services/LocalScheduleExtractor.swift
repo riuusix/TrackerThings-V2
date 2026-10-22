@@ -18,9 +18,18 @@ public struct LocalScheduleExtractor: Sendable {
     /// Mengekstrak daftar item jadwal dari hasil OCR Apple Vision secara deterministik di perangkat.
     public static func extract(from ocrResult: LocalOcrResult) -> [ImportScheduleItem] {
         var items: [ImportScheduleItem] = []
-        let rawLines = ocrResult.lines
+        var linesToProcess: [String] = []
 
-        for (index, line) in rawLines.enumerated() {
+        if !ocrResult.words.isEmpty {
+            linesToProcess = clusterWordsIntoLines(ocrResult.words)
+        }
+        if linesToProcess.isEmpty {
+            linesToProcess = ocrResult.lines
+        }
+
+        var lastValidHari: String? = nil
+
+        for (index, line) in linesToProcess.enumerated() {
             let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { continue }
 
@@ -30,12 +39,70 @@ public struct LocalScheduleExtractor: Sendable {
                 continue
             }
 
-            if let item = parseScheduleLine(trimmed, rowIndex: index + 1) {
+            if var item = parseScheduleLine(trimmed, rowIndex: index + 1) {
+                if item.hari.isEmpty && !item.waktuMulai.isEmpty && lastValidHari != nil {
+                    item.hari = lastValidHari!
+                    item.rawFields["hari"] = lastValidHari!
+                    item.needsReview = item.waktuMulai.isEmpty || item.waktuSelesai.isEmpty
+                    item.recognitionStatus = item.needsReview ? "needs_review" : "high_confidence"
+                } else if !item.hari.isEmpty {
+                    lastValidHari = item.hari
+                }
                 items.append(item)
             }
         }
 
         return items
+    }
+
+    /// Mengelompokkan observasi kata OCR secara spasial berdasarkan koordinat Y menjadi baris-baris visual
+    public static func clusterWordsIntoLines(_ words: [OcrWord]) -> [String] {
+        let valid = words.filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        guard !valid.isEmpty else { return [] }
+
+        // Cek apakah koordinat dalam skala normalisasi [0.0 ... 1.0] atau pixel
+        var maxY = 0.0
+        for w in valid {
+            if w.bbox.y1 > maxY { maxY = w.bbox.y1 }
+        }
+        let isNormalized = maxY <= 1.05 && maxY > 0
+        let verticalTolerance = isNormalized ? 0.018 : 12.0
+
+        // Urutkan berdasarkan yCenter
+        let sorted = valid.sorted { w1, w2 in
+            let y1 = (w1.bbox.y0 + w1.bbox.y1) / 2.0
+            let y2 = (w2.bbox.y0 + w2.bbox.y1) / 2.0
+            if abs(y1 - y2) > (isNormalized ? 0.005 : 4.0) {
+                return y1 < y2
+            }
+            return w1.bbox.x0 < w2.bbox.x0
+        }
+
+        var lines: [[OcrWord]] = []
+        for w in sorted {
+            let yc = (w.bbox.y0 + w.bbox.y1) / 2.0
+            var matchedIndex: Int? = nil
+
+            for i in stride(from: lines.count - 1, through: max(0, lines.count - 4), by: -1) {
+                let lineWords = lines[i]
+                let lineYc = lineWords.reduce(0.0) { $0 + ($1.bbox.y0 + $1.bbox.y1) / 2.0 } / Double(lineWords.count)
+                if abs(yc - lineYc) <= verticalTolerance {
+                    matchedIndex = i
+                    break
+                }
+            }
+
+            if let idx = matchedIndex {
+                lines[idx].append(w)
+            } else {
+                lines.append([w])
+            }
+        }
+
+        return lines.map { lineWords in
+            let sortedInLine = lineWords.sorted { $0.bbox.x0 < $1.bbox.x0 }
+            return sortedInLine.map { $0.text }.joined(separator: " ")
+        }
     }
 
     private static func isHeaderLine(_ lower: String) -> Bool {
@@ -191,9 +258,9 @@ public struct LocalScheduleExtractor: Sendable {
             namaMatkul: cleaned,
             kodeMatkul: kodeMatkul,
             kelas: kelas,
-            hari: hari ?? "Senin",
-            waktuMulai: waktuMulai ?? "08:00",
-            waktuSelesai: waktuSelesai ?? "10:00",
+            hari: hari ?? "",
+            waktuMulai: waktuMulai ?? "",
+            waktuSelesai: waktuSelesai ?? "",
             dosen: dosen,
             ruang: lokasi,
             lokasi: lokasi,

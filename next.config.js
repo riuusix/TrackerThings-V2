@@ -2,6 +2,8 @@
 const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: ['tesseract.js', 'pdf-parse'],
+    cpus: 2,
+    workerThreads: false,
   },
   headers: async () => [
     {

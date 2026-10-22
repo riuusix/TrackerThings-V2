@@ -131,6 +131,11 @@ export async function POST(req: NextRequest) {
       (item) => item.recognitionStatus === "high_confidence" || item.recognitionStatus === "confirmed_assisted"
     ).length;
     const needsReviewCount = mergedItems.filter((item) => item.needsReview).length;
+    const qualityStatus =
+      mergedItems.length === 0 ? "empty" : requiresReview ? "needs_review" : "sufficient";
+    const warnings = Array.from(
+      new Set(mergedItems.flatMap((item) => item.warnings || []))
+    );
 
     // Operational non-sensitive metrics only (no raw image, no keys, no personal info logged)
     const providerConfig = getVisionProviderConfig();
@@ -138,6 +143,15 @@ export async function POST(req: NextRequest) {
     return apiSuccess(
       `Ekstraksi vision berhasil diproses oleh provider ${visionResult.provider}. Ditemukan ${mergedItems.length} mata kuliah.`,
       {
+        engineUsed: "gemini_vision",
+        engine_used: "gemini_vision",
+        processingStage: "vision_fallback",
+        processing_stage: "vision_fallback",
+        qualityStatus,
+        quality_status: qualityStatus,
+        warnings,
+        visionFallbackEligible: false,
+        vision_fallback_eligible: false,
         items: mergedItems,
         total: mergedItems.length,
         requires_review: requiresReview,

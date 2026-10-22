@@ -15,10 +15,14 @@ public final class ImportScheduleViewModel {
     public var isDocumentPdf: Bool = false
 
     // MARK: - State Pemrosesan & UI
+    public static let serverRefinementStatusMessage = "Kami sedang memproses pertajaman analisismu, tunggu sebentar."
+
     public var isLoading: Bool = false
+    public var activeEngine: ScheduleImportEngine = .localAppleVision
     public var loadingMessage: String = ""
     public var errorMessage: String? = nil
     public var toast: FeedbackToastData? = nil
+    private var previewTask: Task<Void, Never>? = nil
 
     // MARK: - Data Hasil Ekstraksi
     public var previewResponse: ScheduleImportPreviewResponse? = nil
@@ -27,6 +31,7 @@ public final class ImportScheduleViewModel {
     // MARK: - State AI Vision Fallback
     public var isVisionLoading: Bool = false
     public var showVisionConsentSheet: Bool = false
+    public var serverVisionFallbackEligible: Bool = false
 
     // MARK: - State Konfirmasi & Draf Offline
     public var isConfirming: Bool = false
@@ -52,8 +57,9 @@ public final class ImportScheduleViewModel {
     }
 
     public var visionEligible: Bool {
-        guard !isDocumentPdf, selectedFileData != nil else { return false }
+        guard selectedFileData != nil else { return false }
         if isOffline { return false } // Vision AI fallback requires network
+        if serverVisionFallbackEligible { return true }
         if let prev = previewResponse {
             return prev.visionFallbackEligible
         }
@@ -116,12 +122,22 @@ public final class ImportScheduleViewModel {
         self.items = []
         self.previewResponse = nil
 
-        Task {
+        previewTask?.cancel()
+        previewTask = Task {
             await runOcrPreview()
         }
     }
 
-    // MARK: - Ekstraksi OCR Preview (Hybrid: On-Device Apple Vision + Online Bridge)
+    public func cancelProcessing() {
+        previewTask?.cancel()
+        previewTask = nil
+        isLoading = false
+        isVisionLoading = false
+        activeEngine = .localAppleVision
+        loadingMessage = ""
+    }
+
+    // MARK: - Ekstraksi OCR Preview (Hybrid: On-Device Apple Vision + Central Server Fallback)
     public func runOcrPreview() async {
         guard let data = selectedFileData else {
             errorMessage = "Silakan pilih dokumen PDF atau gambar jadwal terlebih dahulu."
@@ -130,9 +146,10 @@ public final class ImportScheduleViewModel {
 
         isLoading = true
         errorMessage = nil
+        serverVisionFallbackEligible = false
 
         if isDocumentPdf {
-            // Jalur PDF: Memerlukan koneksi server
+            // Jalur PDF: Memerlukan pemrosesan hybrid di server
             guard !isOffline else {
                 isLoading = false
                 errorMessage = "Tidak dapat memproses dokumen PDF saat offline."
@@ -140,25 +157,39 @@ public final class ImportScheduleViewModel {
                 return
             }
 
-            loadingMessage = "Mengekstrak tabel dari dokumen PDF..."
+            activeEngine = .serverInternet
+            loadingMessage = ScheduleImportEngine.serverInternet.statusMessage
             do {
                 let result = try await dataService.previewScheduleImport(
                     fileData: data,
                     fileName: selectedFileName.isEmpty ? "jadwal.pdf" : selectedFileName,
                     mimeType: "application/pdf"
                 )
+                guard !Task.isCancelled else { return }
+                if result.engineUsed == "python_pdfplumber" || result.processingStage == "python_refinement" {
+                    self.activeEngine = .python
+                } else {
+                    self.activeEngine = .typescript
+                }
+                self.serverVisionFallbackEligible = result.visionFallbackEligible
                 self.previewResponse = result
                 self.items = result.items
                 self.isLoading = false
                 handleExtractionCompletion(result.items)
             } catch {
+                guard !Task.isCancelled else { return }
                 self.isLoading = false
                 self.errorMessage = error.localizedDescription
-                self.toast = FeedbackToastData(message: error.localizedDescription, severity: .error)
+                self.toast = FeedbackToastData(message: error.localizedDescription, severity: .warning)
+                // Tangani respons HTTP 422 (EMPTY_SCHEDULE_EXTRACTED / SCANNED_PDF_NO_TEXT)
+                if let appError = error as? AppError, appError.statusCode == 422 {
+                    self.serverVisionFallbackEligible = true
+                }
             }
         } else {
-            // Jalur Gambar: On-Device Apple Vision OCR terlebih dahulu (100% offline-ready)
-            loadingMessage = "Mengekstrak teks dengan Apple Vision di perangkat..."
+            // Jalur Gambar: 1. On-Device Apple Vision OCR terlebih dahulu (Local-First)
+            activeEngine = .localAppleVision
+            loadingMessage = ScheduleImportEngine.localAppleVision.statusMessage
 
             let localOcrResult: LocalOcrResult?
             do {
@@ -166,13 +197,49 @@ public final class ImportScheduleViewModel {
             } catch {
                 localOcrResult = nil
             }
+            guard !Task.isCancelled else { return }
 
             let fullText = localOcrResult?.fullText ?? ""
             let words = localOcrResult?.words ?? []
+            let localParsedItems: [ImportScheduleItem]
+            if let ocr = localOcrResult, !ocr.lines.isEmpty {
+                localParsedItems = LocalScheduleExtractor.extract(from: ocr)
+            } else {
+                localParsedItems = []
+            }
 
+            // Quality gate lokal: apakah hasil ekstraksi di perangkat sudah lengkap & bebas needsReview?
+            let isLocallySufficient = !localParsedItems.isEmpty && !localParsedItems.contains { $0.needsReview }
+
+            // 2. Jika hasil lokal sudah valid & lengkap, langsung lanjut ke pratinjau tanpa unggah ke server
+            if isLocallySufficient {
+                self.items = localParsedItems
+                self.previewResponse = ScheduleImportPreviewResponse(
+                    items: localParsedItems,
+                    total: localParsedItems.count,
+                    requiresReview: false,
+                    layout: "apple_vision_local",
+                    insufficientForProduction: false,
+                    visionFallbackEligible: false,
+                    filename: selectedFileName,
+                    engineUsed: "apple_vision_local",
+                    processingStage: "ocr_extraction",
+                    qualityStatus: "sufficient",
+                    warnings: []
+                )
+                self.isLoading = false
+                toast = FeedbackToastData(
+                    message: "Ekstraksi lokal Apple Vision berhasil! Ditemukan \(localParsedItems.count) mata kuliah.",
+                    severity: .success
+                )
+                return
+            }
+
+            // 3. Jika hasil lokal kosong, belum lengkap, atau gagal quality gate, dan perangkat online:
+            // Tampilkan status pertajaman analisis & unggah dokumen beserta bukti OCR ke server hybrid
             if !isOffline {
-                // Online: Kirim evidence OCR lokal ke server untuk alignment spasial & kamus koreksi user
-                loadingMessage = "Memetakan kolom tabel dan kamus preferensi akademik..."
+                activeEngine = .serverInternet
+                loadingMessage = ScheduleImportEngine.serverInternet.statusMessage
                 let wordsJson: String?
                 if !words.isEmpty, let encoded = try? JSONEncoder().encode(words), let str = String(data: encoded, encoding: .utf8) {
                     wordsJson = str
@@ -188,19 +255,56 @@ public final class ImportScheduleViewModel {
                         rawText: fullText.isEmpty ? nil : fullText,
                         ocrWordsJson: wordsJson
                     )
+                    guard !Task.isCancelled else { return }
+                    if result.engineUsed == "python_pdfplumber" || result.processingStage == "python_refinement" {
+                        self.activeEngine = .python
+                    } else {
+                        self.activeEngine = .typescript
+                    }
+                    self.serverVisionFallbackEligible = result.visionFallbackEligible
                     self.previewResponse = result
                     self.items = result.items
                     self.isLoading = false
                     handleExtractionCompletion(result.items)
                     return
                 } catch {
-                    // Jika server gagal, fallback transparan ke parser lokal tanpa crash
+                    guard !Task.isCancelled else { return }
+                    if let appError = error as? AppError, appError.statusCode == 422 {
+                        self.serverVisionFallbackEligible = true
+                    }
+                    // Jika server tidak tersedia atau mengembalikan 422, pertahankan hasil lokal (bila ada) untuk peninjauan manual
+                    if !localParsedItems.isEmpty {
+                        self.items = localParsedItems
+                        self.previewResponse = ScheduleImportPreviewResponse(
+                            items: localParsedItems,
+                            total: localParsedItems.count,
+                            requiresReview: true,
+                            layout: "apple_vision_offline",
+                            insufficientForProduction: true,
+                            visionFallbackEligible: true,
+                            filename: selectedFileName,
+                            engineUsed: "apple_vision_local",
+                            processingStage: "ocr_extraction",
+                            qualityStatus: "needs_review",
+                            warnings: ["Layanan pertajaman server tidak dapat dijangkau. Menampilkan hasil OCR perangkat untuk ditinjau manual."]
+                        )
+                        self.isLoading = false
+                        self.toast = FeedbackToastData(
+                            message: "Server tidak terjangkau. Menampilkan \(localParsedItems.count) mata kuliah hasil OCR lokal untuk ditinjau manual.",
+                            severity: .warning
+                        )
+                        return
+                    } else {
+                        self.isLoading = false
+                        self.errorMessage = error.localizedDescription
+                        self.toast = FeedbackToastData(message: error.localizedDescription, severity: .warning)
+                        return
+                    }
                 }
             }
 
-            // Jalur Offline atau Fallback Lokal dari Apple Vision OCR
+            // 4. Jalur Offline dari Apple Vision OCR
             if let ocr = localOcrResult, !ocr.lines.isEmpty {
-                let localParsedItems = LocalScheduleExtractor.extract(from: ocr)
                 self.items = localParsedItems
                 self.previewResponse = ScheduleImportPreviewResponse(
                     items: localParsedItems,
@@ -208,18 +312,19 @@ public final class ImportScheduleViewModel {
                     requiresReview: localParsedItems.contains { $0.needsReview },
                     layout: "apple_vision_offline",
                     insufficientForProduction: localParsedItems.isEmpty,
-                    visionFallbackEligible: false,
-                    filename: selectedFileName
+                    visionFallbackEligible: localParsedItems.isEmpty || localParsedItems.contains { $0.needsReview },
+                    filename: selectedFileName,
+                    engineUsed: "apple_vision_local",
+                    processingStage: "ocr_extraction",
+                    qualityStatus: localParsedItems.isEmpty ? "empty" : "needs_review"
                 )
                 self.isLoading = false
 
                 if localParsedItems.isEmpty {
-                    self.errorMessage = "Teks terdeteksi (\(ocr.lines.count) baris), namun kolom jadwal tidak dapat dipetakan secara otomatis. Anda dapat menambahkan baris secara manual."
+                    self.errorMessage = "Teks terdeteksi (\(ocr.lines.count) baris), namun kolom jadwal tidak dapat dipetakan secara otomatis. Anda dapat mencoba bantuan Vision AI atau menambahkan baris secara manual."
                 } else {
                     let reviewCount = localParsedItems.filter { $0.needsReview }.count
-                    let msg = isOffline
-                        ? "OCR Apple Vision offline selesai! Ditemukan \(localParsedItems.count) mata kuliah (\(reviewCount) baris perlu ditinjau)."
-                        : "Ekstraksi lokal Apple Vision berhasil! Ditemukan \(localParsedItems.count) mata kuliah."
+                    let msg = "OCR Apple Vision offline selesai! Ditemukan \(localParsedItems.count) mata kuliah (\(reviewCount) baris perlu ditinjau)."
                     toast = FeedbackToastData(message: msg, severity: reviewCount > 0 ? .warning : .success)
                 }
             } else {
@@ -251,8 +356,8 @@ public final class ImportScheduleViewModel {
 
     // MARK: - Fallback Vision AI (Strict Explicit Consent)
     public func runVisionAIFallback() async {
-        guard let data = selectedFileData, !isDocumentPdf else {
-            errorMessage = "Vision AI hanya mendukung input gambar (PNG/JPEG)."
+        guard let data = selectedFileData else {
+            errorMessage = "Silakan pilih dokumen PDF atau gambar jadwal terlebih dahulu."
             return
         }
 
@@ -274,10 +379,13 @@ public final class ImportScheduleViewModel {
         }
 
         do {
+            let isPdf = isDocumentPdf
+            let fallbackName = isPdf ? "jadwal_vision.pdf" : "jadwal_vision.jpg"
+            let fallbackMime = isPdf ? "application/pdf" : "image/jpeg"
             let visionResult = try await dataService.visionScheduleImport(
                 fileData: data,
-                fileName: selectedFileName.isEmpty ? "jadwal_vision.jpg" : selectedFileName,
-                mimeType: selectedFileMimeType.isEmpty ? "image/jpeg" : selectedFileMimeType,
+                fileName: selectedFileName.isEmpty ? fallbackName : selectedFileName,
+                mimeType: selectedFileMimeType.isEmpty ? fallbackMime : selectedFileMimeType,
                 localItemsJson: localJsonString
             )
 
@@ -411,6 +519,8 @@ public final class ImportScheduleViewModel {
     }
 
     public func reset() {
+        previewTask?.cancel()
+        previewTask = nil
         selectedFileData = nil
         selectedFileName = ""
         selectedFileMimeType = ""

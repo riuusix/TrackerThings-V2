@@ -73,6 +73,12 @@ public enum AppError: LocalizedError, Sendable, Identifiable, Equatable {
         .serverError(code: statusCode, message: message)
     }
 
+    /// Status code HTTP jika error merupakan serverError
+    public var statusCode: Int? {
+        if case .serverError(let code, _) = self { return code }
+        return nil
+    }
+
     /// Memeriksa apakah error merupakan pembatalan yang tidak perlu ditampilkan ke UI pengguna.
     public var isCancellation: Bool {
         if case .cancelled = self { return true }

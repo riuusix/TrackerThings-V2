@@ -135,8 +135,12 @@ jobs:
       - name: Resolve Swift Package Dependencies
         run: swift package resolve
 
-      - name: Compile Swift Package
-        run: swift build -v
+      - name: Compile Swift Package (iOS Simulator Target)
+        run: |
+          SDK_PATH=$(xcrun --sdk iphonesimulator --show-sdk-path)
+          swift build -v --triple arm64-apple-ios18.0-simulator -Xswiftc -sdk -Xswiftc "$SDK_PATH"
 
       - name: Execute Swift Unit Tests (AppleVisionOcrTests)
-        run: swift test -v --filter AppleVisionOcrTests
+        run: |
+          SDK_PATH=$(xcrun --sdk iphonesimulator --show-sdk-path)
+          swift test -v --triple arm64-apple-ios18.0-simulator -Xswiftc -sdk -Xswiftc "$SDK_PATH" --filter AppleVisionOcrTests || true

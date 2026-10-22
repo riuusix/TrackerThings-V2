@@ -5,7 +5,6 @@ let package = Package(
     name: "TrackerThings",
     platforms: [
         .iOS(.v18),
-        .macOS(.v14),
     ],
     products: [
         .library(
@@ -16,7 +15,10 @@ let package = Package(
     targets: [
         .target(
             name: "TrackerThings",
-            path: "Sources/TrackerThings"
+            path: "Sources/TrackerThings",
+            resources: [
+                .process("Resources")
+            ]
         ),
         .testTarget(
             name: "TrackerThingsTests",

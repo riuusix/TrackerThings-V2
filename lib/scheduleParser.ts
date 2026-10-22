@@ -376,7 +376,8 @@ export function normalizeCourseCode(
   userMappings: UserScheduleMapping[] = []
 ): { code: string; raw: string; wasCorrected: boolean } | null {
   if (!raw || typeof raw !== "string") return null;
-  const trimmed = raw.trim();
+  // Clean surrounding punctuation (quotes, apostrophes, backticks, brackets)
+  const trimmed = raw.trim().replace(/^['"`‘“(\[]+|['"`’”)\],]+$/g, "").trim();
   if (!trimmed) return null;
 
   // Check exact user mapping first
@@ -394,9 +395,10 @@ export function normalizeCourseCode(
   // Must not contain dots or slashes (which indicate room codes like D.302 or class R.03)
   if (/[./]/.test(trimmed)) return null;
 
-  const compact = trimmed.replace(/\s+/g, "").toUpperCase();
-  // Course code pattern: 2-4 prefix chars + 4-8 numeric/confused-numeric chars + optional 1 trailing letter
-  const match = compact.match(/^([A-Z10578|!]{2,4})([0-9OQoIl|!SZGB]{4,8})([A-Z])?$/);
+  const hadHyphen = trimmed.includes("-");
+  const compact = trimmed.replace(/[-\s]+/g, "").toUpperCase();
+  // Course code pattern: 2-4 prefix chars + 3-8 numeric/confused-numeric chars + optional 1 trailing letter
+  const match = compact.match(/^([A-Z10578|!]{2,4})([0-9OQoIl|!SZGB]{3,8})([A-Z])?$/);
   if (!match) return null;
 
   const [, rawPrefix, rawDigits, trailingLetter] = match;
@@ -428,9 +430,11 @@ export function normalizeCourseCode(
     .replace(/[G]/g, "6")
     .replace(/[B]/g, "8");
 
-  if (!/^\d{4,8}$/.test(cleanDigits)) return null;
+  if (!/^\d{3,8}$/.test(cleanDigits)) return null;
 
-  const finalCode = `${cleanPrefix}${cleanDigits}${trailingLetter || ""}`;
+  const finalCode = hadHyphen
+    ? `${cleanPrefix}-${cleanDigits}${trailingLetter || ""}`
+    : `${cleanPrefix}${cleanDigits}${trailingLetter || ""}`;
   return {
     code: finalCode,
     raw: trimmed,
@@ -663,8 +667,32 @@ export function groupWordsIntoVisualLines(words: OcrWord[]): VisualLine[] {
   const validWords = words.filter((w) => w && w.text && w.text.trim().length > 0 && w.bbox);
   if (validWords.length === 0) return [];
 
+  // Detect whether coordinates are in normalized unit space [0.0 ... 1.0] (e.g. from Apple Vision)
+  let maxCoord = 0;
+  for (const w of validWords) {
+    if (w.bbox.x0 > maxCoord) maxCoord = w.bbox.x0;
+    if (w.bbox.x1 > maxCoord) maxCoord = w.bbox.x1;
+    if (w.bbox.y0 > maxCoord) maxCoord = w.bbox.y0;
+    if (w.bbox.y1 > maxCoord) maxCoord = w.bbox.y1;
+  }
+
+  const isNormalized = maxCoord <= 1.05 && maxCoord > 0;
+  const scale = isNormalized ? 1000.0 : 1.0;
+
+  const normalizedWords = isNormalized
+    ? validWords.map((w) => ({
+        ...w,
+        bbox: {
+          x0: w.bbox.x0 * scale,
+          y0: w.bbox.y0 * scale,
+          x1: w.bbox.x1 * scale,
+          y1: w.bbox.y1 * scale,
+        },
+      }))
+    : validWords;
+
   // Sort by vertical center first, then x0
-  const sorted = [...validWords].sort((a, b) => {
+  const sorted = [...normalizedWords].sort((a, b) => {
     const ycA = (a.bbox.y0 + a.bbox.y1) / 2;
     const ycB = (b.bbox.y0 + b.bbox.y1) / 2;
     if (Math.abs(ycA - ycB) > 4) return ycA - ycB;
@@ -755,6 +783,7 @@ function classifyHeaderPhrase(phrase: string): TableColumnField | null {
     clean === "ruangan" ||
     clean === "lokasi" ||
     clean === "room" ||
+    clean === "studio" ||
     clean === "gedung"
   ) {
     return "lokasi";
@@ -786,7 +815,22 @@ function classifyHeaderPhrase(phrase: string): TableColumnField | null {
     clean === "mata pelajaran" ||
     clean === "mapel" ||
     clean === "subject" ||
-    clean === "course"
+    clean === "course" ||
+    clean === "mata kuliah kode" ||
+    clean === "matakuliah kode" ||
+    clean === "mata kuliah dan kode" ||
+    clean === "matakuliah dan kode" ||
+    clean === "nama mata kuliah kode" ||
+    clean === "nama mata kuliah dan kode" ||
+    clean === "nama matkul dan kode" ||
+    clean === "nama matkul kode" ||
+    clean === "mata kuliah kode mk" ||
+    clean === "matakuliah kode mk" ||
+    clean === "mata kuliah kodemk" ||
+    clean === "nama mk kode" ||
+    clean === "kode mata kuliah" ||
+    clean === "kode matakuliah" ||
+    clean === "kode nama mata kuliah"
   ) {
     return "namaMatkul";
   }
@@ -801,7 +845,14 @@ function classifyHeaderPhrase(phrase: string): TableColumnField | null {
     clean === "nama guru" ||
     clean === "lecturer" ||
     clean === "instructor" ||
-    clean === "instruktur"
+    clean === "instruktur" ||
+    clean === "dosen pengampu" ||
+    clean === "dosen pengajar" ||
+    clean === "dosen pembina" ||
+    clean === "pengampu" ||
+    clean === "dosen pembimbing" ||
+    clean === "tenaga pengajar" ||
+    clean === "tim dosen"
   ) {
     return "dosen";
   }
@@ -825,6 +876,34 @@ export function detectTableHeaderFromLines(lines: VisualLine[]): {
       const w1 = words[i];
       const w2 = i + 1 < words.length ? words[i + 1] : null;
       const w3 = i + 2 < words.length ? words[i + 2] : null;
+      const w4 = i + 3 < words.length ? words[i + 3] : null;
+
+      // Try 4-word phrase (e.g. "Mata Kuliah & Kode", "Nama Mata Kuliah Kode")
+      if (
+        w4 &&
+        w3 &&
+        w2 &&
+        w2.bbox.x0 - w1.bbox.x1 < 60 &&
+        w3.bbox.x0 - w2.bbox.x1 < 60 &&
+        w4.bbox.x0 - w3.bbox.x1 < 60
+      ) {
+        const phrase4 = `${w1.text} ${w2.text} ${w3.text} ${w4.text}`;
+        const field4 = classifyHeaderPhrase(phrase4);
+        if (field4) {
+          matchedCols.push({
+            field: field4,
+            label: phrase4,
+            x0: w1.bbox.x0,
+            x1: w4.bbox.x1,
+            y0: Math.min(w1.bbox.y0, w2.bbox.y0, w3.bbox.y0, w4.bbox.y0),
+            y1: Math.max(w1.bbox.y1, w2.bbox.y1, w3.bbox.y1, w4.bbox.y1),
+            minX: 0,
+            maxX: Infinity,
+          });
+          i += 4;
+          continue;
+        }
+      }
 
       // Try 3-word phrase (e.g. "Nama Mata Kuliah")
       if (w3 && w2 && w2.bbox.x0 - w1.bbox.x1 < 60 && w3.bbox.x0 - w2.bbox.x1 < 60) {
@@ -1052,8 +1131,8 @@ export function detectScheduleLayout(input: {
   const rawText = typeof input.text === "string" ? input.text : "";
   const lines = rawText
     .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0 && !/^--\s*\d+\s+of\s+\d+\s*--$/i.test(l));
+    .map((l) => l.trimEnd())
+    .filter((l) => l.trim().length > 0 && !/^--\s*\d+\s+of\s+\d+\s*--$/i.test(l));
 
   for (const line of lines) {
     if (isHeaderTextLine(line)) {
@@ -1375,7 +1454,7 @@ export function parseScheduleFromWords(
     const rawLokasi = joinBucket("lokasi");
     const rawKode = joinBucket("kodeMatkul");
     const rawKelas = joinBucket("kelas");
-    const rawNama = joinBucket("namaMatkul");
+    let rawNama = joinBucket("namaMatkul");
     const rawSks = joinBucket("sks");
     const rawDosen = joinBucket("dosen");
 
@@ -1435,33 +1514,62 @@ export function parseScheduleFromWords(
           appliedCorrections.push(`Kode MK diperbaiki dari OCR: '${rawKode}' → '${codeNorm.code}'`);
         }
       } else {
-        // Check if rawKode has multiple tokens (e.g. "IF253418 R.03" when Kls column merged into Kode MK)
-        const kodeTokens = rawKode.split(/\s+/).filter(Boolean);
-        const firstCode = kodeTokens.length > 0 ? normalizeCourseCode(kodeTokens[0], userMappings) : null;
-        if (firstCode) {
-          kodeMatkul = firstCode.code;
-          if (firstCode.wasCorrected) {
-            appliedCorrections.push(`Kode MK diperbaiki dari OCR: '${kodeTokens[0]}' → '${firstCode.code}'`);
-          }
-          if (kodeTokens.length > 1) {
-            const secondKls = normalizeClassLabel(kodeTokens[1], userMappings);
-            if (secondKls) {
-              extraKelasFromKode = secondKls.kelas;
-            }
+        // Check if rawKode has an embedded course code (e.g. from table column overlap)
+        const embeddedMatch = rawKode.match(/['"`‘“]?[A-Z]{2,4}[-\s]?\d{3,6}['"`’”]?/);
+        const embeddedNorm = embeddedMatch ? normalizeCourseCode(embeddedMatch[0], userMappings) : null;
+        if (embeddedNorm) {
+          kodeMatkul = embeddedNorm.code;
+          const remnant = rawKode.replace(embeddedMatch![0], "").trim();
+          if (remnant && !rawNama.includes(remnant)) {
+            rawNama = `${rawNama} ${remnant}`.trim();
           }
         } else {
-          kodeMatkul = rawKode;
-          warnings.push(`Format Kode MK '${rawKode}' tampak tidak standar. Harap periksa kembali.`);
+          // Check if rawKode has multiple tokens (e.g. "IF253418 R.03" when Kls column merged into Kode MK)
+          const kodeTokens = rawKode.split(/\s+/).filter(Boolean);
+          const firstCode = kodeTokens.length > 0 ? normalizeCourseCode(kodeTokens[0], userMappings) : null;
+          if (firstCode) {
+            kodeMatkul = firstCode.code;
+            if (firstCode.wasCorrected) {
+              appliedCorrections.push(`Kode MK diperbaiki dari OCR: '${kodeTokens[0]}' → '${firstCode.code}'`);
+            }
+            if (kodeTokens.length > 1) {
+              const secondKls = normalizeClassLabel(kodeTokens[1], userMappings);
+              if (secondKls) {
+                extraKelasFromKode = secondKls.kelas;
+              }
+            }
+          } else {
+            kodeMatkul = rawKode;
+            warnings.push(`Format Kode MK '${rawKode}' tampak tidak standar. Harap periksa kembali.`);
+          }
         }
       }
-    } else {
-      for (const w of row.allWords) {
-        const cn = normalizeCourseCode(w.text, userMappings);
-        if (cn) {
-          kodeMatkul = cn.code;
-          break;
+    } else if (rawNama) {
+      // If no dedicated Kode MK column, extract course code embedded in compound column (e.g. "Mata Kuliah & Kode")
+      const embeddedMatch = rawNama.match(/['"`‘“]?[A-Z]{2,4}[-\s]?\d{3,6}['"`’”]?/);
+      if (embeddedMatch) {
+        const codeNorm = normalizeCourseCode(embeddedMatch[0], userMappings);
+        if (codeNorm) {
+          kodeMatkul = codeNorm.code;
+          rawNama = rawNama.replace(embeddedMatch[0], "").trim();
+          appliedCorrections.push(`Kode MK diekstraksi dari nama matkul: '${embeddedMatch[0]}' → '${codeNorm.code}'`);
         }
       }
+      if (!kodeMatkul) {
+        for (const w of row.allWords) {
+          const cn = normalizeCourseCode(w.text, userMappings);
+          if (cn) {
+            kodeMatkul = cn.code;
+            rawNama = rawNama.replace(new RegExp(`['"\`‘“]?\\b${w.text.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}\\b['"\`’”]?`, "i"), "").trim();
+            break;
+          }
+        }
+      }
+    }
+
+    if (kodeMatkul && rawNama) {
+      const codePattern = kodeMatkul.replace(/-/g, "[-\\s]?");
+      rawNama = rawNama.replace(new RegExp(`['"\`‘“]?\\b${codePattern}\\b['"\`’”]?`, "gi"), "").trim();
     }
 
     let kelas: string | null = extraKelasFromKode;
@@ -1548,8 +1656,8 @@ export function parseScheduleText(
 
   const rawLines = text
     .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0 && !/^--\s*\d+\s+of\s+\d+\s*--$/i.test(l));
+    .map((l) => l.trimEnd())
+    .filter((l) => l.trim().length > 0 && !/^--\s*\d+\s+of\s+\d+\s*--$/i.test(l));
 
   if (rawLines.length === 0) return [];
 
@@ -2298,7 +2406,7 @@ function parseDelimitedTableLines(
     const rawLokasi = r.cells.lokasi.join(" ").trim();
     const rawKode = r.cells.kodeMatkul.join(" ").trim();
     const rawKelas = r.cells.kelas.join(" ").trim();
-    const rawNama = r.cells.namaMatkul.join(" ").trim();
+    let rawNama = r.cells.namaMatkul.join(" ").trim();
     const rawSks = r.cells.sks.join(" ").trim();
     const rawDosen = r.cells.dosen.join(" ").trim();
 
@@ -2331,6 +2439,16 @@ function parseDelimitedTableLines(
       } else {
         kodeMatkul = rawKode;
         warnings.push(`Format Kode MK '${rawKode}' tampak tidak standar. Harap periksa kembali.`);
+      }
+    } else if (rawNama) {
+      const codeMatch = rawNama.match(/\b([A-Z]{2,4}[-\s]?\d{3,6})\b/);
+      if (codeMatch) {
+        const codeNorm = normalizeCourseCode(codeMatch[1], userMappings);
+        if (codeNorm) {
+          kodeMatkul = codeNorm.code;
+          rawNama = rawNama.replace(codeMatch[0], "").trim();
+          appliedCorrections.push(`Kode MK diekstraksi dari nama matkul: '${codeMatch[1]}' → '${codeNorm.code}'`);
+        }
       }
     }
 
@@ -2989,6 +3107,7 @@ function cleanCourseName(raw: string): string {
     .replace(/\[.*?\]|\(.*?\)/g, (match) => {
       return match.match(/teori|praktek|praktikum|lab/i) ? match : "";
     })
+    .replace(/\b([A-Za-z]{3,})(\d)\b/g, "$1 $2") // separate joined level digits like "Arsitektur3" -> "Arsitektur 3"
     .replace(/[;|\t]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();

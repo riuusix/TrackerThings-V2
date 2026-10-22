@@ -56,9 +56,9 @@ public struct ImportScheduleItem: Codable, Sendable, Identifiable, Hashable {
         namaMatkul: String,
         kodeMatkul: String? = nil,
         kelas: String? = nil,
-        hari: String = "Senin",
-        waktuMulai: String = "08:00",
-        waktuSelesai: String = "10:00",
+        hari: String = "",
+        waktuMulai: String = "",
+        waktuSelesai: String = "",
         dosen: String? = nil,
         ruang: String? = nil,
         lokasi: String? = nil,
@@ -83,7 +83,11 @@ public struct ImportScheduleItem: Codable, Sendable, Identifiable, Hashable {
         self.lokasi = lokasi ?? ruang
         self.sks = sks
         self.kategori = kategori
-        self.needsReview = needsReview
+        let missingRequired = namaMatkul.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || hari.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || waktuMulai.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || waktuSelesai.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        self.needsReview = needsReview || missingRequired
         self.confidence = confidence
         self.recognitionStatus = recognitionStatus
         self.fieldConfidence = fieldConfidence
@@ -113,16 +117,16 @@ public struct ImportScheduleItem: Codable, Sendable, Identifiable, Hashable {
             ?? (try? container.decode(String.self, forKey: .kodeMatkulAlt))
         self.kelas = try? container.decode(String.self, forKey: .kelas)
 
-        // Hari
-        self.hari = (try? container.decode(String.self, forKey: .hari)) ?? "Senin"
+        // Hari (Never silently default to "Senin" when missing)
+        self.hari = (try? container.decode(String.self, forKey: .hari)) ?? ""
 
-        // Waktu
+        // Waktu (Never silently default to "08:00" or "10:00" when missing)
         self.waktuMulai = (try? container.decode(String.self, forKey: .waktuMulai))
             ?? (try? container.decode(String.self, forKey: .waktuMulaiAlt))
-            ?? "08:00"
+            ?? ""
         self.waktuSelesai = (try? container.decode(String.self, forKey: .waktuSelesai))
             ?? (try? container.decode(String.self, forKey: .waktuSelesaiAlt))
-            ?? "10:00"
+            ?? ""
 
         // Dosen, Ruang, Lokasi
         self.dosen = try? container.decode(String.self, forKey: .dosen)
@@ -142,9 +146,14 @@ public struct ImportScheduleItem: Codable, Sendable, Identifiable, Hashable {
         self.kategori = (try? container.decode(String.self, forKey: .kategori)) ?? "Wajib"
 
         // Needs Review
-        self.needsReview = (try? container.decode(Bool.self, forKey: .needsReview))
+        let decodedNeedsReview = (try? container.decode(Bool.self, forKey: .needsReview))
             ?? (try? container.decode(Bool.self, forKey: .needsReviewAlt))
             ?? false
+        let missingRequired = self.namaMatkul.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || self.hari.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || self.waktuMulai.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || self.waktuSelesai.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        self.needsReview = decodedNeedsReview || missingRequired
 
         // Confidence
         if let conf = try? container.decode(Double.self, forKey: .confidence) {
@@ -203,6 +212,10 @@ public struct ScheduleImportPreviewResponse: Codable, Sendable {
     public let insufficiencyReasons: [String]?
     public let visionFallbackEligible: Bool
     public let filename: String?
+    public let engineUsed: String?
+    public let processingStage: String?
+    public let qualityStatus: String?
+    public let warnings: [String]?
 
     enum CodingKeys: String, CodingKey {
         case items
@@ -212,7 +225,15 @@ public struct ScheduleImportPreviewResponse: Codable, Sendable {
         case insufficientForProduction = "insufficient_for_production"
         case insufficiencyReasons = "insufficiency_reasons"
         case visionFallbackEligible = "vision_fallback_eligible"
+        case visionFallbackEligibleCamel = "visionFallbackEligible"
         case filename
+        case engineUsed = "engineUsed"
+        case engineUsedSnake = "engine_used"
+        case processingStage = "processingStage"
+        case processingStageSnake = "processing_stage"
+        case qualityStatus = "qualityStatus"
+        case qualityStatusSnake = "quality_status"
+        case warnings
     }
 
     public init(
@@ -223,7 +244,11 @@ public struct ScheduleImportPreviewResponse: Codable, Sendable {
         insufficientForProduction: Bool = false,
         insufficiencyReasons: [String]? = nil,
         visionFallbackEligible: Bool = false,
-        filename: String? = nil
+        filename: String? = nil,
+        engineUsed: String? = nil,
+        processingStage: String? = nil,
+        qualityStatus: String? = nil,
+        warnings: [String]? = nil
     ) {
         self.items = items
         self.total = total
@@ -233,6 +258,10 @@ public struct ScheduleImportPreviewResponse: Codable, Sendable {
         self.insufficiencyReasons = insufficiencyReasons
         self.visionFallbackEligible = visionFallbackEligible
         self.filename = filename
+        self.engineUsed = engineUsed
+        self.processingStage = processingStage
+        self.qualityStatus = qualityStatus
+        self.warnings = warnings
     }
 
     public init(from decoder: Decoder) throws {
@@ -243,8 +272,33 @@ public struct ScheduleImportPreviewResponse: Codable, Sendable {
         self.layout = try? container.decode(String.self, forKey: .layout)
         self.insufficientForProduction = (try? container.decode(Bool.self, forKey: .insufficientForProduction)) ?? false
         self.insufficiencyReasons = try? container.decode([String].self, forKey: .insufficiencyReasons)
-        self.visionFallbackEligible = (try? container.decode(Bool.self, forKey: .visionFallbackEligible)) ?? false
+        self.visionFallbackEligible = (try? container.decode(Bool.self, forKey: .visionFallbackEligible))
+            ?? (try? container.decode(Bool.self, forKey: .visionFallbackEligibleCamel))
+            ?? false
         self.filename = try? container.decode(String.self, forKey: .filename)
+        self.engineUsed = (try? container.decode(String.self, forKey: .engineUsed))
+            ?? (try? container.decode(String.self, forKey: .engineUsedSnake))
+        self.processingStage = (try? container.decode(String.self, forKey: .processingStage))
+            ?? (try? container.decode(String.self, forKey: .processingStageSnake))
+        self.qualityStatus = (try? container.decode(String.self, forKey: .qualityStatus))
+            ?? (try? container.decode(String.self, forKey: .qualityStatusSnake))
+        self.warnings = try? container.decode([String].self, forKey: .warnings)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(items, forKey: .items)
+        try container.encode(total, forKey: .total)
+        try container.encode(requiresReview, forKey: .requiresReview)
+        try container.encode(layout, forKey: .layout)
+        try container.encode(insufficientForProduction, forKey: .insufficientForProduction)
+        try container.encode(insufficiencyReasons, forKey: .insufficiencyReasons)
+        try container.encode(visionFallbackEligible, forKey: .visionFallbackEligible)
+        try container.encode(filename, forKey: .filename)
+        try container.encode(engineUsed, forKey: .engineUsed)
+        try container.encode(processingStage, forKey: .processingStage)
+        try container.encode(qualityStatus, forKey: .qualityStatus)
+        try container.encode(warnings, forKey: .warnings)
     }
 }
 
@@ -298,6 +352,58 @@ public enum ScheduleDraftStatus: String, Codable, Sendable {
     case pendingSync = "pending_sync"
     case syncFailed = "sync_failed"
     case synced = "synced"
+}
+
+/// Enum engine yang sedang aktif memproses dokumen jadwal
+public enum ScheduleImportEngine: String, CaseIterable, Codable, Sendable {
+    case localAppleVision = "apple_vision"
+    case typescript = "typescript"
+    case python = "python"
+    case serverInternet = "server"
+    case react = "react"
+
+    public var statusMessage: String {
+        switch self {
+        case .localAppleVision:
+            return "Membaca teks dan menyusun jadwalmu di perangkat…"
+        case .typescript:
+            return "Sistem TrackerThings sedang memproses jadwalmu…"
+        case .python:
+            return "Mengompilasi dan mempertajam hasil analisismu…"
+        case .serverInternet:
+            return "Kami sedang memproses pertajaman analisismu, tunggu sebentar."
+        case .react:
+            return "Menyiapkan pratinjau antarmuka jadwal…"
+        }
+    }
+
+    public var subMessage: String {
+        switch self {
+        case .localAppleVision:
+            return "Ekstraksi OCR cepat & privat langsung di perangkat."
+        case .typescript:
+            return "Mengekstrak struktur tabel dan kolom jadwal kuliah..."
+        case .python:
+            return "Model Python sedang menyempurnakan pembacaan baris & sel..."
+        case .serverInternet:
+            return "Menghubungi layanan analisis cerdas TrackerThings..."
+        case .react:
+            return "Menyusun tampilan data interaktif TrackerThings..."
+        }
+    }
+
+    public var assetBaseName: String {
+        switch self {
+        case .localAppleVision, .typescript:
+            return "trackerthings_loading_typescript"
+        case .python:
+            return "trackerthings_loading_python"
+        case .serverInternet:
+            return "trackerthings_loading_internet"
+        case .react:
+            return "trackerthings_loading_react"
+        }
+    }
 }
 
 /// Draf jadwal hasil impor offline yang tersimpan secara lokal dan siap disinkronkan ke server

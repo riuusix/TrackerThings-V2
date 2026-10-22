@@ -160,6 +160,97 @@ interface ImportScheduleModalProps {
 
 const DAYS = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
 
+export type ScheduleImportActiveEngine = "typescript" | "python" | "server" | "react";
+
+export interface EngineLoaderConfig {
+  engine: ScheduleImportActiveEngine;
+  label: string;
+  assetPath: string;
+  whiteAssetPath: string;
+  statusMessage: string;
+  subMessage: string;
+}
+
+export const ENGINE_LOADER_CONFIGS: Record<ScheduleImportActiveEngine, EngineLoaderConfig> = {
+  typescript: {
+    engine: "typescript",
+    label: "TypeScript Engine",
+    assetPath: "/assets/loaders/trackerthings_loading_typescript_transparent.png",
+    whiteAssetPath: "/assets/loaders/trackerthings_loading_typescript_white.gif",
+    statusMessage: "Sistem TrackerThings sedang memproses jadwalmu…",
+    subMessage: "Mengekstrak struktur tabel dan kolom jadwal kuliah...",
+  },
+  python: {
+    engine: "python",
+    label: "Python Refinement Engine",
+    assetPath: "/assets/loaders/trackerthings_loading_python_transparent.png",
+    whiteAssetPath: "/assets/loaders/trackerthings_loading_python_white.gif",
+    statusMessage: "Mengompilasi dan mempertajam hasil analisismu…",
+    subMessage: "Model Python sedang menyempurnakan pembacaan baris & sel...",
+  },
+  server: {
+    engine: "server",
+    label: "Server OCR & Intelligence",
+    assetPath: "/assets/loaders/trackerthings_loading_internet_transparent.png",
+    whiteAssetPath: "/assets/loaders/trackerthings_loading_internet_white.gif",
+    statusMessage: "Kami sedang memproses pertajaman analisismu, tunggu sebentar.",
+    subMessage: "Menghubungi layanan analisis cerdas TrackerThings...",
+  },
+  react: {
+    engine: "react",
+    label: "React Client",
+    assetPath: "/assets/loaders/trackerthings_loading_react_transparent.png",
+    whiteAssetPath: "/assets/loaders/trackerthings_loading_react_white.gif",
+    statusMessage: "Menyiapkan pratinjau antarmuka jadwal…",
+    subMessage: "Menyusun tampilan data interaktif TrackerThings...",
+  },
+};
+
+export const HYBRID_PROCESSING_STATUS_MESSAGES = {
+  typescript: "Sistem TrackerThings sedang memproses jadwalmu…",
+  python: "Mengompilasi dan mempertajam hasil analisismu…",
+  server: "Kami sedang memproses pertajaman analisismu, tunggu sebentar.",
+} as const;
+
+export function resolveEngineFromStageAndEngine(
+  stage?: string | null,
+  engine?: string | null
+): ScheduleImportActiveEngine {
+  if (stage === "python_refinement" || engine === "python_pdfplumber" || engine === "self_hosted_python" || engine === "self_hosted_model") {
+    return "python";
+  }
+  if (
+    stage === "ocr_extraction" ||
+    engine === "server_ocr" ||
+    stage === "server_waiting" ||
+    stage === "server_refinement"
+  ) {
+    return "server";
+  }
+  if (stage === "react_render") {
+    return "react";
+  }
+  return "typescript";
+}
+
+export function getProcessingStatusMessageForStage(
+  stage?: string | null,
+  engine?: string | null
+): string {
+  if (stage === "python_refinement" || engine === "python_pdfplumber" || engine === "self_hosted_python" || engine === "self_hosted_model") {
+    return HYBRID_PROCESSING_STATUS_MESSAGES.python;
+  }
+  if (
+    stage === "ocr_extraction" ||
+    engine === "server_ocr" ||
+    stage === "server_waiting" ||
+    stage === "server_refinement"
+  ) {
+    return HYBRID_PROCESSING_STATUS_MESSAGES.server;
+  }
+  return HYBRID_PROCESSING_STATUS_MESSAGES.typescript;
+}
+
 const FIELD_LABELS: Record<string, string> = {
   namaMatkul: "Nama Matkul",
   kodeMatkul: "Kode MK",
@@ -177,6 +268,7 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
   const [file, setFile] = useState<File | null>(null);
   const [step, setStep] = useState<"upload" | "preview">("upload");
   const [isLoading, setIsLoading] = useState(false);
+  const [activeEngine, setActiveEngine] = useState<ScheduleImportActiveEngine>("typescript");
   const [ocrStatus, setOcrStatus] = useState<string | null>(null);
   const [ocrProgress, setOcrProgress] = useState<number>(0);
   const [isSaving, setIsSaving] = useState(false);
@@ -215,6 +307,7 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
   const [verificationDiff, setVerificationDiff] = useState<VerificationDiffSummary | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const { showSuccess } = useToast();
   const router = useRouter();
@@ -240,9 +333,14 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
   }, [isOpen]);
 
   const resetState = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
     setFile(null);
     setStep("upload");
     setIsLoading(false);
+    setActiveEngine("typescript");
     setOcrStatus(null);
     setOcrProgress(0);
     setIsSaving(false);
@@ -261,8 +359,25 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  const handleCancelProcessing = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    terminateBrowserOcr();
+    setIsLoading(false);
+    setActiveEngine("typescript");
+    setOcrStatus(null);
+    setOcrProgress(0);
+    setErrorMsg(null);
+  };
+
   const handleClose = () => {
-    if (isLoading || isSaving) return;
+    if (isSaving) return;
+    if (isLoading) {
+      handleCancelProcessing();
+      return;
+    }
     resetState();
     terminateBrowserOcr();
     onClose();
@@ -376,51 +491,140 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
       return;
     }
 
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setIsLoading(true);
     setErrorMsg(null);
     setOcrProgress(0);
+    setActiveEngine("typescript");
+    setOcrStatus(ENGINE_LOADER_CONFIGS.typescript.statusMessage);
 
     try {
       const isImage = file.type.startsWith("image/");
       const fileToProcess = isImage ? await compressImageForVision(file) : file;
       const formData = new FormData();
+      let clientTextExtracted = false;
 
       if (isImage) {
-        setOcrStatus("Menyiapkan pemindai tabel & teks lokal (WebAssembly)...");
+        formData.append("file", fileToProcess);
         try {
           const { text, tsv } = await runBrowserOcr(fileToProcess, {
             onProgress: (p) => {
-              setOcrStatus(p.status);
               setOcrProgress(p.progress);
             },
           });
 
-          if (text.length > 0 || tsv.length > 0) {
-            if (text) formData.append("rawText", text);
-            if (tsv) formData.append("ocrTsv", tsv);
-            formData.append("fileName", fileToProcess.name);
-          } else {
-            formData.append("file", fileToProcess);
+          if (text) {
+            formData.append("rawText", text);
+            clientTextExtracted = true;
           }
+          if (tsv) formData.append("ocrTsv", tsv);
+          formData.append("fileName", fileToProcess.name);
         } catch (clientOcrErr) {
           console.warn("Local browser OCR gagal, beralih ke ekstraksi server:", clientOcrErr);
-          formData.append("file", fileToProcess);
         }
       } else {
-        setOcrStatus("Mengekstrak dokumen PDF...");
         formData.append("file", fileToProcess);
       }
 
-      setOcrStatus("Memetakan kolom jadwal, tingkat keyakinan, dan cek bentrok...");
+      if (controller.signal.aborted) {
+        return;
+      }
+
+      // If document is sent to server without client-side text pre-extraction,
+      // the initial waiting state is server-side processing
+      if (!isImage || !clientTextExtracted) {
+        setActiveEngine("server");
+        setOcrStatus(ENGINE_LOADER_CONFIGS.server.statusMessage);
+      }
+
       const res = await fetch("/api/jadwal/import/preview", {
         method: "POST",
+        headers: {
+          "X-Stream-Progress": "1",
+        },
         body: formData,
+        signal: controller.signal,
       });
 
-      const json = await res.json();
+      const contentType = res.headers.get("content-type") || "";
+      let finalStatus = res.status;
+      let json: any = null;
 
-      if (!res.ok) {
-        if (json.extra?.vision_fallback_eligible || json.vision_fallback_eligible || (isImage && file)) {
+      if (contentType.includes("application/x-ndjson") && res.body) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+
+          for (const rawLine of lines) {
+            const trimmed = rawLine.trim();
+            if (!trimmed) continue;
+            try {
+              const evt = JSON.parse(trimmed);
+              if (evt.type === "stage") {
+                const nextEngine = resolveEngineFromStageAndEngine(evt.stage, evt.engine);
+                setActiveEngine(nextEngine);
+                setOcrStatus(ENGINE_LOADER_CONFIGS[nextEngine].statusMessage);
+              } else if (evt.type === "result") {
+                finalStatus = typeof evt.status === "number" ? evt.status : 200;
+                json = evt.body;
+              }
+            } catch {
+              // Ignore malformed stream line
+            }
+          }
+        }
+
+        if (buffer.trim()) {
+          try {
+            const evt = JSON.parse(buffer.trim());
+            if (evt.type === "stage") {
+              const nextEngine = resolveEngineFromStageAndEngine(evt.stage, evt.engine);
+              setActiveEngine(nextEngine);
+              setOcrStatus(ENGINE_LOADER_CONFIGS[nextEngine].statusMessage);
+            } else if (evt.type === "result") {
+              finalStatus = typeof evt.status === "number" ? evt.status : 200;
+              json = evt.body;
+            }
+          } catch {}
+        }
+      } else {
+        json = await res.json();
+        if (json?.data?.processingStage || json?.data?.engineUsed) {
+          const nextEngine = resolveEngineFromStageAndEngine(
+            json.data.processingStage,
+            json.data.engineUsed
+          );
+          setActiveEngine(nextEngine);
+          setOcrStatus(ENGINE_LOADER_CONFIGS[nextEngine].statusMessage);
+        }
+      }
+
+      if (!json) {
+        throw new Error("Respon server tidak lengkap. Silakan coba kembali.");
+      }
+
+      const isOk = finalStatus >= 200 && finalStatus < 300 && json.status !== "error";
+
+      if (!isOk) {
+        if (
+          json.extra?.vision_fallback_eligible ||
+          json.extra?.visionFallbackEligible ||
+          json.vision_fallback_eligible ||
+          json.visionFallbackEligible ||
+          (isImage && file)
+        ) {
           setIsVisionEligible(true);
         }
         throw new Error(json.message || "Gagal mengekstrak dokumen.");
@@ -436,8 +640,16 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
         setDetectedLayout(null);
       }
 
-      setIsVisionEligible(Boolean(json.data?.vision_fallback_eligible));
-      setInsufficiencyReasons(Array.isArray(json.data?.insufficiency_reasons) ? json.data.insufficiency_reasons : []);
+      setIsVisionEligible(
+        Boolean(json.data?.vision_fallback_eligible || json.data?.visionFallbackEligible)
+      );
+      setInsufficiencyReasons(
+        Array.isArray(json.data?.insufficiency_reasons)
+          ? json.data.insufficiency_reasons
+          : Array.isArray(json.data?.warnings)
+          ? json.data.warnings
+          : []
+      );
       setActiveVisionMeta(null);
 
       // Preserve exact extracted fields without inventing silent fake values
@@ -470,6 +682,12 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
         warnings: Array.isArray(it.warnings) ? it.warnings : [],
       }));
 
+      if (items.length === 0) {
+        setIsVisionEligible(true);
+        setErrorMsg("Jadwal kuliah belum terdeteksi dari dokumen ini. Anda dapat mencoba bantuan Vision AI untuk membaca jadwal.");
+        return;
+      }
+
       setParsedItems(items);
       setOriginalSnapshot(JSON.parse(JSON.stringify(items)));
       setProposedAddedRows([]);
@@ -478,11 +696,18 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
       setVerificationSummary(null);
       setStep("preview");
     } catch (err: any) {
+      if (err?.name === "AbortError" || controller.signal.aborted) {
+        return;
+      }
       setErrorMsg(err.message || "Terjadi kesalahan saat memproses file.");
     } finally {
-      setIsLoading(false);
-      setOcrStatus(null);
-      setOcrProgress(0);
+      if (abortControllerRef.current === controller) {
+        abortControllerRef.current = null;
+        setIsLoading(false);
+        setActiveEngine("typescript");
+        setOcrStatus(null);
+        setOcrProgress(0);
+      }
     }
   };
 
@@ -1433,8 +1658,61 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
           )}
         </div>
 
-          {/* Dropzone */}
-          <div
+          {/* Dropzone or Dedicated Engine-Aware Processing State */}
+          {isLoading ? (
+            <div className="border border-line-subtle rounded-2xl p-6 sm:p-8 text-center bg-slate-50/70 dark:bg-slate-900/60 shadow-xs flex flex-col items-center justify-center min-h-[260px] space-y-4 transition-all">
+              <div className="relative w-28 h-28 sm:w-32 sm:h-32 flex items-center justify-center">
+                <img
+                  src={ENGINE_LOADER_CONFIGS[activeEngine].assetPath}
+                  alt={ENGINE_LOADER_CONFIGS[activeEngine].label}
+                  className="w-full h-full object-contain select-none pointer-events-none drop-shadow-sm"
+                  onError={(e) => {
+                    const target = e.currentTarget;
+                    if (!target.src.endsWith(ENGINE_LOADER_CONFIGS[activeEngine].whiteAssetPath)) {
+                      target.src = ENGINE_LOADER_CONFIGS[activeEngine].whiteAssetPath;
+                    }
+                  }}
+                />
+              </div>
+
+              <div className="space-y-1.5 max-w-md">
+                <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-accent-muted text-accent text-[11px] font-bold uppercase tracking-wider">
+                  <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+                  <span>{ENGINE_LOADER_CONFIGS[activeEngine].label}</span>
+                </div>
+                <h4 className="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100">
+                  {ocrStatus || ENGINE_LOADER_CONFIGS[activeEngine].statusMessage}
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {ENGINE_LOADER_CONFIGS[activeEngine].subMessage}
+                </p>
+              </div>
+
+              {ocrProgress > 0 && ocrProgress < 100 && (
+                <div className="w-full max-w-xs space-y-1">
+                  <div className="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                    <div
+                      className="bg-accent h-full rounded-full transition-all duration-300"
+                      style={{ width: `${ocrProgress}%` }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-400 font-mono text-right">{ocrProgress}%</p>
+                </div>
+              )}
+
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={handleCancelProcessing}
+                  className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-300 dark:border-slate-700 transition-colors inline-flex items-center gap-1.5"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>Batalkan Proses</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div
               onDragOver={(e) => e.preventDefault()}
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
@@ -1481,53 +1759,36 @@ export function ImportScheduleModal({ isOpen, onClose, onSuccess }: ImportSchedu
                 </div>
               )}
             </div>
+          )}
 
-            {/* Progress indicator during loading */}
-            {isLoading && (
-              <div className="p-4 rounded-xl bg-accent-muted/50 border border-line-subtle space-y-2">
-                <div className="flex items-center gap-2.5 text-xs font-semibold text-accent">
-                  <Loader2 className="w-4 h-4 animate-spin shrink-0 text-accent" />
-                  <span>{ocrStatus || "Memproses dokumen jadwal..."}</span>
-                </div>
-                {ocrProgress > 0 && ocrProgress < 100 && (
-                  <div className="w-full bg-accent-muted h-1.5 rounded-full overflow-hidden">
-                    <div
-                      className="bg-accent h-full rounded-full transition-all duration-300"
-                      style={{ width: `${ocrProgress}%` }}
-                    />
-                  </div>
-                )}
-              </div>
-            )}
+          <div className="flex items-center justify-end gap-2.5 pt-2">
+            <button
+              type="button"
+              onClick={isLoading ? handleCancelProcessing : handleClose}
+              className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            >
+              {isLoading ? "Batalkan" : "Batal"}
+            </button>
 
-            <div className="flex items-center justify-end gap-2.5 pt-2">
-              <button
-                type="button"
-                onClick={handleClose}
-                className="px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              >
-                Batal
-              </button>
-
-              <button
-                type="button"
-                disabled={!file || isLoading}
-                onClick={handleUploadAndPreview}
-                className="px-5 py-2.5 rounded-xl text-xs font-bold text-accent-text bg-accent hover:bg-accent-hover disabled:opacity-50 transition-all shadow-xs flex items-center gap-2"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Mengekstrak Dokumen...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Tinjau Ekstraksi</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </>
-                )}
-              </button>
-            </div>
+            <button
+              type="button"
+              disabled={!file || isLoading}
+              onClick={handleUploadAndPreview}
+              className="px-5 py-2.5 rounded-xl text-xs font-bold text-accent-text bg-accent hover:bg-accent-hover disabled:opacity-50 transition-all shadow-xs flex items-center gap-2"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Sedang Memproses...</span>
+                </>
+              ) : (
+                <>
+                  <span>Tinjau Ekstraksi</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </>
+              )}
+            </button>
+          </div>
           </div>
         ) : (
           /* Step 2: Interactive Editable Preview Table */
