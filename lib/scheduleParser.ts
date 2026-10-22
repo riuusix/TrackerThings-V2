@@ -1218,6 +1218,21 @@ export function detectScheduleLayout(input: {
     };
   }
 
+  const hasDayAndAnyTime = lines.some((l) => {
+    const hasDay = /\b(Senin|Selasa|Rabu|Kamis|Jum'?at|Sabtu|Minggu)\b/i.test(l);
+    const hasTime = /\b\d{1,2}[:.]\d{2}\b/.test(l);
+    return hasDay && hasTime;
+  });
+
+  if (hasDayAndAnyTime) {
+    return {
+      kind: "simple_schedule_table",
+      label: "Tabel Jadwal Terstruktur",
+      hasRecognizedHeaders: false,
+      detectedColumns: ["hari", "waktuMulai", "waktuSelesai", "namaMatkul"],
+    };
+  }
+
   return {
     kind: "unstructured_fallback",
     label: "Teks Jadwal Tanpa Struktur Tabel Jelas",
@@ -2371,8 +2386,24 @@ function parseDelimitedTableLines(
     if (!hasTime && !hasCode && !hasDay && rows.length > 0) {
       // Multi-line continuation row in delimited table
       const prev = rows[rows.length - 1];
-      for (const f of Object.keys(cellMap) as TableColumnField[]) {
-        if (cellMap[f]) prev.cells[f].push(cellMap[f]);
+      if (parts.length < columnMap.length) {
+        // Wrapped row with fewer cells than header: distribute semantically
+        for (const part of parts) {
+          if (!part) continue;
+          if (/^[1-8]$/.test(part) && prev.cells.sks.length === 0) {
+            prev.cells.sks.push(part);
+          } else if (normalizeClassLabel(part, userMappings) && prev.cells.kelas.length === 0) {
+            prev.cells.kelas.push(part);
+          } else if (/^(?:Lab\.?|Ruang|R\.)/i.test(part) && prev.cells.lokasi.length === 0) {
+            prev.cells.lokasi.push(part);
+          } else {
+            prev.cells.namaMatkul.push(part);
+          }
+        }
+      } else {
+        for (const f of Object.keys(cellMap) as TableColumnField[]) {
+          if (cellMap[f]) prev.cells[f].push(cellMap[f]);
+        }
       }
       prev.rawLines.push(line);
     } else {
@@ -2525,6 +2556,276 @@ function splitDelimitedRow(line: string, delimiter: string, expectedCols = 0): s
 }
 
 /**
+ * Robust semantic row parser that extracts schedule fields regardless of column order permutations.
+ * Extracts Time, Day, Code, SKS, Room, Class, Lecturer, and attributes remaining tokens to Course Name.
+ */
+function extractTabularRowAgnostically(
+  tokens: string[],
+  userMappings: UserScheduleMapping[],
+  lastValidHari: string,
+  activeSectionDay: string
+): {
+  namaMatkul: string;
+  hari: string;
+  waktuMulai: string;
+  waktuSelesai: string;
+  lokasi: string | null;
+  kodeMatkul: string | null;
+  kelas: string | null;
+  sks: number | null;
+  dosen: string | null;
+  appliedCorrections: string[];
+  warnings: string[];
+  rawFields: Record<string, string>;
+} {
+  const appliedCorrections: string[] = [];
+  const warnings: string[] = [];
+  const rem = [...tokens];
+
+  // 1. Strip leading row number (e.g. "1", "1.", "01", "#1") if followed by substantial tokens
+  if (rem.length > 2 && /^\d+[\s.)-]*$/.test(rem[0])) {
+    rem.shift();
+  }
+
+  // 2. Extract Time Range or Time Pair
+  let rawMulai = "";
+  let rawSelesai = "";
+  let waktuMulai = "";
+  let waktuSelesai = "";
+
+  // 2a. Check for combined time tokens like "08:00-10:00" or "08.00-10.00" or "08:00s/d10:00"
+  let timeCombinedIdx = -1;
+  for (let i = 0; i < rem.length; i++) {
+    const pair = extractTimePairFromCell(rem[i]);
+    if (pair && pair.waktuMulai && pair.waktuSelesai) {
+      timeCombinedIdx = i;
+      rawMulai = pair.rawMulai;
+      rawSelesai = pair.rawSelesai;
+      waktuMulai = pair.waktuMulai;
+      waktuSelesai = pair.waktuSelesai;
+      break;
+    }
+  }
+
+  if (timeCombinedIdx !== -1) {
+    rem.splice(timeCombinedIdx, 1);
+  } else {
+    // 2b. Check for two separate time tokens
+    let t1Idx = -1;
+    let t2Idx = -1;
+    for (let i = 0; i < rem.length; i++) {
+      const norm = normalizeTime(rem[i]);
+      if (norm) {
+        if (t1Idx === -1) {
+          t1Idx = i;
+          rawMulai = rem[i];
+          waktuMulai = norm;
+        } else if (t2Idx === -1) {
+          t2Idx = i;
+          rawSelesai = rem[i];
+          waktuSelesai = norm;
+          break;
+        }
+      }
+    }
+
+    if (t1Idx !== -1 && t2Idx !== -1) {
+      const higher = Math.max(t1Idx, t2Idx);
+      const lower = Math.min(t1Idx, t2Idx);
+      rem.splice(higher, 1);
+      // Remove optional separator token in-between if present (e.g. "-", "s/d", "to")
+      if (higher - lower === 2 && /^(?:-|–|—|s\.?d\.?|sampai|to)$/i.test(rem[lower + 1])) {
+        rem.splice(lower + 1, 1);
+      }
+      rem.splice(lower, 1);
+    } else if (t1Idx !== -1) {
+      rem.splice(t1Idx, 1);
+    }
+  }
+
+  // 3. Extract Hari (Weekday)
+  let rawHari = "";
+  let normalizedHari: string | null = null;
+  let dayIdx = -1;
+
+  for (let i = 0; i < rem.length; i++) {
+    const maybeDay = normalizeHari(rem[i], userMappings);
+    if (maybeDay) {
+      dayIdx = i;
+      rawHari = rem[i];
+      normalizedHari = maybeDay;
+      if (rawHari.toLowerCase() !== maybeDay.toLowerCase()) {
+        appliedCorrections.push(`Hari dinormalisasi: '${rawHari}' → '${maybeDay}'`);
+      }
+      break;
+    }
+  }
+
+  if (dayIdx !== -1) {
+    rem.splice(dayIdx, 1);
+  } else if (activeSectionDay) {
+    normalizedHari = activeSectionDay;
+    appliedCorrections.push(`Hari '${normalizedHari}' diwarisi dari judul seksi hari.`);
+  } else if (lastValidHari && (waktuMulai || waktuSelesai)) {
+    normalizedHari = lastValidHari;
+    appliedCorrections.push(`Hari '${normalizedHari}' diteruskan dari baris jadwal sebelumnya.`);
+  }
+
+  // 4. Extract Course Code
+  let rawKode = "";
+  let kodeMatkul: string | null = null;
+  let codeIdx = -1;
+
+  for (let i = 0; i < rem.length; i++) {
+    const tokCr = normalizeCourseCode(rem[i], userMappings);
+    if (tokCr) {
+      codeIdx = i;
+      rawKode = tokCr.raw;
+      kodeMatkul = tokCr.code;
+      if (tokCr.wasCorrected) {
+        appliedCorrections.push(`Kode MK diperbaiki dari OCR: '${rawKode}' → '${kodeMatkul}'`);
+      }
+      break;
+    }
+  }
+
+  if (codeIdx !== -1) {
+    rem.splice(codeIdx, 1);
+  }
+
+  // 5. Extract Explicit SKS (e.g. "3 SKS", "3sks", "3 kredit") before Room regex
+  let rawSks = "";
+  let sks: number | null = null;
+  let sksIdx = -1;
+
+  for (let i = 0; i < rem.length; i++) {
+    const m = rem[i].match(/^([1-8])\s*(?:sks|kredit|credit|credits)?$/i);
+    if (m && /sks|kredit|credit/i.test(rem[i])) {
+      sksIdx = i;
+      rawSks = rem[i];
+      sks = parseInt(m[1], 10);
+      break;
+    }
+    if (i < rem.length - 1 && /^\d+$/.test(rem[i]) && /^(?:sks|kredit|credit|credits)$/i.test(rem[i + 1])) {
+      sksIdx = i;
+      rawSks = `${rem[i]} ${rem[i + 1]}`;
+      sks = parseInt(rem[i], 10);
+      rem.splice(i + 1, 1);
+      break;
+    }
+  }
+
+  if (sksIdx !== -1) {
+    rem.splice(sksIdx, 1);
+  }
+
+  // 6. Extract Room / Location
+  let rawLokasi = "";
+  let lokasi: string | null = null;
+
+  const remJoined = rem.join(" ");
+  const roomRegex = /\b((?:Lab\.?|Ruang|Ruangan|Gedung|Studio|Room|Online|Zoom|Auditorium)\s*[A-Za-z0-9.-]+(?:\s+[A-Za-z0-9.-]+)?)\b/i;
+  const rm = remJoined.match(roomRegex);
+
+  if (rm) {
+    rawLokasi = rm[1].trim();
+    lokasi = cleanRoomName(rawLokasi);
+    const roomWords = rawLokasi.split(/\s+/);
+    for (const rw of roomWords) {
+      const foundIdx = rem.findIndex((w) => w.toLowerCase() === rw.toLowerCase());
+      if (foundIdx !== -1) rem.splice(foundIdx, 1);
+    }
+  } else {
+    const rIdx = rem.findIndex((tok) => /^(?:[A-Z]\.?\d{2,4}|\d{4})$/i.test(tok));
+    if (rIdx !== -1) {
+      rawLokasi = rem[rIdx];
+      lokasi = cleanRoomName(rawLokasi);
+      rem.splice(rIdx, 1);
+    }
+  }
+
+  // 7. Extract Class Label
+  let rawKelas = "";
+  let kelas: string | null = null;
+  let klsIdx = -1;
+
+  for (let i = 0; i < rem.length; i++) {
+    const kr = normalizeClassLabel(rem[i], userMappings);
+    if (kr && rem[i].length <= 5) {
+      klsIdx = i;
+      rawKelas = kr.raw;
+      kelas = kr.kelas;
+      if (kr.wasCorrected) {
+        appliedCorrections.push(`Label kelas dinormalisasi: '${rawKelas}' → '${kelas}'`);
+      }
+      break;
+    }
+  }
+
+  if (klsIdx !== -1) {
+    rem.splice(klsIdx, 1);
+  }
+
+  // 8. Extract Dosen / Lecturer
+  let rawDosen = "";
+  let dosen: string | null = null;
+  const remDosenJoined = rem.join(" ");
+  const dosenRegex = /\b((?:Dr\.|Prof\.|Ir\.|Drs\.)\s*[A-Za-z\s,.]+)\b/i;
+  const dm = remDosenJoined.match(dosenRegex);
+  if (dm) {
+    rawDosen = dm[1].trim();
+    dosen = rawDosen;
+    const dosenWords = rawDosen.split(/\s+/);
+    for (const dw of dosenWords) {
+      const foundIdx = rem.findIndex((w) => w.toLowerCase() === dw.toLowerCase());
+      if (foundIdx !== -1) rem.splice(foundIdx, 1);
+    }
+  }
+
+  // 9. Extract Standalone SKS Digit (if not already extracted via explicit "SKS" suffix)
+  if (sks === null && rem.length > 1) {
+    for (let i = rem.length - 1; i >= 0; i--) {
+      if (/^[1-8]$/.test(rem[i])) {
+        rawSks = rem[i];
+        sks = parseInt(rem[i], 10);
+        rem.splice(i, 1);
+        break;
+      }
+    }
+  }
+
+  // 9. Remaining tokens form the Course Name (Nama Matkul)
+  let rawNama = rem.join(" ").trim();
+  rawNama = rawNama.replace(/^[|;,\s-]+/, "").replace(/[|;,\s-]+$/, "").trim();
+  const namaMatkul = cleanCourseName(rawNama);
+
+  return {
+    namaMatkul,
+    kodeMatkul,
+    hari: normalizedHari || "",
+    waktuMulai,
+    waktuSelesai,
+    lokasi,
+    kelas,
+    sks,
+    dosen,
+    appliedCorrections,
+    warnings,
+    rawFields: {
+      hari: rawHari,
+      waktuMulai: rawMulai,
+      waktuSelesai: rawSelesai,
+      lokasi: rawLokasi,
+      kodeMatkul: rawKode,
+      kelas: rawKelas,
+      namaMatkul: rawNama,
+      sks: rawSks,
+      dosen: rawDosen,
+    },
+  };
+}
+
+/**
  * Parses space-separated tabular schedule lines (such as UNAS SIAKAD OCR rows:
  * "Selasa 09:50:00 11:30:00 D.302 VA IF253418 R.03 Etika Profesi Teknologi Informasi 2")
  * including multi-line wrapped cells.
@@ -2550,14 +2851,15 @@ function parseTabularTextLines(
   const linesWithDayAndTimePair = lines.filter((l) => {
     const tm = l.match(twoTimesRegex);
     const hasPair = Boolean(tm && normalizeTime(tm[1]) && normalizeTime(tm[2]));
-    const firstTok = l.split(/\s+/)[0] || "";
-    return hasPair && Boolean(normalizeHari(firstTok, userMappings));
+    const hasAnyDay = l.split(/\s+/).some((tok) => Boolean(normalizeHari(tok, userMappings)));
+    return hasPair && hasAnyDay;
   });
 
   // Exclude traditional multi-line KRS format ("1. Course\nSenin ... 3 SKS Ruang ..." or "Course\nSenin ... 3 SKS Ruang ...")
   // when there is no table header and no HH:mm:ss time
   const hasPrecedingCourseTitleLine = lines.some((l, idx) => {
     if (isHeaderTextLine(l) || /^(?:jadwal\s+kuliah|kartu\s+rencana\s+studi)/i.test(l)) return false;
+    if (normalizeHari(l.trim(), userMappings)) return false;
     const tm = l.match(twoTimesRegex);
     const hasPair = Boolean(tm && normalizeTime(tm[1]) && normalizeTime(tm[2]));
     if (hasPair) return false;
@@ -2569,22 +2871,46 @@ function parseTabularTextLines(
     lines.some((l) => /\b(?:Dosen|Pengajar)\s*:/i.test(l)) ||
     lines.some((l) => /^\d+\.\s+[A-Za-z]/.test(l) && !twoTimesRegex.test(l)) ||
     hasPrecedingCourseTitleLine;
+  const hasDayHeaderLine = lines.some((l) =>
+    Boolean(l.trim().match(/^(?:hari\s*:?\s*|=+\s*)?(senin|selasa|rabu|kamis|jumat|jum'at|sabtu|minggu)(?:\s*=+)?$/i))
+  );
+  const hasTimePairAnywhere = lines.some((l) => {
+    const tm = l.match(twoTimesRegex);
+    return Boolean(tm && normalizeTime(tm[1]) && normalizeTime(tm[2]));
+  });
+  const hasDaySubheaders = hasDayHeaderLine && hasTimePairAnywhere;
+
   if (
-    (!hasHeader && !hasCourseCodeAnywhere && !hasHmsTime && linesWithDayAndTimePair.length === 0) ||
-    (!hasHeader && isTraditionalKrsFormat && !hasHmsTime)
+    (!hasHeader && !hasCourseCodeAnywhere && !hasHmsTime && linesWithDayAndTimePair.length === 0 && !hasDaySubheaders) ||
+    (!hasHeader && isTraditionalKrsFormat && !hasHmsTime && !hasDaySubheaders)
   ) {
     return [];
   }
 
   // Group lines into logical tabular row blocks:
   // An anchor line has `twoTimesRegex` (where both times normalize validly) OR (starts with a valid weekday + has 1 time/code)
-  const rowBlocks: string[][] = [];
+  interface TabularRowBlock {
+    lines: string[];
+    sectionDay: string;
+  }
+  const rowBlocks: TabularRowBlock[] = [];
+  let activeSectionDay = "";
 
   for (const line of lines) {
     if (isHeaderTextLine(line)) continue;
     // Skip pure page titles/headers like "JADWAL KULIAH"
     if (/^(?:jadwal\s+kuliah|kartu\s+rencana\s+studi)/i.test(line) && !twoTimesRegex.test(line)) {
       continue;
+    }
+
+    // Check if line is a standalone day header line (e.g. "SENIN" or "HARI: SENIN" or "=== SENIN ===")
+    const dayHeaderMatch = line.trim().match(/^(?:hari\s*:?\s*|=+\s*)?(senin|selasa|rabu|kamis|jumat|jum'at|sabtu|minggu)(?:\s*=+)?$/i);
+    if (dayHeaderMatch) {
+      const parsedDay = normalizeHari(dayHeaderMatch[1], userMappings);
+      if (parsedDay) {
+        activeSectionDay = parsedDay;
+        continue;
+      }
     }
 
     const tm = line.match(twoTimesRegex);
@@ -2595,13 +2921,16 @@ function parseTabularTextLines(
     const secondTime = tokens.length > 1 ? normalizeTime(tokens[1]) : null;
     const hasCodeInLine = tokens.some((tok) => normalizeCourseCode(tok, userMappings) !== null);
 
-    const isRowStart = hasValidTimePair || Boolean(firstHari && (secondTime || hasCodeInLine));
+    const isRowStart =
+      hasValidTimePair ||
+      Boolean(firstHari && (secondTime || hasCodeInLine)) ||
+      Boolean(activeSectionDay && (secondTime || hasCodeInLine || tm));
 
     if (isRowStart) {
-      rowBlocks.push([line]);
+      rowBlocks.push({ lines: [line], sectionDay: activeSectionDay });
     } else if (rowBlocks.length > 0) {
       // Continuation line of a wrapped table row (e.g. "Science" or "Informatika 3")
-      rowBlocks[rowBlocks.length - 1].push(line);
+      rowBlocks[rowBlocks.length - 1].lines.push(line);
     }
   }
 
@@ -2617,12 +2946,44 @@ function parseTabularTextLines(
       : "simple_schedule_table";
 
   for (const block of rowBlocks) {
-    const joined = block.join(" ").replace(/\s+/g, " ").trim();
+    const joined = block.lines.join(" ").replace(/\s+/g, " ").trim();
     const tokens = joined.split(" ").filter(Boolean);
     if (tokens.length < 2) continue;
 
+    const blockDay = block.sectionDay || lastValidHari;
     const appliedCorrections: string[] = [];
     const warnings: string[] = [];
+
+    // Check if tokens start with Day or (RowNo + Day)
+    const firstTokenHari = normalizeHari(tokens[0], userMappings);
+    const secondTokenHari = tokens.length > 1 ? normalizeHari(tokens[1], userMappings) : null;
+    const startsWithDay = Boolean(firstTokenHari || (/^\d+\.?$/.test(tokens[0]) && secondTokenHari));
+
+    // If tokens do NOT start with Day, extract using semantic agnostic row parser immediately
+    if (!startsWithDay) {
+      const agnostic = extractTabularRowAgnostically(tokens, userMappings, lastValidHari, blockDay);
+      if (agnostic.namaMatkul && agnostic.namaMatkul.length >= 2) {
+        rawItems.push({
+          namaMatkul: agnostic.namaMatkul,
+          hari: agnostic.hari,
+          waktuMulai: agnostic.waktuMulai,
+          waktuSelesai: agnostic.waktuSelesai,
+          lokasi: agnostic.lokasi,
+          kodeMatkul: agnostic.kodeMatkul,
+          kelas: agnostic.kelas,
+          sks: agnostic.sks,
+          dosen: agnostic.dosen,
+          kategori: "Wajib",
+          rawText: joined,
+          rawFields: agnostic.rawFields,
+          layoutKind: effectiveLayoutKind,
+          appliedCorrections: agnostic.appliedCorrections,
+          warnings: agnostic.warnings,
+        });
+        if (agnostic.hari) lastValidHari = agnostic.hari;
+        continue;
+      }
+    }
 
     let cursor = 0;
     // Optional leading row number "1" or "1."
@@ -2658,7 +3019,7 @@ function parseTabularTextLines(
 
     while (cursor < tokens.length) {
       const combinedPair = extractTimePairFromCell(tokens[cursor]);
-      if (combinedPair) {
+      if (combinedPair && combinedPair.waktuMulai && combinedPair.waktuSelesai) {
         rawMulai = combinedPair.rawMulai;
         rawSelesai = combinedPair.rawSelesai;
         waktuMulai = combinedPair.waktuMulai;
@@ -2806,28 +3167,59 @@ function parseTabularTextLines(
       }
     }
 
+    let finalNama = cleanCourseName(rawNama);
+    let finalHari = normalizedHari || "";
+    let finalMulai = waktuMulai;
+    let finalSelesai = waktuSelesai;
+    let finalLokasi = cleanRoomName(rawLokasi) || null;
+    let finalKode = kodeMatkul;
+    let finalKelas = kelas;
+    let finalSks = sks;
+    let finalDosen = null;
+    let finalRawFields: Record<string, string> = {
+      hari: rawHari,
+      waktuMulai: rawMulai,
+      waktuSelesai: rawSelesai,
+      lokasi: rawLokasi,
+      kodeMatkul: rawKode,
+      kelas: rawKelas,
+      namaMatkul: rawNama,
+      sks: rawSks,
+    };
+
+    if ((!finalNama || finalNama.length < 2 || !finalMulai) && tokens.length >= 2) {
+      const fallback = extractTabularRowAgnostically(tokens, userMappings, lastValidHari, activeSectionDay);
+      if (fallback.namaMatkul && fallback.namaMatkul.length >= 2) {
+        finalNama = fallback.namaMatkul;
+        finalHari = fallback.hari || finalHari;
+        finalMulai = fallback.waktuMulai || finalMulai;
+        finalSelesai = fallback.waktuSelesai || finalSelesai;
+        finalLokasi = fallback.lokasi || finalLokasi;
+        finalKode = fallback.kodeMatkul || finalKode;
+        finalKelas = fallback.kelas || finalKelas;
+        finalSks = fallback.sks !== null ? fallback.sks : finalSks;
+        finalDosen = fallback.dosen as any;
+        finalRawFields = fallback.rawFields;
+        appliedCorrections.push(...fallback.appliedCorrections);
+        warnings.push(...fallback.warnings);
+      }
+    }
+
+    if (finalHari) lastValidHari = finalHari;
+
     rawItems.push({
-      namaMatkul: cleanCourseName(rawNama),
-      hari: normalizedHari || "",
-      waktuMulai,
-      waktuSelesai,
-      lokasi: cleanRoomName(rawLokasi) || null,
-      kodeMatkul,
-      kelas,
-      sks,
-      dosen: null,
+      namaMatkul: finalNama,
+      hari: finalHari,
+      waktuMulai: finalMulai,
+      waktuSelesai: finalSelesai,
+      lokasi: finalLokasi,
+      kodeMatkul: finalKode,
+      kelas: finalKelas,
+      sks: finalSks,
+      dosen: finalDosen,
       kategori: "Wajib",
       rawText: joined,
-      rawFields: {
-        hari: rawHari,
-        waktuMulai: rawMulai,
-        waktuSelesai: rawSelesai,
-        lokasi: rawLokasi,
-        kodeMatkul: rawKode,
-        kelas: rawKelas,
-        namaMatkul: rawNama,
-        sks: rawSks,
-      },
+      rawFields: finalRawFields,
       layoutKind: effectiveLayoutKind,
       appliedCorrections,
       warnings,
@@ -2850,7 +3242,7 @@ function parseTraditionalKrsLines(
   userMappings: UserScheduleMapping[]
 ): ParsedScheduleItem[] {
   const timeRangeRegex =
-    /(\d{1,2}[:.]\d{2}(?:[:.]\d{2})?)\s*(?:-|–|—|s\.?d\.?|sampai|to)\s*(\d{1,2}[:.]\d{2}(?:[:.]\d{2})?)/i;
+    /(\d{1,2}[:.]\d{2}(?:[:.]\d{2})?)(?:\s*(?:-|–|—|s\.?d\.?|sampai|to)\s*|\s+)(\d{1,2}[:.]\d{2}(?:[:.]\d{2})?)/i;
   const hariRegex =
     /\b(Senin|Selasa|Rabu|Kamis|Jum'?at|Sabtu|Minggu|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/i;
   const sksRegex = /\b(\d+)\s*(?:sks|credit|credits)\b/i;

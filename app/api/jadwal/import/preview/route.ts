@@ -11,6 +11,7 @@ import {
   type OcrWord,
 } from "@/lib/scheduleParser";
 import { getUserScheduleMappings } from "@/lib/scheduleCorrections";
+import { createScheduleDraft } from "@/lib/scheduleDraftStore";
 import {
   AcademicHybridRouter,
   bridgeCanonicalToLegacyItem,
@@ -442,9 +443,44 @@ async function executePreviewPipeline(
     );
   }
 
+  let draftId: string | null = null;
+  let draftVersion: number = 1;
+  let draftObj: any = null;
+
+  try {
+    const draft = await createScheduleDraft({
+      userId: session.userId,
+      fileName,
+      mimeType: effectiveMimeType,
+      items: parsedItems as any,
+      warnings: combinedReasons,
+      sourceFileBase64: uploadedFileBuffer ? uploadedFileBuffer.toString("base64") : undefined,
+      engineUsed,
+      processingStage,
+      qualityStatus,
+      visionFallbackEligible,
+      layout: recognition.layout,
+      timing: {
+        ocr_duration_ms: ocrDurationMs,
+        db_duration_ms: dbDurationMs,
+        source: extractionSource,
+      },
+    });
+    draftId = draft.id;
+    draftVersion = draft.version;
+    draftObj = draft;
+  } catch (draftErr) {
+    console.warn("[ImportPreview] Failed to create server draft:", draftErr);
+  }
+
   return apiSuccess(
     `Ekstraksi jadwal berhasil. Ditemukan ${parsedItems.length} mata kuliah.`,
     {
+      draft_id: draftId,
+      draftId,
+      draft_version: draftVersion,
+      draftVersion,
+      draft: draftObj,
       version: "2.0",
       document_type: effectiveDocumentType,
       processing_mode: processingMode,

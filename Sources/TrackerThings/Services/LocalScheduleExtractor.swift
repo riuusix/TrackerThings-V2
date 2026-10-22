@@ -39,6 +39,15 @@ public struct LocalScheduleExtractor: Sendable {
                 continue
             }
 
+            // Tangani baris judul seksi hari tunggal (contoh: "SENIN" atau "=== SENIN ===")
+            let cleanLower = lower.replacingOccurrences(of: "^(?:hari\\s*:?\\s*|=+\\s*)", with: "", options: .regularExpression)
+                .replacingOccurrences(of: "\\s*=+$", with: "", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if let matchedDay = dayAliases[cleanLower] {
+                lastValidHari = matchedDay
+                continue
+            }
+
             if var item = parseScheduleLine(trimmed, rowIndex: index + 1) {
                 if item.hari.isEmpty && !item.waktuMulai.isEmpty && lastValidHari != nil {
                     item.hari = lastValidHari!
@@ -143,8 +152,8 @@ public struct LocalScheduleExtractor: Sendable {
             }
         }
 
-        // 2. Ekstraksi Rentang Waktu (HH:mm - HH:mm atau HH.mm - HH.mm)
-        let timePattern = #"(\d{1,2}[:.]\d{2})\s*(?:-|â€“|â€”|s/d|sd|sampai|to)\s*(\d{1,2}[:.]\d{2})"#
+        // 2. Ekstraksi Rentang Waktu (HH:mm - HH:mm atau HH.mm - HH.mm atau HH:mm HH:mm)
+        let timePattern = #"(\d{1,2}[:.]\d{2})(?:\s*(?:[-–—]|s/d|sd|sampai|to)\s*|\s+)(\d{1,2}[:.]\d{2})"#
         if let timeRegex = try? NSRegularExpression(pattern: timePattern, options: .caseInsensitive) {
             let nsString = line as NSString
             if let match = timeRegex.firstMatch(in: line, options: [], range: NSRange(location: 0, length: nsString.length)) {

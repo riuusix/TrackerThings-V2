@@ -33,6 +33,10 @@ public final class ImportScheduleViewModel {
     public var showVisionConsentSheet: Bool = false
     public var serverVisionFallbackEligible: Bool = false
 
+    // MARK: - State Server Draft Lifecycle
+    public var currentDraftId: String? = nil
+    public var currentDraftVersion: Int = 1
+
     // MARK: - State Konfirmasi & Draf Offline
     public var isConfirming: Bool = false
     public var learnCorrections: Bool = true
@@ -171,6 +175,8 @@ public final class ImportScheduleViewModel {
                 } else {
                     self.activeEngine = .typescript
                 }
+                self.currentDraftId = result.draftId
+                self.currentDraftVersion = result.draftVersion ?? 1
                 self.serverVisionFallbackEligible = result.visionFallbackEligible
                 self.previewResponse = result
                 self.items = result.items
@@ -239,7 +245,7 @@ public final class ImportScheduleViewModel {
             // Tampilkan status pertajaman analisis & unggah dokumen beserta bukti OCR ke server hybrid
             if !isOffline {
                 activeEngine = .serverInternet
-                loadingMessage = ScheduleImportEngine.serverInternet.statusMessage
+                loadingMessage = ScheduleImportViewModel.serverRefinementStatusMessage
                 let wordsJson: String?
                 if !words.isEmpty, let encoded = try? JSONEncoder().encode(words), let str = String(data: encoded, encoding: .utf8) {
                     wordsJson = str
@@ -261,6 +267,8 @@ public final class ImportScheduleViewModel {
                     } else {
                         self.activeEngine = .typescript
                     }
+                    self.currentDraftId = result.draftId
+                    self.currentDraftVersion = result.draftVersion ?? 1
                     self.serverVisionFallbackEligible = result.visionFallbackEligible
                     self.previewResponse = result
                     self.items = result.items
@@ -272,7 +280,7 @@ public final class ImportScheduleViewModel {
                     if let appError = error as? AppError, appError.statusCode == 422 {
                         self.serverVisionFallbackEligible = true
                     }
-                    // Jika server tidak tersedia atau mengembalikan 422, pertahankan hasil lokal (bila ada) untuk peninjauan manual
+                    // Jika server tidak dapat dihubungi atau error, pertahankan hasil OCR Apple Vision lokal untuk ditinjau manual
                     if !localParsedItems.isEmpty {
                         self.items = localParsedItems
                         self.previewResponse = ScheduleImportPreviewResponse(
@@ -286,7 +294,7 @@ public final class ImportScheduleViewModel {
                             engineUsed: "apple_vision_local",
                             processingStage: "ocr_extraction",
                             qualityStatus: "needs_review",
-                            warnings: ["Layanan pertajaman server tidak dapat dijangkau. Menampilkan hasil OCR perangkat untuk ditinjau manual."]
+                            warnings: ["Layanan server tidak dapat dijangkau. Menampilkan hasil OCR lokal untuk ditinjau manual."]
                         )
                         self.isLoading = false
                         self.toast = FeedbackToastData(
@@ -303,7 +311,7 @@ public final class ImportScheduleViewModel {
                 }
             }
 
-            // 4. Jalur Offline dari Apple Vision OCR
+            // 3. Jalur Offline-First: Ekstraksi on-device menggunakan Apple Vision OCR
             if let ocr = localOcrResult, !ocr.lines.isEmpty {
                 self.items = localParsedItems
                 self.previewResponse = ScheduleImportPreviewResponse(
@@ -316,12 +324,13 @@ public final class ImportScheduleViewModel {
                     filename: selectedFileName,
                     engineUsed: "apple_vision_local",
                     processingStage: "ocr_extraction",
-                    qualityStatus: localParsedItems.isEmpty ? "empty" : "needs_review"
+                    qualityStatus: localParsedItems.isEmpty ? "empty" : (localParsedItems.contains { $0.needsReview } ? "needs_review" : "sufficient"),
+                    warnings: localParsedItems.isEmpty ? ["Kolom tabel jadwal belum dapat dipetakan secara otomatis."] : []
                 )
                 self.isLoading = false
 
                 if localParsedItems.isEmpty {
-                    self.errorMessage = "Teks terdeteksi (\(ocr.lines.count) baris), namun kolom jadwal tidak dapat dipetakan secara otomatis. Anda dapat mencoba bantuan Vision AI atau menambahkan baris secara manual."
+                    self.errorMessage = "Teks terdeteksi (\(ocr.lines.count) baris), namun kolom jadwal tidak dapat dipetakan secara otomatis. Anda dapat mencoba bantuan Vision AI saat online atau menambahkan baris secara manual."
                 } else {
                     let reviewCount = localParsedItems.filter { $0.needsReview }.count
                     let msg = "OCR Apple Vision offline selesai! Ditemukan \(localParsedItems.count) mata kuliah (\(reviewCount) baris perlu ditinjau)."
@@ -527,6 +536,8 @@ public final class ImportScheduleViewModel {
         isDocumentPdf = false
         items = []
         previewResponse = nil
+        currentDraftId = nil
+        currentDraftVersion = 1
         isLoading = false
         isVisionLoading = false
         isConfirming = false

@@ -216,6 +216,8 @@ public struct ScheduleImportPreviewResponse: Codable, Sendable {
     public let processingStage: String?
     public let qualityStatus: String?
     public let warnings: [String]?
+    public let draftId: String?
+    public let draftVersion: Int?
 
     enum CodingKeys: String, CodingKey {
         case items
@@ -234,6 +236,10 @@ public struct ScheduleImportPreviewResponse: Codable, Sendable {
         case qualityStatus = "qualityStatus"
         case qualityStatusSnake = "quality_status"
         case warnings
+        case draftId = "draft_id"
+        case draftIdCamel = "draftId"
+        case draftVersion = "draft_version"
+        case draftVersionCamel = "draftVersion"
     }
 
     public init(
@@ -248,7 +254,9 @@ public struct ScheduleImportPreviewResponse: Codable, Sendable {
         engineUsed: String? = nil,
         processingStage: String? = nil,
         qualityStatus: String? = nil,
-        warnings: [String]? = nil
+        warnings: [String]? = nil,
+        draftId: String? = nil,
+        draftVersion: Int? = nil
     ) {
         self.items = items
         self.total = total
@@ -262,6 +270,8 @@ public struct ScheduleImportPreviewResponse: Codable, Sendable {
         self.processingStage = processingStage
         self.qualityStatus = qualityStatus
         self.warnings = warnings
+        self.draftId = draftId
+        self.draftVersion = draftVersion
     }
 
     public init(from decoder: Decoder) throws {
@@ -283,6 +293,10 @@ public struct ScheduleImportPreviewResponse: Codable, Sendable {
         self.qualityStatus = (try? container.decode(String.self, forKey: .qualityStatus))
             ?? (try? container.decode(String.self, forKey: .qualityStatusSnake))
         self.warnings = try? container.decode([String].self, forKey: .warnings)
+        self.draftId = (try? container.decode(String.self, forKey: .draftId))
+            ?? (try? container.decode(String.self, forKey: .draftIdCamel))
+        self.draftVersion = (try? container.decode(Int.self, forKey: .draftVersion))
+            ?? (try? container.decode(Int.self, forKey: .draftVersionCamel))
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -299,6 +313,8 @@ public struct ScheduleImportPreviewResponse: Codable, Sendable {
         try container.encode(processingStage, forKey: .processingStage)
         try container.encode(qualityStatus, forKey: .qualityStatus)
         try container.encode(warnings, forKey: .warnings)
+        try container.encodeIfPresent(draftId, forKey: .draftId)
+        try container.encodeIfPresent(draftVersion, forKey: .draftVersion)
     }
 }
 
