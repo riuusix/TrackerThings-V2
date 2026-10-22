@@ -289,9 +289,7 @@ public actor NetworkService: NetworkServiceProtocol {
         }
 
         do {
-            return try jsonDecoder.decode(T.self, from: data)
-        } catch let primaryError {
-            // Dukung standardized response envelope: { success: true, data: T }
+            // 1. Dukung standardized response envelope terlebih dahulu jika payload dibungkus { success: true, data: T }
             if let envelope = try? jsonDecoder.decode(DataEnvelope<T>.self, from: data) {
                 return envelope.data
             }
@@ -313,6 +311,8 @@ public actor NetworkService: NetworkServiceProtocol {
             if let envelope = try? jsonDecoder.decode(KelasPenggantiEnvelope<T>.self, from: data) {
                 return envelope.kelasPengganti
             }
+            return try jsonDecoder.decode(T.self, from: data)
+        } catch let primaryError {
             throw AppError.decodingError(primaryError.localizedDescription)
         }
     }
@@ -378,14 +378,15 @@ public actor NetworkService: NetworkServiceProtocol {
         }
 
         do {
-            return try jsonDecoder.decode(T.self, from: data)
-        } catch let primaryError {
+            // 1. Dukung standardized response envelope terlebih dahulu jika payload dibungkus { success: true, data: T }
             if let envelope = try? jsonDecoder.decode(DataEnvelope<T>.self, from: data) {
                 return envelope.data
             }
             if let envelope = try? jsonDecoder.decode(UserEnvelope<T>.self, from: data) {
                 return envelope.user
             }
+            return try jsonDecoder.decode(T.self, from: data)
+        } catch let primaryError {
             throw AppError.decodingError(primaryError.localizedDescription)
         }
     }

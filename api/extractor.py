@@ -8,12 +8,16 @@ exam schedules, and course registrations from:
 3. Scanned PDFs and image files validated via Pillow with zero-disk in-memory processing
 """
 import io
+import logging
 import re
 import time
 from typing import Dict, List, Optional, Tuple
 from fastapi import HTTPException, status
 from PIL import Image
 import pdfplumber
+
+# Silence noisy FontBBox warnings from pdfminer when parsing non-standard PDF fonts
+logging.getLogger("pdfminer").setLevel(logging.ERROR)
 
 from api.schemas import (
     AcademicDocumentType,
@@ -613,7 +617,6 @@ def parse_unmapped_row(
     if nama_matkul:
         nama_matkul = re.sub(r"\((?:Mata\s*Kuliah\s*Inti|Mata\s*Kuliah\s*Pilihan|Wajib|Pilihan|[0-9]+\s*Jam[^\)]*)\)", "", nama_matkul, flags=re.IGNORECASE)
         nama_matkul = re.sub(r"\s+", " ", nama_matkul).strip()
-        return None
 
     row_id = f"row_{page_idx}_{row_idx}"
     raw_line = " | ".join(clean_cells)

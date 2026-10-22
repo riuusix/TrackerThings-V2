@@ -220,6 +220,7 @@ public struct ScheduleImportPreviewResponse: Codable, Sendable {
     public let draftVersion: Int?
 
     enum CodingKeys: String, CodingKey {
+        case data
         case items
         case total
         case requiresReview = "requires_review"
@@ -240,6 +241,10 @@ public struct ScheduleImportPreviewResponse: Codable, Sendable {
         case draftIdCamel = "draftId"
         case draftVersion = "draft_version"
         case draftVersionCamel = "draftVersion"
+    }
+
+    private struct LayoutEnvelope: Decodable {
+        let kind: String?
     }
 
     public init(
@@ -275,11 +280,30 @@ public struct ScheduleImportPreviewResponse: Codable, Sendable {
     }
 
     public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let rootContainer = try decoder.container(keyedBy: CodingKeys.self)
+
+        // Seamless envelope unwrapping: if decoded from top-level API envelope { success: true, data: { ... } }
+        let container: KeyedDecodingContainer<CodingKeys>
+        if rootContainer.contains(.data),
+           let nested = try? rootContainer.nestedContainer(keyedBy: CodingKeys.self, forKey: .data) {
+            container = nested
+        } else {
+            container = rootContainer
+        }
+
         self.items = (try? container.decode([ImportScheduleItem].self, forKey: .items)) ?? []
         self.total = (try? container.decode(Int.self, forKey: .total)) ?? self.items.count
         self.requiresReview = (try? container.decode(Bool.self, forKey: .requiresReview)) ?? false
-        self.layout = try? container.decode(String.self, forKey: .layout)
+
+        // Support layout as either a plain string ("unas_8col_table") or an object ({ "kind": "unas_8col_table", ... })
+        if let layoutStr = try? container.decode(String.self, forKey: .layout) {
+            self.layout = layoutStr
+        } else if let layoutObj = try? container.decode(LayoutEnvelope.self, forKey: .layout) {
+            self.layout = layoutObj.kind
+        } else {
+            self.layout = nil
+        }
+
         self.insufficientForProduction = (try? container.decode(Bool.self, forKey: .insufficientForProduction)) ?? false
         self.insufficiencyReasons = try? container.decode([String].self, forKey: .insufficiencyReasons)
         self.visionFallbackEligible = (try? container.decode(Bool.self, forKey: .visionFallbackEligible))

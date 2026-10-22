@@ -185,7 +185,132 @@ final class AppleVisionOcrTests: XCTestCase {
         let dupKey = makeKey(name: duplicateCandidate.namaMatkul, day: duplicateCandidate.hari, start: duplicateCandidate.waktuMulai)
         let diffKey = makeKey(name: differentCourse.namaMatkul, day: differentCourse.hari, start: differentCourse.waktuMulai)
 
-        XCTAssertEqual(existingKey, dupKey, "Item dengan nama, hari, dan waktu mulai sama harus terdeteksi sebagai duplikat")
+        XCTAssertEqual(existingKey, dupKey, "Item dengan nama, hari, dan waktu sama harus terdeteksi sebagai duplikat")
         XCTAssertNotEqual(existingKey, diffKey, "Item berbeda tidak boleh dianggap duplikat")
+    }
+
+    // MARK: - 8. Cross-Platform Envelope & Layout Decoding Tests
+    func testScheduleImportPreviewResponse_standardApiEnvelopeDecoding() throws {
+        let jsonString = """
+        {
+            "success": true,
+            "message": "Ekstraksi jadwal berhasil. Ditemukan 2 mata kuliah.",
+            "code": 200,
+            "data": {
+                "draft_id": "draft-pdf-123",
+                "draft_version": 1,
+                "version": "2.0",
+                "document_type": "class_schedule",
+                "processing_mode": "deterministic",
+                "engineUsed": "typescript_parser",
+                "processingStage": "typescript_initial",
+                "qualityStatus": "sufficient",
+                "warnings": [],
+                "visionFallbackEligible": false,
+                "layout": {
+                    "kind": "unas_8col_table",
+                    "label": "Tabel UNAS 8 Kolom",
+                    "hasRecognizedHeaders": true,
+                    "detectedColumns": ["no", "hari", "waktuMulai", "waktuSelesai", "kode", "nama", "sks", "ruang"]
+                },
+                "items": [
+                    {
+                        "id": "item-1",
+                        "namaMatkul": "Rekayasa Perangkat Lunak",
+                        "kodeMatkul": "IF253418",
+                        "kelas": "A",
+                        "hari": "Senin",
+                        "waktuMulai": "08:00",
+                        "waktuSelesai": "10:30",
+                        "dosen": "Dr. Ir. Budi",
+                        "ruang": "R.301",
+                        "lokasi": "R.301",
+                        "sks": 3,
+                        "kategori": "Wajib",
+                        "needsReview": false,
+                        "confidence": 0.95,
+                        "recognitionStatus": "high_confidence"
+                    },
+                    {
+                        "id": "item-2",
+                        "namaMatkul": "Struktur Data",
+                        "kodeMatkul": "IF253420",
+                        "kelas": "B",
+                        "hari": "Selasa",
+                        "waktuMulai": "10:00",
+                        "waktuSelesai": "11:40",
+                        "dosen": "Dr. Haryanto",
+                        "ruang": "Lab. 2",
+                        "lokasi": "Lab. 2",
+                        "sks": 3,
+                        "kategori": "Wajib",
+                        "needsReview": false,
+                        "confidence": 0.95,
+                        "recognitionStatus": "high_confidence"
+                    }
+                ],
+                "total": 2,
+                "requires_review": false,
+                "insufficient_for_production": false,
+                "filename": "jadwal_kuliah.pdf"
+            }
+        }
+        """
+
+        let data = Data(jsonString.utf8)
+        let decoder = JSONDecoder()
+
+        // 1. Direct decode from top-level envelope
+        let decoded = try decoder.decode(ScheduleImportPreviewResponse.self, from: data)
+
+        XCTAssertEqual(decoded.items.count, 2, "Decoder harus mampu meng-unwrap objek dari envelope data")
+        XCTAssertEqual(decoded.total, 2)
+        XCTAssertEqual(decoded.draftId, "draft-pdf-123")
+        XCTAssertEqual(decoded.draftVersion, 1)
+        XCTAssertEqual(decoded.layout, "unas_8col_table", "Decoder harus mengekstrak string kind dari layout object")
+        XCTAssertEqual(decoded.items[0].namaMatkul, "Rekayasa Perangkat Lunak")
+        XCTAssertEqual(decoded.items[0].hari, "Senin")
+        XCTAssertEqual(decoded.items[0].waktuMulai, "08:00")
+        XCTAssertEqual(decoded.items[0].waktuSelesai, "10:30")
+        XCTAssertEqual(decoded.items[0].ruang, "R.301")
+        XCTAssertEqual(decoded.items[1].namaMatkul, "Struktur Data")
+        XCTAssertEqual(decoded.items[1].hari, "Selasa")
+        XCTAssertFalse(decoded.insufficientForProduction)
+    }
+
+    func testScheduleImportPreviewResponse_directPayloadDecoding() throws {
+        let jsonString = """
+        {
+            "items": [
+                {
+                    "id": "direct-1",
+                    "namaMatkul": "Kecerdasan Buatan",
+                    "hari": "Rabu",
+                    "waktuMulai": "13:00",
+                    "waktuSelesai": "15:30",
+                    "ruang": "Lab AI",
+                    "sks": 3
+                }
+            ],
+            "total": 1,
+            "requires_review": false,
+            "layout": "simple_table",
+            "draft_id": "draft-direct-456",
+            "insufficient_for_production": false,
+            "vision_fallback_eligible": false
+        }
+        """
+
+        let data = Data(jsonString.utf8)
+        let decoded = try JSONDecoder().decode(ScheduleImportPreviewResponse.self, from: data)
+
+        XCTAssertEqual(decoded.items.count, 1)
+        XCTAssertEqual(decoded.layout, "simple_table")
+        XCTAssertEqual(decoded.draftId, "draft-direct-456")
+        XCTAssertEqual(decoded.items[0].namaMatkul, "Kecerdasan Buatan")
+        XCTAssertEqual(decoded.items[0].hari, "Rabu")
+        XCTAssertEqual(decoded.items[0].waktuMulai, "13:00")
+        XCTAssertEqual(decoded.items[0].waktuSelesai, "15:30")
+        XCTAssertEqual(decoded.items[0].ruang, "Lab AI")
     }
 }

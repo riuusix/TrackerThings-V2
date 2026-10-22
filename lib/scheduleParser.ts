@@ -129,6 +129,7 @@ export interface ParsedScheduleItem {
   dosen: string | null;
   kategori: string | null;
   lokasi: string | null;
+  ruang?: string | null;
   sks: number | null;
   kodeMatkul?: string | null;
   kode_matkul?: string | null; // iOS snake_case compatibility
@@ -4091,6 +4092,7 @@ function finalizeScheduleBatch(
       dosen,
       kategori: mapped.kategori || "Wajib",
       lokasi,
+      ruang: lokasi || (mapped as any).ruang || null,
       sks,
       kodeMatkul,
       kelas,

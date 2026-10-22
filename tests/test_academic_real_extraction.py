@@ -228,3 +228,24 @@ def test_real_extraction_unas_fixture():
         assert extracted.kodeMatkul == expected["kodeMatkul"]
         assert extracted.lokasi == expected["lokasi"]
         assert extracted.sks == expected["sks"]
+
+
+def test_real_extraction_unmapped_table_rows():
+    """
+    Regression test: ensures parse_unmapped_row does NOT drop items when course title is present
+    and cleans annotations without early return None.
+    """
+    text_sample = (
+        "1 | Senin | 08:00 - 10:30 | IF2110 | Pemrograman Lanjut (Mata Kuliah Inti) | R.301 | 3\n"
+        "2 | Selasa | 13:00 - 15:30 | IF2120 | Kecerdasan Artifisial | Lab AI | 3"
+    )
+    result = extract_academic_document(text_sample.encode("utf-8"), "unmapped_sample.txt", "text/plain")
+
+    assert result.totalItems == 2, f"Expected 2 items, got {result.totalItems}"
+    assert result.items[0].namaMatkul == "Pemrograman Lanjut", f"Expected cleaned title, got {result.items[0].namaMatkul}"
+    assert result.items[0].hari == "Senin"
+    assert result.items[0].waktuMulai == "08:00"
+    assert result.items[0].waktuSelesai == "10:30"
+    assert result.items[1].namaMatkul == "Kecerdasan Artifisial"
+    assert result.items[1].hari == "Selasa"
+
