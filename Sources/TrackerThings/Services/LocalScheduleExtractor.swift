@@ -42,7 +42,12 @@ public struct LocalScheduleExtractor: Sendable {
             if var item = parseScheduleLine(trimmed, rowIndex: index + 1) {
                 if item.hari.isEmpty && !item.waktuMulai.isEmpty && lastValidHari != nil {
                     item.hari = lastValidHari!
-                    item.rawFields["hari"] = lastValidHari!
+                    if var raw = item.rawFields {
+                        raw["hari"] = lastValidHari!
+                        item.rawFields = raw
+                    } else {
+                        item.rawFields = ["hari": lastValidHari!]
+                    }
                     item.needsReview = item.waktuMulai.isEmpty || item.waktuSelesai.isEmpty
                     item.recognitionStatus = item.needsReview ? "needs_review" : "high_confidence"
                 } else if !item.hari.isEmpty {

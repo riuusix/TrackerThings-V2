@@ -7,6 +7,7 @@ import UIKit
 // MARK: - Animated Image Decoder (APNG / GIF via ImageIO)
 
 #if canImport(UIKit)
+@MainActor
 public enum AnimatedImageDecoder {
     private static let cache = NSCache<NSString, UIImage>()
 
@@ -55,12 +56,14 @@ public enum AnimatedImageDecoder {
         guard let properties = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as? [CFString: Any] else {
             return 0.04
         }
-        // Check PNG dictionary (for APNG transparency)
+        // Check PNG dictionary (for APNG transparency, keys are "UnclampedDelayTime" and "DelayTime")
         if let pngDict = properties[kCGImagePropertyPNGDictionary] as? [CFString: Any] {
-            if let unclamped = pngDict[kCGImagePropertyPNGUnclampedDelayTime] as? TimeInterval, unclamped > 0 {
+            let unclampedKey = "UnclampedDelayTime" as CFString
+            let delayKey = "DelayTime" as CFString
+            if let unclamped = pngDict[unclampedKey] as? TimeInterval, unclamped > 0 {
                 return unclamped
             }
-            if let delay = pngDict[kCGImagePropertyPNGDelayTime] as? TimeInterval, delay > 0 {
+            if let delay = pngDict[delayKey] as? TimeInterval, delay > 0 {
                 return delay
             }
         }
