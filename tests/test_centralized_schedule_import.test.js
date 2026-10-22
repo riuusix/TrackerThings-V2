@@ -5,6 +5,62 @@ import { register } from "node:module";
 
 register("./tests/loader.mjs", pathToFileURL("./"));
 
+// Isolated in-memory Prisma mock for reliable CI execution without external PostgreSQL
+const inMemorySystemSettings = new Map();
+
+globalThis.prisma = {
+  systemSetting: {
+    findUnique: async ({ where }) => {
+      const val = inMemorySystemSettings.get(where.settingKey);
+      if (!val) return null;
+      return { settingKey: where.settingKey, settingValue: val };
+    },
+    upsert: async ({ where, create, update }) => {
+      const val = update.settingValue || create.settingValue;
+      inMemorySystemSettings.set(where.settingKey, val);
+      return { settingKey: where.settingKey, settingValue: val };
+    },
+    findMany: async ({ where }) => {
+      const res = [];
+      const prefix = where?.settingKey?.startsWith;
+      for (const [k, v] of inMemorySystemSettings.entries()) {
+        if (!prefix || k.startsWith(prefix)) {
+          res.push({ settingKey: k, settingValue: v });
+        }
+      }
+      return res;
+    },
+    delete: async ({ where }) => {
+      inMemorySystemSettings.delete(where.settingKey);
+      return {};
+    },
+    deleteMany: async ({ where }) => {
+      let count = 0;
+      if (where?.settingKey) {
+        if (typeof where.settingKey === "string") {
+          if (inMemorySystemSettings.delete(where.settingKey)) count++;
+        } else if (where.settingKey.startsWith) {
+          for (const k of Array.from(inMemorySystemSettings.keys())) {
+            if (k.startsWith(where.settingKey.startsWith)) {
+              inMemorySystemSettings.delete(k);
+              count++;
+            }
+          }
+        }
+      }
+      return { count };
+    },
+  },
+  jadwal: {
+    createMany: async ({ data }) => ({ count: data.length }),
+    findMany: async () => [],
+  },
+  $transaction: async (fn) => {
+    if (typeof fn === "function") return fn(globalThis.prisma);
+    return Promise.all(fn);
+  },
+};
+
 const {
   recognizeScheduleData,
   parseScheduleText,
