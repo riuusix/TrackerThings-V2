@@ -140,6 +140,7 @@ public final class LocalCacheService: Sendable {
     public static let keyTugas = "cached_tugas_list"
     public static let keyUjian = "cached_ujian_list"
     public static let keyKelasPengganti = "cached_kelas_pengganti_list"
+    public static let keyAcademicIntelligence = "cached_academic_intelligence"
     public static let keyOfflineScheduleDrafts = "cached_offline_schedule_drafts"
 
     // MARK: - Offline Schedule Drafts Persistence

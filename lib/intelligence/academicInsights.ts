@@ -99,6 +99,39 @@ export interface AcademicIntelligenceSummary {
     upcoming: number;
   };
   insights: AcademicInsight[];
+  briefing?: DailyBriefing;
+  conflicts?: ScheduleConflict[];
+}
+
+export interface DailyBriefing {
+  date: string;
+  dayName: string;
+  todayClassesCount: number;
+  todayTotalSks: number;
+  overdueTasksCount: number;
+  dueTodayTasksCount: number;
+  upcomingExamsCount: number;
+  headline: string;
+  status: "calm" | "moderate" | "heavy" | "urgent";
+}
+
+export interface ScheduleConflict {
+  id: string;
+  day: string;
+  item1: { id: number; title: string; time: string; type: "reguler" | "pengganti" };
+  item2: { id: number; title: string; time: string; type: "reguler" | "pengganti" };
+  reason: string;
+}
+
+export interface AcademicClassItem {
+  id: number;
+  courseName: string;
+  day: string;
+  startTime: string; // "HH:mm"
+  endTime: string;   // "HH:mm"
+  sks?: number | null;
+  type: "reguler" | "pengganti";
+  date?: string | null; // For pengganti: "YYYY-MM-DD"
 }
 
 // ============================================================================
@@ -385,9 +418,125 @@ function buildExplainableReason(
   }
 }
 
+export function getIndonesianDayNameFromDateStr(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dayIndex = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  const names = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+  return names[dayIndex] || "Senin";
+}
+
+export function detectScheduleConflicts(classes: AcademicClassItem[]): ScheduleConflict[] {
+  if (!Array.isArray(classes) || classes.length < 2) return [];
+
+  const conflicts: ScheduleConflict[] = [];
+
+  for (let i = 0; i < classes.length; i++) {
+    for (let j = i + 1; j < classes.length; j++) {
+      const a = classes[i];
+      const b = classes[j];
+
+      // Must be on the same day (or same replacement date)
+      const sameDay =
+        a.day.trim().toLowerCase() === b.day.trim().toLowerCase() ||
+        (Boolean(a.date) && Boolean(b.date) && a.date === b.date);
+
+      if (!sameDay) continue;
+
+      const [startA, endA] = [a.startTime.trim(), a.endTime.trim()];
+      const [startB, endB] = [b.startTime.trim(), b.endTime.trim()];
+
+      // Overlap condition: startA < endB && startB < endA
+      if (startA < endB && startB < endA) {
+        conflicts.push({
+          id: `conflict-${a.id}-${b.id}`,
+          day: a.day,
+          item1: {
+            id: a.id,
+            title: a.courseName,
+            time: `${startA} - ${endA}`,
+            type: a.type,
+          },
+          item2: {
+            id: b.id,
+            title: b.courseName,
+            time: `${startB} - ${endB}`,
+            type: b.type,
+          },
+          reason: `Bentrok jadwal hari ${a.day}: "${a.courseName}" (${startA} - ${endA}) bertabrakan waktu dengan "${b.courseName}" (${startB} - ${endB}).`,
+        });
+      }
+    }
+  }
+
+  return conflicts;
+}
+
+export function synthesizeDailyBriefing(
+  context: AcademicIntelligenceContext,
+  insights: AcademicInsight[],
+  classes: AcademicClassItem[] = [],
+  conflicts: ScheduleConflict[] = []
+): DailyBriefing {
+  const dayName = getIndonesianDayNameFromDateStr(context.referenceDate);
+
+  const todayClasses = classes.filter((c) => {
+    if (c.type === "pengganti") {
+      return c.date === context.referenceDate;
+    }
+    return c.day.trim().toLowerCase() === dayName.toLowerCase();
+  });
+
+  const todayClassesCount = todayClasses.length;
+  const todayTotalSks = todayClasses.reduce((sum, c) => sum + (c.sks || 0), 0);
+  const overdueTasksCount = insights.filter((i) => i.category === "overdue").length;
+  const dueTodayTasksCount = insights.filter((i) => i.category === "due_today").length;
+  const upcomingExamsCount = insights.filter(
+    (i) => i.itemType === "ujian" && i.daysDifference >= 0 && i.daysDifference <= 7
+  ).length;
+
+  let status: "calm" | "moderate" | "heavy" | "urgent" = "calm";
+  if (overdueTasksCount > 0 || conflicts.length > 0) {
+    status = "urgent";
+  } else if (todayClassesCount >= 3 || (todayClassesCount >= 2 && dueTodayTasksCount > 0)) {
+    status = "heavy";
+  } else if (todayClassesCount > 0 || dueTodayTasksCount > 0) {
+    status = "moderate";
+  }
+
+  let headline = `Hari ${dayName} bebas perkuliahan dan tugas mendesak. Manfaatkan waktu untuk belajar mandiri.`;
+  if (overdueTasksCount > 0) {
+    headline = `Perhatian: Ada ${overdueTasksCount} tugas yang telah melewati batas waktu pengumpulan!`;
+  } else if (conflicts.length > 0) {
+    headline = `Peringatan: Terdeteksi ${conflicts.length} bentrok jadwal kuliah pada hari ${dayName}.`;
+  } else if (dueTodayTasksCount > 0 && todayClassesCount > 0) {
+    headline = `Hari ${dayName}: ${todayClassesCount} sesi kuliah (${todayTotalSks} SKS) dan ${dueTodayTasksCount} tugas jatuh tempo hari ini.`;
+  } else if (todayClassesCount > 0) {
+    headline = `Hari ${dayName}: ${todayClassesCount} sesi perkuliahan (${todayTotalSks} SKS) terjadwal hari ini.`;
+  } else if (dueTodayTasksCount > 0) {
+    headline = `${dueTodayTasksCount} tugas akademik perlu dikumpulkan hari ini.`;
+  } else if (upcomingExamsCount > 0) {
+    headline = `Tidak ada kelas hari ini. Persiapkan diri untuk ${upcomingExamsCount} ujian dalam 7 hari ke depan.`;
+  }
+
+  return {
+    date: context.referenceDate,
+    dayName,
+    todayClassesCount,
+    todayTotalSks,
+    overdueTasksCount,
+    dueTodayTasksCount,
+    upcomingExamsCount,
+    headline,
+    status,
+  };
+}
+
 export function evaluateAcademicItem(
   item: AcademicItem,
-  context: AcademicIntelligenceContext
+  context: AcademicIntelligenceContext,
+  options?: {
+    upcomingExams?: AcademicItem[];
+  }
 ): AcademicInsight | null {
   if (!item || !item.id || !item.title) return null;
 
@@ -430,14 +579,41 @@ export function evaluateAcademicItem(
     distanceScore = Math.max(0, 100 - daysDiff);
   }
 
-  const priorityScore = categoryWeight + priorityWeight + distanceScore;
+  // Exam proximity boost: if this is a task and an exam exists for this course within upcoming window
+  let examProximityBoost = 0;
+  let examProximityNote = "";
+  if (item.type === "tugas" && item.courseName && options?.upcomingExams?.length) {
+    const cleanCourse = item.courseName.trim().toLowerCase();
+    const matchingExam = options.upcomingExams.find((e) => {
+      if (!e.courseName) return false;
+      return e.courseName.trim().toLowerCase() === cleanCourse;
+    });
+    if (matchingExam) {
+      const examDateStr = extractCalendarDate(matchingExam.date, context.timezone);
+      if (examDateStr) {
+        const examDiff = calculateCalendarDaysDifference(examDateStr, context.referenceDate);
+        if (examDiff >= 0 && examDiff <= (context.upcomingWindowDays ?? 7)) {
+          examProximityBoost = 500;
+          const diffText = examDiff === 0 ? "hari ini" : examDiff === 1 ? "besok" : `${examDiff} hari lagi`;
+          examProximityNote = ` Perhatian: Terdapat ${matchingExam.title} untuk mata kuliah ini (${diffText}, ${formatIndonesianCalendarDate(examDateStr)}).`;
+        }
+      }
+    }
+  }
+
+  const priorityScore = categoryWeight + priorityWeight + distanceScore + examProximityBoost;
   const formattedDate = formatIndonesianCalendarDate(targetDateStr);
-  const { reason, actionRecommendation } = buildExplainableReason(
+  let { reason, actionRecommendation } = buildExplainableReason(
     item,
     category,
     daysDiff,
     formattedDate
   );
+
+  if (examProximityNote) {
+    reason += examProximityNote;
+    actionRecommendation = "Prioritaskan penyelesaian tugas ini agar dapat berfokus pada persiapan ujian mata kuliah terkait.";
+  }
 
   return {
     id: `insight-${item.type}-${item.id}-${category}`,
@@ -473,7 +649,10 @@ export function compareAcademicInsights(a: AcademicInsight, b: AcademicInsight):
 
 export function evaluateAcademicInsights(
   items: AcademicItem[],
-  context: AcademicIntelligenceContext
+  context: AcademicIntelligenceContext,
+  options?: {
+    classes?: AcademicClassItem[];
+  }
 ): AcademicIntelligenceSummary {
   const dateValidation = validateReferenceDate(context?.referenceDate);
   if (!dateValidation.valid) {
@@ -492,6 +671,11 @@ export function evaluateAcademicInsights(
   };
 
   const safeItems = Array.isArray(items) ? items : [];
+  const safeClasses = Array.isArray(options?.classes) ? options.classes : [];
+
+  // Separate upcoming exams for exam-proximity prioritization
+  const upcomingExams = safeItems.filter((i) => i.type === "ujian");
+
   const insights: AcademicInsight[] = [];
   const counts = {
     overdue: 0,
@@ -501,7 +685,7 @@ export function evaluateAcademicInsights(
   };
 
   for (const item of safeItems) {
-    const insight = evaluateAcademicItem(item, normalizedContext);
+    const insight = evaluateAcademicItem(item, normalizedContext, { upcomingExams });
     if (insight) {
       insights.push(insight);
       counts[insight.category]++;
@@ -509,6 +693,9 @@ export function evaluateAcademicInsights(
   }
 
   insights.sort(compareAcademicInsights);
+
+  const conflicts = detectScheduleConflicts(safeClasses);
+  const briefing = synthesizeDailyBriefing(normalizedContext, insights, safeClasses, conflicts);
 
   return {
     referenceDate: normalizedContext.referenceDate,
@@ -518,6 +705,8 @@ export function evaluateAcademicInsights(
     totalInsightsGenerated: insights.length,
     countsByCategory: counts,
     insights,
+    briefing,
+    conflicts,
   };
 }
 

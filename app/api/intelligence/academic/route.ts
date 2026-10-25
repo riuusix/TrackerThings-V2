@@ -2,10 +2,12 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 import { apiSuccess, apiError } from "@/lib/apiResponse";
-import { formatTimeFromDate } from "@/lib/utils";
+import { formatTimeFromDate, getCalendarDayName } from "@/lib/utils";
 import {
   evaluateAcademicInsights,
-  AcademicItem,
+  type AcademicItem,
+  type AcademicClassItem,
+  extractCalendarDate,
   validateReferenceDate,
   validateTimezone,
 } from "@/lib/intelligence/academicInsights";
@@ -49,8 +51,8 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Parallel fetch: Ambil tugas dan jadwal ujian milik pengguna secara read-only
-    const [tasks, exams] = await Promise.all([
+    // Parallel fetch: Ambil tugas, ujian, jadwal kuliah reguler, dan kelas pengganti milik pengguna secara read-only
+    const [tasks, exams, regularSchedules, replacementClasses] = await Promise.all([
       prisma.tugas.findMany({
         where: { userId: session.userId },
         include: {
@@ -71,6 +73,22 @@ export async function GET(req: NextRequest) {
           { tanggal: "asc" },
           { waktuMulai: "asc" },
         ],
+      }),
+      prisma.jadwal.findMany({
+        where: { userId: session.userId },
+        orderBy: { waktuMulai: "asc" },
+      }),
+      prisma.kelasPengganti.findMany({
+        where: {
+          userId: session.userId,
+          status: { not: "Selesai" },
+        },
+        include: {
+          jadwal: {
+            select: { namaMatkul: true },
+          },
+        },
+        orderBy: { waktuMulai: "asc" },
       }),
     ]);
 
@@ -96,12 +114,38 @@ export async function GET(req: NextRequest) {
       })),
     ];
 
-    // Evaluate deterministically
-    const summary = evaluateAcademicInsights(items, {
-      referenceDate: refValidation.date,
-      timezone: tzValidation.timezone,
-      upcomingWindowDays,
-    });
+    // Map regular & replacement schedules to AcademicClassItem representations
+    const classes: AcademicClassItem[] = [
+      ...regularSchedules.map((j) => ({
+        id: j.id,
+        courseName: j.namaMatkul,
+        day: j.hari,
+        startTime: formatTimeFromDate(j.waktuMulai),
+        endTime: formatTimeFromDate(j.waktuSelesai),
+        sks: j.sks,
+        type: "reguler" as const,
+      })),
+      ...replacementClasses.map((kp) => ({
+        id: kp.id,
+        courseName: kp.jadwal?.namaMatkul || "Kelas Pengganti",
+        day: getCalendarDayName(kp.tanggal),
+        startTime: formatTimeFromDate(kp.waktuMulai),
+        endTime: formatTimeFromDate(kp.waktuSelesai),
+        type: "pengganti" as const,
+        date: extractCalendarDate(kp.tanggal, tzValidation.timezone),
+      })),
+    ];
+
+    // Evaluate deterministically with classes context
+    const summary = evaluateAcademicInsights(
+      items,
+      {
+        referenceDate: refValidation.date,
+        timezone: tzValidation.timezone,
+        upcomingWindowDays,
+      },
+      { classes }
+    );
 
     return apiSuccess("Insight akademik berhasil dimuat.", summary, 200, {
       summary,

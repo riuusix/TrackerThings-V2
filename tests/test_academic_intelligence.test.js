@@ -11,6 +11,9 @@ import {
   extractCalendarDate,
   formatIndonesianCalendarDate,
   compareAcademicInsights,
+  detectScheduleConflicts,
+  synthesizeDailyBriefing,
+  getIndonesianDayNameFromDateStr,
 } from "../lib/intelligence/academicInsights.ts";
 
 describe("Deterministic Academic Intelligence Suite (Milestone M1)", () => {
@@ -498,6 +501,225 @@ describe("Deterministic Academic Intelligence Suite (Milestone M1)", () => {
       assert.equal(summary.insights[0].title, "Ujian Tengah Semester");
       assert.equal(summary.insights[1].category, "due_tomorrow");
       assert.equal(summary.insights[1].title, "Makalah Kecerdasan Buatan");
+    });
+  });
+
+  // =========================================================================
+  // 9. Exam Proximity Prioritization Boost
+  // =========================================================================
+  describe("9. Exam Proximity Prioritization Boost", () => {
+    const context = {
+      referenceDate: "2026-10-20",
+      timezone: "Asia/Jakarta",
+      upcomingWindowDays: 7,
+    };
+
+    it("elevates task priorityScore by +500 when matching course has an exam within 7 days", () => {
+      // Task 1: "Algoritma" without exam
+      const taskNoExam = {
+        id: 101,
+        type: "tugas",
+        title: "Tugas Biasa",
+        courseName: "Fisika Dasar",
+        date: "2026-10-22", // due in 2 days (upcoming)
+        priority: "Tinggi",
+      };
+
+      // Task 2: "Basis Data" with exam in 3 days
+      const taskWithExam = {
+        id: 102,
+        type: "tugas",
+        title: "Praktikum Basis Data",
+        courseName: "Sistem Basis Data",
+        date: "2026-10-22", // due in 2 days (upcoming)
+        priority: "Tinggi",
+      };
+
+      const upcomingExam = {
+        id: 201,
+        type: "ujian",
+        title: "UTS Basis Data",
+        courseName: "Sistem Basis Data",
+        date: "2026-10-23", // exam in 3 days
+      };
+
+      const summary = evaluateAcademicInsights([taskNoExam, taskWithExam, upcomingExam], context);
+
+      const insightNoExam = summary.insights.find((i) => i.itemId === 101);
+      const insightWithExam = summary.insights.find((i) => i.itemId === 102);
+
+      assert.ok(insightNoExam && insightWithExam);
+      assert.equal(insightWithExam.priorityScore - insightNoExam.priorityScore, 500);
+      assert.ok(insightWithExam.reason.includes("Perhatian: Terdapat UTS Basis Data"));
+      assert.ok(insightWithExam.actionRecommendation.includes("fokus pada persiapan ujian"));
+    });
+  });
+
+  // =========================================================================
+  // 10. Schedule Conflict Detection
+  // =========================================================================
+  describe("10. Schedule Conflict Detection", () => {
+    it("detects overlapping regular class intervals on the same day", () => {
+      const classes = [
+        {
+          id: 1,
+          courseName: "Pemrograman Web",
+          day: "Senin",
+          startTime: "08:00",
+          endTime: "10:30",
+          type: "reguler",
+        },
+        {
+          id: 2,
+          courseName: "Kecerdasan Buatan",
+          day: "Senin",
+          startTime: "10:00", // overlaps 10:00 - 10:30 with course 1
+          endTime: "12:30",
+          type: "reguler",
+        },
+        {
+          id: 3,
+          courseName: "Etika Profesi",
+          day: "Senin",
+          startTime: "13:00", // no overlap
+          endTime: "14:40",
+          type: "reguler",
+        },
+      ];
+
+      const conflicts = detectScheduleConflicts(classes);
+      assert.equal(conflicts.length, 1);
+      assert.equal(conflicts[0].item1.title, "Pemrograman Web");
+      assert.equal(conflicts[0].item2.title, "Kecerdasan Buatan");
+      assert.ok(conflicts[0].reason.includes("bertabrakan waktu"));
+    });
+
+    it("detects conflict between replacement class and regular course on same day", () => {
+      const classes = [
+        {
+          id: 10,
+          courseName: "Jaringan Komputer",
+          day: "Selasa",
+          startTime: "09:00",
+          endTime: "11:30",
+          type: "reguler",
+        },
+        {
+          id: 11,
+          courseName: "Kelas Pengganti Sistem Operasi",
+          day: "Selasa",
+          date: "2026-10-20",
+          startTime: "10:00", // overlaps with 09:00-11:30
+          endTime: "12:00",
+          type: "pengganti",
+        },
+      ];
+
+      const conflicts = detectScheduleConflicts(classes);
+      assert.equal(conflicts.length, 1);
+      assert.equal(conflicts[0].item1.id, 10);
+      assert.equal(conflicts[0].item2.id, 11);
+    });
+
+    it("returns zero conflicts when classes are on different days or times are adjacent without overlap", () => {
+      const classes = [
+        {
+          id: 20,
+          courseName: "Matematika Diskrit",
+          day: "Rabu",
+          startTime: "08:00",
+          endTime: "10:00",
+          type: "reguler",
+        },
+        {
+          id: 21,
+          courseName: "Struktur Data",
+          day: "Rabu",
+          startTime: "10:00", // back-to-back, no overlap
+          endTime: "12:00",
+          type: "reguler",
+        },
+        {
+          id: 22,
+          courseName: "Arsitektur Komputer",
+          day: "Kamis", // different day
+          startTime: "08:00",
+          endTime: "10:00",
+          type: "reguler",
+        },
+      ];
+
+      const conflicts = detectScheduleConflicts(classes);
+      assert.equal(conflicts.length, 0);
+    });
+  });
+
+  // =========================================================================
+  // 11. Daily Academic Briefing Synthesis
+  // =========================================================================
+  describe("11. Daily Academic Briefing Synthesis", () => {
+    it("determines dayName and headline correctly for calm day", () => {
+      const context = {
+        referenceDate: "2026-10-25", // Sunday (Minggu)
+        timezone: "Asia/Jakarta",
+        upcomingWindowDays: 7,
+      };
+
+      const dayName = getIndonesianDayNameFromDateStr("2026-10-25");
+      assert.equal(dayName, "Minggu");
+
+      const briefing = synthesizeDailyBriefing(context, [], []);
+      assert.equal(briefing.dayName, "Minggu");
+      assert.equal(briefing.todayClassesCount, 0);
+      assert.equal(briefing.status, "calm");
+      assert.ok(briefing.headline.includes("bebas perkuliahan"));
+    });
+
+    it("synthesizes urgent status when overdue tasks exist", () => {
+      const context = {
+        referenceDate: "2026-10-20", // Tuesday (Selasa)
+        timezone: "Asia/Jakarta",
+      };
+
+      const overdueInsight = {
+        id: "insight-tugas-1-overdue",
+        itemId: 1,
+        itemType: "tugas",
+        title: "Tugas Terlewat",
+        courseName: "Kalkulus",
+        category: "overdue",
+        priority: "urgent",
+        priorityScore: 4500,
+        daysDifference: -2,
+        targetDate: "2026-10-18",
+        referenceDate: "2026-10-20",
+        timezone: "Asia/Jakarta",
+        reason: "Telah melewati batas waktu 2 hari yang lalu.",
+      };
+
+      const briefing = synthesizeDailyBriefing(context, [overdueInsight], []);
+      assert.equal(briefing.status, "urgent");
+      assert.equal(briefing.overdueTasksCount, 1);
+      assert.ok(briefing.headline.includes("1 tugas yang telah melewati batas waktu"));
+    });
+
+    it("synthesizes heavy status when 3 or more classes are scheduled today", () => {
+      const context = {
+        referenceDate: "2026-10-20", // Tuesday (Selasa)
+        timezone: "Asia/Jakarta",
+      };
+
+      const classes = [
+        { id: 1, courseName: "K1", day: "Selasa", startTime: "08:00", endTime: "10:00", sks: 3, type: "reguler" },
+        { id: 2, courseName: "K2", day: "Selasa", startTime: "10:00", endTime: "12:00", sks: 3, type: "reguler" },
+        { id: 3, courseName: "K3", day: "Selasa", startTime: "13:00", endTime: "15:00", sks: 2, type: "reguler" },
+      ];
+
+      const briefing = synthesizeDailyBriefing(context, [], classes);
+      assert.equal(briefing.status, "heavy");
+      assert.equal(briefing.todayClassesCount, 3);
+      assert.equal(briefing.todayTotalSks, 8);
+      assert.ok(briefing.headline.includes("3 sesi perkuliahan (8 SKS)"));
     });
   });
 });

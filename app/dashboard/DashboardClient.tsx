@@ -12,6 +12,8 @@ import { ScheduleList } from "@/components/ScheduleList";
 import { TaskList } from "@/components/TaskList";
 import { TaskModal } from "@/components/TaskModal";
 import { KelasPenggantiModal } from "@/components/KelasPenggantiModal";
+import { AcademicBriefingBanner } from "@/components/AcademicBriefingBanner";
+import type { AcademicIntelligenceSummary } from "@/lib/intelligence/academicInsights";
 import { formatIndonesianDate, getDaysDifference } from "@/lib/utils";
 import {
   Calendar,
@@ -35,6 +37,7 @@ interface DashboardClientProps {
   urgentTasks: TugasItem[];
   completedTasks: TugasItem[];
   notifications: NotificationItem[];
+  academicSummary?: AcademicIntelligenceSummary;
 }
 
 export function DashboardClient({
@@ -49,6 +52,7 @@ export function DashboardClient({
   urgentTasks,
   completedTasks,
   notifications,
+  academicSummary,
 }: DashboardClientProps) {
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [isPenggantiModalOpen, setIsPenggantiModalOpen] = useState(false);
@@ -123,6 +127,11 @@ export function DashboardClient({
             </button>
           </div>
         </div>
+
+        {/* Academic Intelligence Daily Briefing Banner */}
+        {academicSummary && (
+          <AcademicBriefingBanner summary={academicSummary} />
+        )}
 
         {/* 2-Column Responsive Layout - Fully Focused on Academic Features */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">

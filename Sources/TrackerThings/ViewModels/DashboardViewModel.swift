@@ -10,6 +10,7 @@ public final class DashboardViewModel {
     public var allExams: [UjianItem] = []
     public var upcomingExam: UjianItem?
     public var replacementClasses: [KelasPenggantiItem] = []
+    public var academicSummary: AcademicIntelligenceSummary? = nil
     public var notifications: [NotificationItem] = []
     public var selectedDay: String = "Senin"
     public var isLoading: Bool = false
@@ -29,6 +30,18 @@ public final class DashboardViewModel {
 
     public func showToast(_ message: String, severity: FeedbackSeverity = .info) {
         self.toast = FeedbackToastData(message: message, severity: severity)
+    }
+
+    public var prioritizedInsights: [AcademicInsight] {
+        academicSummary?.insights ?? []
+    }
+
+    public var dailyBriefing: DailyBriefing? {
+        academicSummary?.briefing
+    }
+
+    public var scheduleConflicts: [ScheduleConflict] {
+        academicSummary?.conflicts ?? []
     }
 
     public let daysOfWeek = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]
@@ -120,6 +133,7 @@ public final class DashboardViewModel {
             completedTasks = loadedTasks.filter { $0.status == .selesai }.sorted { $0.deadline > $1.deadline }
             allExams = loadedExams.sorted { $0.tanggal < $1.tanggal }
             replacementClasses = loadedKP
+            academicSummary = loadedIntelligence
 
             // Find closest upcoming exam
             let now = Date()

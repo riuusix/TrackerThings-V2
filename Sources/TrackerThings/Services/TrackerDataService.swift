@@ -35,9 +35,16 @@ public protocol TrackerDataServiceProtocol: Sendable {
     func visionScheduleImport(fileData: Data, fileName: String, mimeType: String, localItemsJson: String?) async throws -> ScheduleImportPreviewResponse
     func confirmScheduleImport(items: [ImportScheduleItem], learnCorrections: Bool) async throws -> ScheduleImportConfirmResponse
     func syncPendingScheduleDrafts() async throws -> [ScheduleImportConfirmResponse]
+
+    // MARK: - Academic Intelligence
+    func getAcademicInsights(referenceDate: String, timezone: String, upcomingWindowDays: Int) async throws -> AcademicIntelligenceSummary
 }
 
 public extension TrackerDataServiceProtocol {
+    func getAcademicInsights(referenceDate: String, timezone: String) async throws -> AcademicIntelligenceSummary {
+        try await getAcademicInsights(referenceDate: referenceDate, timezone: timezone, upcomingWindowDays: 7)
+    }
+
     func previewScheduleImport(fileData: Data, fileName: String, mimeType: String) async throws -> ScheduleImportPreviewResponse {
         try await previewScheduleImport(
             fileData: fileData,
@@ -294,5 +301,21 @@ public actor TrackerDataService: TrackerDataServiceProtocol {
         drafts.removeAll { $0.status == .synced }
         LocalCacheService.shared.saveScheduleDrafts(drafts)
         return results
+    }
+
+    // MARK: - Academic Intelligence
+    public func getAcademicInsights(referenceDate: String, timezone: String, upcomingWindowDays: Int = 7) async throws -> AcademicIntelligenceSummary {
+        let encodedTz = timezone.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? timezone
+        let endpoint = "intelligence/academic?referenceDate=\(referenceDate)&timezone=\(encodedTz)&upcomingWindowDays=\(upcomingWindowDays)"
+        do {
+            let summary: AcademicIntelligenceSummary = try await network.request(endpoint: endpoint, method: "GET")
+            LocalCacheService.shared.save(summary, forKey: LocalCacheService.keyAcademicIntelligence)
+            return summary
+        } catch {
+            if let cached: AcademicIntelligenceSummary = LocalCacheService.shared.load(forKey: LocalCacheService.keyAcademicIntelligence) {
+                return cached
+            }
+            throw error
+        }
     }
 }

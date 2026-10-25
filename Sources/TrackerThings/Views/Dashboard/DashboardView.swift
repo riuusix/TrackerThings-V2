@@ -79,6 +79,12 @@ public struct DashboardView: View {
                         .padding(.horizontal)
                     }
 
+                    // Academic Intelligence Daily Briefing
+                    if let summary = viewModel.academicSummary {
+                        AcademicBriefingCardView(summary: summary)
+                            .padding(.horizontal)
+                    }
+
                     // 3. Jadwal Hari Ini & Day Selector
                     VStack(alignment: .leading, spacing: AppTheme.Metrics.spacingMedium) {
                         HStack {
@@ -206,6 +212,9 @@ public struct DashboardView: View {
                             VStack(spacing: AppTheme.Metrics.spacingSmall) {
                                 // Tampilkan tugas yang butuh perhatian
                                 ForEach(tasksNeedingAttention) { task in
+                                    let matchingInsight = viewModel.prioritizedInsights.first(where: {
+                                        $0.itemType == "tugas" && $0.itemId.stringValue == String(task.id)
+                                    })
                                     NavigationLink {
                                         TaskDetailView(
                                             taskId: task.id,
@@ -215,7 +224,7 @@ public struct DashboardView: View {
                                     } label: {
                                         HStack(spacing: AppTheme.Metrics.spacingMedium) {
                                             Circle()
-                                                .fill(AppTheme.Colors.urgent)
+                                                .fill(matchingInsight?.priority == "urgent" ? AppTheme.Colors.urgent : AppTheme.Colors.warning)
                                                 .frame(width: 8, height: 8)
 
                                             VStack(alignment: .leading, spacing: 2) {
@@ -226,11 +235,18 @@ public struct DashboardView: View {
                                                 Text("\(task.jadwal?.namaMatkul ?? "Tugas") • Tenggat: \(task.deadline.formatted(date: .abbreviated, time: .omitted))")
                                                     .font(AppTheme.Typography.caption)
                                                     .foregroundStyle(AppTheme.Colors.textSecondary)
+
+                                                if let insight = matchingInsight {
+                                                    Text(insight.reason)
+                                                        .font(AppTheme.Typography.badge)
+                                                        .foregroundStyle(AppTheme.Colors.accent)
+                                                        .lineLimit(1)
+                                                }
                                             }
 
                                             Spacer()
 
-                                            Text(task.prioritas.rawValue)
+                                            Text(matchingInsight?.priority.capitalized ?? task.prioritas.rawValue)
                                                 .font(AppTheme.Typography.badge)
                                                 .padding(.horizontal, 6)
                                                 .padding(.vertical, 2)

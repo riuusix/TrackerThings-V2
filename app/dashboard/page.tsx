@@ -4,6 +4,12 @@ import { redirect } from "next/navigation";
 import { DashboardClient } from "./DashboardClient";
 import { JadwalGabunganItem, NotificationItem, TugasItem } from "@/types";
 import { formatTimeFromDate, getCalendarDayName, formatIndonesianDate, getDaysDifference } from "@/lib/utils";
+import {
+  evaluateAcademicInsights,
+  type AcademicItem,
+  type AcademicClassItem,
+  extractCalendarDate,
+} from "@/lib/intelligence/academicInsights";
 
 const DAY_NAMES = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 
@@ -213,6 +219,61 @@ export default async function DashboardPage() {
     }
   }
 
+  // 8. Deterministic Academic Intelligence Synthesis
+  const timezone = "Asia/Jakarta";
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  const referenceDate = `${yyyy}-${mm}-${dd}`;
+
+  const academicItems: AcademicItem[] = [
+    ...urgentTasks.map((t) => ({
+      id: t.id,
+      title: t.namaTugas,
+      courseName: t.jadwal?.namaMatkul,
+      type: "tugas" as const,
+      priority: t.prioritas?.toLowerCase() || "sedang",
+      dueDate: extractCalendarDate(t.deadline, timezone),
+      status: t.status,
+    })),
+    ...upcomingExamsRaw.map((e) => ({
+      id: e.id,
+      title: `Ujian ${e.jenisUjian}`,
+      courseName: e.jadwal?.namaMatkul,
+      type: "ujian" as const,
+      priority: "tinggi",
+      dueDate: extractCalendarDate(e.tanggal, timezone),
+    })),
+  ];
+
+  const academicClasses: AcademicClassItem[] = [
+    ...regularSchedules.map((s) => ({
+      id: s.id,
+      courseName: s.namaMatkul,
+      day: s.hari,
+      startTime: formatTimeFromDate(s.waktuMulai),
+      endTime: formatTimeFromDate(s.waktuSelesai),
+      sks: s.sks,
+      type: "reguler" as const,
+    })),
+    ...replacementClasses.map((kp) => ({
+      id: kp.id,
+      courseName: kp.jadwal?.namaMatkul || "Kelas Pengganti",
+      day: getCalendarDayName(kp.tanggal),
+      startTime: formatTimeFromDate(kp.waktuMulai),
+      endTime: formatTimeFromDate(kp.waktuSelesai),
+      type: "pengganti" as const,
+      date: extractCalendarDate(kp.tanggal, timezone),
+    })),
+  ];
+
+  const academicSummary = evaluateAcademicInsights(
+    academicItems,
+    { referenceDate, timezone, upcomingWindowDays: 7 },
+    { classes: academicClasses }
+  );
+
   return (
     <DashboardClient
       username={username}
@@ -226,6 +287,7 @@ export default async function DashboardPage() {
       urgentTasks={urgentTasks}
       completedTasks={completedTasks}
       notifications={notifications}
+      academicSummary={academicSummary}
     />
   );
 }
