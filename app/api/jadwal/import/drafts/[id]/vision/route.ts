@@ -113,13 +113,17 @@ export async function POST(
     ]);
 
     // Merge Vision Output with Draft items
-    const detectedLayout = detectScheduleLayout({ text: "" });
+    const effectiveLayoutKind =
+      (visionResult.layoutKind as any) ||
+      draft.layout?.kind ||
+      (draft.items.length > 0 && draft.items[0].layoutKind) ||
+      "unas_8col_table";
     const mergedItems = mergeVisionWithOcrSchedule(
       draft.items,
       visionResult.rows,
       existingCourses,
       userMappings,
-      detectedLayout.kind
+      effectiveLayoutKind
     );
 
     const requiresReview = mergedItems.some((item) => item.needsReview);

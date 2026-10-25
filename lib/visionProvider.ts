@@ -360,7 +360,7 @@ const SCHEDULE_RESPONSE_SCHEMA = {
   properties: {
     layout: {
       type: "STRING",
-      description: "Detected table format, e.g. unas_8col_table, combined_time_table, simple_schedule_table",
+      description: "Detected table format: unas_8col_table, combined_time_table, simple_schedule_table, matrix_grid_table, day_grouped_timetable, traditional_krs_text, or unstructured_fallback",
     },
     items: {
       type: "ARRAY",
@@ -468,20 +468,57 @@ const SCHEDULE_EXTRACTION_PROMPT = `
 You are an expert academic timetable document extractor.
 Examine this university timetable image (or screenshot) with extreme precision. Extract EVERY visible schedule row into the specified structured JSON format.
 
-CRITICAL INSTRUCTIONS:
-1. SYSTEMATIC TABLE SCANNING: Read the table row by row and column by column. Detect the header row and map each cell to its exact column property.
-2. MERGED CELLS & REPEATED HEADERS: If a day cell (e.g., "Senin") or room cell is merged across multiple rows or serves as a group header for several classes underneath it, apply that day/room to each applicable course row. Do not drop or miss subsequent rows.
-3. PRESERVE ALL ROWS: Do not silently omit a course row simply because a room, lecturer, or time is missing or hard to read. Return the row with whatever fields are visible.
-4. CELL STATUSES & RAW FIELDS:
+CRITICAL INSTRUCTIONS & STRUCTURAL LAYOUT STRATEGIES:
+
+1. LAYOUT IDENTIFICATION:
+   A. COLUMNAR / TABULAR TABLES (Standard university tables e.g. UNAS, SIAKAD, ITB):
+      - Columns represent attributes: Hari, Jam/Waktu, Mata Kuliah, Kode, Kelas, Ruang, SKS, Dosen.
+      - Read row by row and map each cell to its column header.
+      - Set layout to "unas_8col_table", "combined_time_table", or "simple_schedule_table".
+   B. MATRIX / GRID TIMETABLES (Day Columns across top, Time Slots down rows):
+      - Columns across the top represent DAYS (e.g. Senin, Selasa, Rabu, Kamis, Jumat, Sabtu).
+      - Rows down the left represent TIME SLOTS (e.g. 08:00 - 09:40, 10:00 - 11:40).
+      - CRITICAL: In a matrix layout, EVERY FILLED GRID CELL is an independent course!
+        * hari: Taken from the day column header directly above the cell (e.g. "Senin").
+        * waktuMulai & waktuSelesai: Taken from the time slot row header on the left.
+        * If a course cell vertically spans multiple time slots, waktuMulai is the start of the first slot and waktuSelesai is the end of the last slot.
+        * Extract Course Name, Course Code (e.g. "IF201", "ARS-301"), Room (e.g. "R.301", "Lab RPL"), SKS (e.g. "3 SKS", "(3)"), and Lecturer from inside the cell.
+      - Set layout to "matrix_grid_table".
+   C. DAY-GROUPED / SUBHEADER TIMETABLES:
+      - Days appear as section banners or header dividers (e.g. "SENIN" or "=== SENIN ===").
+      - All course rows beneath that banner belong to that day until the next day banner appears.
+      - Set layout to "day_grouped_timetable".
+
+2. MERGED CELLS & REPEATED HEADERS:
+   - If a day cell (e.g., "Senin") or room cell is merged across multiple rows or serves as a group header for several classes underneath it, apply that day/room to each applicable course row. Do not drop or miss subsequent rows.
+
+3. COMPOUND CELL & COLUMN SPLITTING:
+   - "Mata Kuliah & Kode": When course name and code are combined (e.g. "Struktur Bangunan 2 ARS-301" or "MKU-104 Pancasila"), separate them cleanly. Course code is typically 2-4 uppercase letters, optional hyphen/space, and 3-6 digits (e.g. ARS-301, MKU-104, IF3201).
+   - "Waktu / Ruang" or "Ruang / Kelas": Split time from room, or room from class section (e.g. "R.G301 / A").
+   - "Dosen Pengampu": Keep instructor name in dosen and do not let it contaminate namaMatkul.
+
+4. PRESERVE ALL ROWS (ZERO OMISSIONS):
+   - Do not silently omit a course row simply because a room, lecturer, or time is missing or hard to read. Return the row with whatever fields are visible.
+
+5. NEVER INVENT OR HALLUCINATE:
+   - If a field is not present or cannot be read, leave it null or empty string. NEVER fabricate a course name, time, or day.
+   - If a course meets on multiple days/times, output a distinct entry for each session.
+
+6. TIME & DAY NORMALIZATION:
+   - Times must be in 24-hour HH:mm format (e.g. "08:00", "09:40", "13:00").
+   - Convert period "." separators ("08.00 - 10.30") to colon ":" ("08:00" and "10:30").
+   - If time tokens have OCR character substitutions like letter 'O' for '0' (e.g. "09:5O"), normalize to "09:50" in waktuMulai while keeping raw text in rawFields.
+   - Days must be normalized to standard Indonesian weekday name: "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu".
+
+7. CELL STATUSES & RAW FIELDS:
    - "read": The cell is clearly visible and legibly recognized.
    - "uncertain": The text is ambiguous, partially occluded, or digits/letters could be confused (e.g. 0 vs O, 1 vs I, 8 vs B).
    - "unreadable": The cell contains print or handwriting that is too degraded, blurred, or cut off to decipher.
    - "missing": The cell is genuinely empty / blank on the document.
    Record the exact unformatted characters in rawFields.
-5. NEVER INVENT OR HALLUCINATE: If a field is not present or cannot be read, leave it null or empty string. NEVER fabricate a course name, time, or day.
-6. TIME NORMALIZATION: Separate combined time cells (e.g., "08:00 - 10:30", "08.00 s/d 10.30") into HH:mm waktuMulai ("08:00") and waktuSelesai ("10:30"). If a time has OCR confusion (e.g. "09:5O" with letter O), normalize it to "09:50" in waktuMulai while keeping "09:5O" in rawFields.
-7. MULTI-LINE TEXT: If course names, room names, or lecturer names wrap across multiple lines within a single cell, concatenate them with a single space.
-8. PER-FIELD CONFIDENCE: Estimate an uncalibrated confidence score (0-100) for each field individually based on visual contrast, resolution, and legibility.
+
+8. MULTI-LINE TEXT:
+   - If course names, room names, or lecturer names wrap across multiple lines within a single cell, concatenate them with a single space.
 `.trim();
 
 /**

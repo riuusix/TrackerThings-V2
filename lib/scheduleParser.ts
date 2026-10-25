@@ -106,6 +106,8 @@ export type ScheduleLayoutKind =
   | "unas_8col_table"
   | "combined_time_table"
   | "simple_schedule_table"
+  | "matrix_grid_table"
+  | "day_grouped_timetable"
   | "traditional_krs_text"
   | "unstructured_fallback";
 
@@ -752,9 +754,9 @@ function classifyHeaderPhrase(phrase: string): TableColumnField | null {
     .trim();
 
   if (!clean) return null;
-  if (clean === "no" || clean === "nomor") return "ignore";
-  if (clean === "hari" || clean === "day") return "hari";
-  if (clean === "mulai" || clean === "jam mulai" || clean === "waktu mulai" || clean === "start") {
+  if (clean === "no" || clean === "nomor" || clean === "num" || clean === "number") return "ignore";
+  if (clean === "hari" || clean === "day" || clean === "hari kuliah") return "hari";
+  if (clean === "mulai" || clean === "jam mulai" || clean === "waktu mulai" || clean === "start" || clean === "pukul mulai" || clean === "awal" || clean === "dari") {
     return "waktuMulai";
   }
   if (
@@ -763,7 +765,10 @@ function classifyHeaderPhrase(phrase: string): TableColumnField | null {
     clean === "jam akhir" ||
     clean === "jam selesai" ||
     clean === "waktu selesai" ||
-    clean === "end"
+    clean === "end" ||
+    clean === "pukul selesai" ||
+    clean === "sampai" ||
+    clean === "sd"
   ) {
     return "waktuSelesai";
   }
@@ -775,7 +780,11 @@ function classifyHeaderPhrase(phrase: string): TableColumnField | null {
     clean === "jam pelajaran" ||
     clean === "waktu pelajaran" ||
     clean === "pukul" ||
-    clean === "time"
+    clean === "time" ||
+    clean === "jamwaktu" ||
+    clean === "jam waktu" ||
+    clean === "sesi" ||
+    clean === "jadwal"
   ) {
     return "waktuGabungan";
   }
@@ -785,7 +794,15 @@ function classifyHeaderPhrase(phrase: string): TableColumnField | null {
     clean === "lokasi" ||
     clean === "room" ||
     clean === "studio" ||
-    clean === "gedung"
+    clean === "gedung" ||
+    clean === "lab" ||
+    clean === "laboratorium" ||
+    clean === "tempat" ||
+    clean === "ruang kuliah" ||
+    clean === "kelas ruang" ||
+    clean === "kelasruang" ||
+    clean === "ruang kelas" ||
+    clean === "ruangkelas"
   ) {
     return "lokasi";
   }
@@ -795,11 +812,24 @@ function classifyHeaderPhrase(phrase: string): TableColumnField | null {
     clean === "kd mk" ||
     clean === "kode" ||
     clean === "kode matkul" ||
-    clean === "sandi"
+    clean === "sandi" ||
+    clean === "code" ||
+    clean === "course code" ||
+    clean === "kd matkul" ||
+    clean === "no mk"
   ) {
     return "kodeMatkul";
   }
-  if (clean === "kls" || clean === "kelas" || clean === "class" || clean === "seksi") {
+  if (
+    clean === "kls" ||
+    clean === "kelas" ||
+    clean === "class" ||
+    clean === "seksi" ||
+    clean === "paralel" ||
+    clean === "rombongan belajar" ||
+    clean === "rombel" ||
+    clean === "kelompok"
+  ) {
     return "kelas";
   }
   if (
@@ -817,10 +847,13 @@ function classifyHeaderPhrase(phrase: string): TableColumnField | null {
     clean === "mapel" ||
     clean === "subject" ||
     clean === "course" ||
+    clean === "course name" ||
     clean === "mata kuliah kode" ||
     clean === "matakuliah kode" ||
     clean === "mata kuliah dan kode" ||
     clean === "matakuliah dan kode" ||
+    clean === "mata kuliah kode" ||
+    clean === "matakuliah kode" ||
     clean === "nama mata kuliah kode" ||
     clean === "nama mata kuliah dan kode" ||
     clean === "nama matkul dan kode" ||
@@ -831,11 +864,24 @@ function classifyHeaderPhrase(phrase: string): TableColumnField | null {
     clean === "nama mk kode" ||
     clean === "kode mata kuliah" ||
     clean === "kode matakuliah" ||
-    clean === "kode nama mata kuliah"
+    clean === "kode nama mata kuliah" ||
+    clean === "mata kuliah dan sks" ||
+    clean === "nama kuliah" ||
+    clean === "judul" ||
+    clean === "topik"
   ) {
     return "namaMatkul";
   }
-  if (clean === "sks" || clean === "kredit" || clean === "credit" || clean === "bobot") {
+  if (
+    clean === "sks" ||
+    clean === "kredit" ||
+    clean === "credit" ||
+    clean === "bobot" ||
+    clean === "beban sks" ||
+    clean === "jumlah sks" ||
+    clean === "jml sks" ||
+    clean === "sks total"
+  ) {
     return "sks";
   }
   if (
@@ -853,150 +899,559 @@ function classifyHeaderPhrase(phrase: string): TableColumnField | null {
     clean === "pengampu" ||
     clean === "dosen pembimbing" ||
     clean === "tenaga pengajar" ||
-    clean === "tim dosen"
+    clean === "tim dosen" ||
+    clean === "koordinator" ||
+    clean === "dosen koordinator"
   ) {
     return "dosen";
   }
   return null;
 }
 
+function extractColumnsFromWordSequence(words: OcrWord[]): DetectedColumnHeader[] {
+  const matchedCols: DetectedColumnHeader[] = [];
+  let i = 0;
+  while (i < words.length) {
+    const w1 = words[i];
+    const w2 = i + 1 < words.length ? words[i + 1] : null;
+    const w3 = i + 2 < words.length ? words[i + 2] : null;
+    const w4 = i + 3 < words.length ? words[i + 3] : null;
+
+    // Try 4-word phrase (e.g. "Mata Kuliah & Kode", "Nama Mata Kuliah Kode")
+    if (
+      w4 &&
+      w3 &&
+      w2 &&
+      w2.bbox.x0 - w1.bbox.x1 < 60 &&
+      w3.bbox.x0 - w2.bbox.x1 < 60 &&
+      w4.bbox.x0 - w3.bbox.x1 < 60
+    ) {
+      const phrase4 = `${w1.text} ${w2.text} ${w3.text} ${w4.text}`;
+      const field4 = classifyHeaderPhrase(phrase4);
+      if (field4) {
+        matchedCols.push({
+          field: field4,
+          label: phrase4,
+          x0: w1.bbox.x0,
+          x1: w4.bbox.x1,
+          y0: Math.min(w1.bbox.y0, w2.bbox.y0, w3.bbox.y0, w4.bbox.y0),
+          y1: Math.max(w1.bbox.y1, w2.bbox.y1, w3.bbox.y1, w4.bbox.y1),
+          minX: 0,
+          maxX: Infinity,
+        });
+        i += 4;
+        continue;
+      }
+    }
+
+    // Try 3-word phrase (e.g. "Nama Mata Kuliah")
+    if (w3 && w2 && w2.bbox.x0 - w1.bbox.x1 < 60 && w3.bbox.x0 - w2.bbox.x1 < 60) {
+      const phrase3 = `${w1.text} ${w2.text} ${w3.text}`;
+      const field3 = classifyHeaderPhrase(phrase3);
+      if (field3) {
+        matchedCols.push({
+          field: field3,
+          label: phrase3,
+          x0: w1.bbox.x0,
+          x1: w3.bbox.x1,
+          y0: Math.min(w1.bbox.y0, w2.bbox.y0, w3.bbox.y0),
+          y1: Math.max(w1.bbox.y1, w2.bbox.y1, w3.bbox.y1),
+          minX: 0,
+          maxX: Infinity,
+        });
+        i += 3;
+        continue;
+      }
+    }
+
+    // Try 2-word phrase (e.g. "Kode MK", "Nama MK", "Jam Mulai")
+    if (w2 && w2.bbox.x0 - w1.bbox.x1 < 60) {
+      const phrase2 = `${w1.text} ${w2.text}`;
+      const field2 = classifyHeaderPhrase(phrase2);
+      if (field2) {
+        matchedCols.push({
+          field: field2,
+          label: phrase2,
+          x0: w1.bbox.x0,
+          x1: w2.bbox.x1,
+          y0: Math.min(w1.bbox.y0, w2.bbox.y0),
+          y1: Math.max(w1.bbox.y1, w2.bbox.y1),
+          minX: 0,
+          maxX: Infinity,
+        });
+        i += 2;
+        continue;
+      }
+    }
+
+    // Try 1-word header
+    const field1 = classifyHeaderPhrase(w1.text);
+    if (field1) {
+      matchedCols.push({
+        field: field1,
+        label: w1.text,
+        x0: w1.bbox.x0,
+        x1: w1.bbox.x1,
+        y0: w1.bbox.y0,
+        y1: w1.bbox.y1,
+        minX: 0,
+        maxX: Infinity,
+      });
+    }
+    i += 1;
+  }
+  return matchedCols;
+}
+
+function computeColumnBoundaries(matchedCols: DetectedColumnHeader[]): DetectedColumnHeader[] {
+  matchedCols.sort((a, b) => a.x0 - b.x0);
+  for (let c = 0; c < matchedCols.length; c++) {
+    const cur = matchedCols[c];
+    const prev = c > 0 ? matchedCols[c - 1] : null;
+    const next = c + 1 < matchedCols.length ? matchedCols[c + 1] : null;
+
+    if (!prev) {
+      cur.minX = 0;
+    } else {
+      cur.minX = prev.maxX;
+    }
+
+    if (!next) {
+      cur.maxX = Infinity;
+    } else {
+      // In left-aligned tables (like UNAS), column content starts near header x0
+      // and can extend close to the next column's x0.
+      const gap = Math.max(0, next.x0 - cur.x1);
+      const leftPadForNext = Math.min(18, Math.max(4, gap * 0.25));
+      cur.maxX = Math.max(cur.x1, next.x0 - leftPadForNext);
+    }
+  }
+  return matchedCols;
+}
+
 /**
  * Detects a table header row from visual lines and computes horizontal column spans.
+ * Supports both single-line headers and compound multi-line / stacked headers.
  */
 export function detectTableHeaderFromLines(lines: VisualLine[]): {
   headerLineIndex: number;
   columns: DetectedColumnHeader[];
 } | null {
   for (let idx = 0; idx < lines.length; idx++) {
+    const singleCols = extractColumnsFromWordSequence(lines[idx].words);
+    const meaningfulSingle = singleCols.filter((c) => c.field !== "ignore");
+
+    const nextLine = idx + 1 < lines.length ? lines[idx + 1] : null;
+    const nextHasDataOrTime = nextLine
+      ? nextLine.words.some(
+          (w) =>
+            normalizeTime(w.text) !== null ||
+            extractTimePairFromCell(w.text) !== null ||
+            /^\d{1,2}[:.]\d{2}/.test(w.text)
+        )
+      : true;
+
+    // Check if stacked multi-line header exists (e.g. line idx has "WAKTU", line idx+1 has "MULAI" "SELESAI")
+    // Only consider nextLine as stacked header if it does NOT contain actual course schedule times
+    if (nextLine && !nextHasDataOrTime && nextLine.y0 - lines[idx].y1 < 45) {
+      const mergedWords = [...lines[idx].words, ...nextLine.words].sort((a, b) => a.bbox.x0 - b.bbox.x0);
+      const stackedCols = extractColumnsFromWordSequence(mergedWords);
+      const meaningfulStacked = stackedCols.filter((c) => c.field !== "ignore");
+
+      if (
+        meaningfulStacked.length >= 3 &&
+        (meaningfulSingle.length < 3 || meaningfulStacked.length > meaningfulSingle.length)
+      ) {
+        return {
+          headerLineIndex: idx + 1,
+          columns: computeColumnBoundaries(meaningfulStacked),
+        };
+      }
+    }
+
+    if (meaningfulSingle.length >= 3) {
+      return {
+        headerLineIndex: idx,
+        columns: computeColumnBoundaries(meaningfulSingle),
+      };
+    }
+  }
+
+  return null;
+}
+
+export interface MatrixGridDayColumn {
+  day: string;
+  label: string;
+  x0: number;
+  x1: number;
+  minX: number;
+  maxX: number;
+}
+
+export interface MatrixGridHeaderInfo {
+  headerLineIndex: number;
+  timeColumn: { minX: number; maxX: number };
+  dayColumns: MatrixGridDayColumn[];
+}
+
+/**
+ * Detects whether a timetable uses a Matrix/Grid layout where Days are columns
+ * across the top and Time Slots are rows down the left side.
+ */
+export function detectMatrixGridHeaderFromLines(
+  lines: VisualLine[],
+  userMappings: UserScheduleMapping[] = []
+): MatrixGridHeaderInfo | null {
+  const maxHeaderSearch = Math.min(lines.length, 6);
+  for (let idx = 0; idx < maxHeaderSearch; idx++) {
     const line = lines[idx];
-    const words = line.words;
-    const matchedCols: DetectedColumnHeader[] = [];
+    const detectedDays: Array<{
+      day: string;
+      label: string;
+      x0: number;
+      x1: number;
+    }> = [];
 
     let i = 0;
-    while (i < words.length) {
-      const w1 = words[i];
-      const w2 = i + 1 < words.length ? words[i + 1] : null;
-      const w3 = i + 2 < words.length ? words[i + 2] : null;
-      const w4 = i + 3 < words.length ? words[i + 3] : null;
+    while (i < line.words.length) {
+      const w1 = line.words[i];
+      const w2 = i + 1 < line.words.length ? line.words[i + 1] : null;
 
-      // Try 4-word phrase (e.g. "Mata Kuliah & Kode", "Nama Mata Kuliah Kode")
-      if (
-        w4 &&
-        w3 &&
-        w2 &&
-        w2.bbox.x0 - w1.bbox.x1 < 60 &&
-        w3.bbox.x0 - w2.bbox.x1 < 60 &&
-        w4.bbox.x0 - w3.bbox.x1 < 60
-      ) {
-        const phrase4 = `${w1.text} ${w2.text} ${w3.text} ${w4.text}`;
-        const field4 = classifyHeaderPhrase(phrase4);
-        if (field4) {
-          matchedCols.push({
-            field: field4,
-            label: phrase4,
-            x0: w1.bbox.x0,
-            x1: w4.bbox.x1,
-            y0: Math.min(w1.bbox.y0, w2.bbox.y0, w3.bbox.y0, w4.bbox.y0),
-            y1: Math.max(w1.bbox.y1, w2.bbox.y1, w3.bbox.y1, w4.bbox.y1),
-            minX: 0,
-            maxX: Infinity,
-          });
-          i += 4;
-          continue;
-        }
-      }
-
-      // Try 3-word phrase (e.g. "Nama Mata Kuliah")
-      if (w3 && w2 && w2.bbox.x0 - w1.bbox.x1 < 60 && w3.bbox.x0 - w2.bbox.x1 < 60) {
-        const phrase3 = `${w1.text} ${w2.text} ${w3.text}`;
-        const field3 = classifyHeaderPhrase(phrase3);
-        if (field3) {
-          matchedCols.push({
-            field: field3,
-            label: phrase3,
-            x0: w1.bbox.x0,
-            x1: w3.bbox.x1,
-            y0: Math.min(w1.bbox.y0, w2.bbox.y0, w3.bbox.y0),
-            y1: Math.max(w1.bbox.y1, w2.bbox.y1, w3.bbox.y1),
-            minX: 0,
-            maxX: Infinity,
-          });
-          i += 3;
-          continue;
-        }
-      }
-
-      // Try 2-word phrase (e.g. "Kode MK", "Nama MK", "Jam Mulai")
-      if (w2 && w2.bbox.x0 - w1.bbox.x1 < 60) {
-        const phrase2 = `${w1.text} ${w2.text}`;
-        const field2 = classifyHeaderPhrase(phrase2);
-        if (field2) {
-          matchedCols.push({
-            field: field2,
-            label: phrase2,
+      // Check 2-word day (e.g. "Jum at", "Jum ' at")
+      if (w2 && w2.bbox.x0 - w1.bbox.x1 < 40) {
+        const d2 = normalizeHari(`${w1.text} ${w2.text}`, userMappings);
+        if (d2) {
+          detectedDays.push({
+            day: d2,
+            label: `${w1.text} ${w2.text}`,
             x0: w1.bbox.x0,
             x1: w2.bbox.x1,
-            y0: Math.min(w1.bbox.y0, w2.bbox.y0),
-            y1: Math.max(w1.bbox.y1, w2.bbox.y1),
-            minX: 0,
-            maxX: Infinity,
           });
           i += 2;
           continue;
         }
       }
 
-      // Try 1-word header
-      const field1 = classifyHeaderPhrase(w1.text);
-      if (field1) {
-        matchedCols.push({
-          field: field1,
+      const d1 = normalizeHari(w1.text, userMappings);
+      if (d1) {
+        detectedDays.push({
+          day: d1,
           label: w1.text,
           x0: w1.bbox.x0,
           x1: w1.bbox.x1,
-          y0: w1.bbox.y0,
-          y1: w1.bbox.y1,
-          minX: 0,
-          maxX: Infinity,
         });
       }
-      i += 1;
+      i++;
     }
 
-    const meaningfulCols = matchedCols.filter((c) => c.field !== "ignore");
-    if (meaningfulCols.length >= 3) {
-      // Sort columns left-to-right and compute minX / maxX boundaries
-      matchedCols.sort((a, b) => a.x0 - b.x0);
-      for (let c = 0; c < matchedCols.length; c++) {
-        const cur = matchedCols[c];
-        const prev = c > 0 ? matchedCols[c - 1] : null;
-        const next = c + 1 < matchedCols.length ? matchedCols[c + 1] : null;
+    // A valid matrix grid must have at least 2 distinct days in the header row
+    const uniqueDays = new Set(detectedDays.map((d) => d.day));
+    if (uniqueDays.size >= 2) {
+      detectedDays.sort((a, b) => a.x0 - b.x0);
 
-        if (!prev) {
-          cur.minX = 0;
-        } else {
-          cur.minX = prev.maxX;
-        }
+      // Compute day column horizontal spans
+      const dayColumns: MatrixGridDayColumn[] = [];
+      for (let c = 0; c < detectedDays.length; c++) {
+        const cur = detectedDays[c];
+        const prev = c > 0 ? detectedDays[c - 1] : null;
+        const next = c + 1 < detectedDays.length ? detectedDays[c + 1] : null;
 
-        if (!next) {
-          cur.maxX = Infinity;
-        } else {
-          // In left-aligned tables (like UNAS), column content starts near header x0
-          // and can extend close to the next column's x0.
-          const gap = Math.max(0, next.x0 - cur.x1);
-          const leftPadForNext = Math.min(18, Math.max(4, gap * 0.25));
-          cur.maxX = Math.max(cur.x1, next.x0 - leftPadForNext);
-        }
+        const minX = prev ? (prev.x1 + cur.x0) / 2 : Math.max(0, cur.x0 - (next ? (next.x0 - cur.x1) * 0.4 : 60));
+        const maxX = next ? (cur.x1 + next.x0) / 2 : Infinity;
+
+        dayColumns.push({
+          day: cur.day,
+          label: cur.label,
+          x0: cur.x0,
+          x1: cur.x1,
+          minX,
+          maxX,
+        });
       }
 
+      const firstDayMinX = dayColumns[0].minX;
       return {
         headerLineIndex: idx,
-        columns: matchedCols,
+        timeColumn: { minX: 0, maxX: firstDayMinX },
+        dayColumns,
       };
     }
   }
-
   return null;
+}
+
+/**
+ * Extracts individual course items from a Matrix Grid timetable layout where
+ * every filled day-column cell represents an independent course session.
+ */
+export function parseMatrixGridFromWords(
+  lines: VisualLine[],
+  gridHeader: MatrixGridHeaderInfo,
+  existingCourses: ExistingSchedule[] = [],
+  userMappings: UserScheduleMapping[] = []
+): ParsedScheduleItem[] {
+  const dataLines = lines.slice(gridHeader.headerLineIndex + 1);
+  if (dataLines.length === 0) return [];
+
+  interface GridRowBlock {
+    waktuMulai: string;
+    waktuSelesai: string;
+    lines: VisualLine[];
+  }
+
+  const rowBlocks: GridRowBlock[] = [];
+  let currentBlock: GridRowBlock | null = null;
+
+  for (const vLine of dataLines) {
+    const timeWords = vLine.words.filter((w) => w.bbox.x1 <= gridHeader.timeColumn.maxX + 40);
+    const joinedTimeText = timeWords.map((w) => w.text).join(" ");
+    const pair =
+      extractTimePairFromCell(joinedTimeText) ||
+      extractTimePairFromCell(vLine.words.map((w) => w.text).join(" "));
+
+    if (pair && pair.waktuMulai) {
+      if (currentBlock && currentBlock.lines.length > 0) {
+        rowBlocks.push(currentBlock);
+      }
+      currentBlock = {
+        waktuMulai: pair.waktuMulai,
+        waktuSelesai: pair.waktuSelesai || "",
+        lines: [vLine],
+      };
+    } else if (currentBlock) {
+      currentBlock.lines.push(vLine);
+    }
+  }
+  if (currentBlock && currentBlock.lines.length > 0) {
+    rowBlocks.push(currentBlock);
+  }
+
+  if (rowBlocks.length === 0) return [];
+
+  const rawItems: Partial<ParsedScheduleItem>[] = [];
+
+  for (const block of rowBlocks) {
+    for (const dayCol of gridHeader.dayColumns) {
+      const cellWords: OcrWord[] = [];
+      for (const line of block.lines) {
+        for (const w of line.words) {
+          if (/^[|¦—–_]+$/.test(w.text.trim())) continue;
+          const wxCenter = (w.bbox.x0 + w.bbox.x1) / 2;
+          if (
+            (w.bbox.x0 >= dayCol.minX && w.bbox.x0 < dayCol.maxX) ||
+            (wxCenter >= dayCol.minX && wxCenter < dayCol.maxX)
+          ) {
+            cellWords.push(w);
+          }
+        }
+      }
+
+      if (cellWords.length === 0) continue;
+
+      const cellText = cellWords.map((w) => w.text).join(" ").trim();
+      if (cellText.length < 2) continue;
+
+      // Extract Course Code
+      let kodeMatkul: string | null = null;
+      for (const w of cellWords) {
+        const cd = normalizeCourseCode(w.text, userMappings);
+        if (cd) {
+          kodeMatkul = cd.code;
+          break;
+        }
+      }
+
+      // Extract Room
+      let lokasi: string | null = null;
+      for (let i = 0; i < cellWords.length; i++) {
+        const w = cellWords[i];
+        if (/\b(?:R\.|Ruang|Lab|Studio|Gedung|D\.)\b/i.test(w.text)) {
+          const nextW = i + 1 < cellWords.length ? cellWords[i + 1].text : "";
+          lokasi = `${w.text} ${nextW}`.trim();
+          break;
+        }
+      }
+
+      // Extract SKS
+      let sks: number | null = null;
+      const sksMatch = cellText.match(/\b([1-8])\s*sks\b/i) || cellText.match(/\(([1-8])\)/);
+      if (sksMatch) {
+        sks = parseInt(sksMatch[1], 10);
+      }
+
+      // Clean course name from cell words
+      let rawNama = cellText;
+      if (kodeMatkul) {
+        rawNama = rawNama.replace(new RegExp(`['"\`‘“]?\\b${kodeMatkul.replace(/-/g, "[-\\s]?")}\\b['"\`’”]?`, "gi"), "");
+      }
+      if (lokasi) {
+        rawNama = rawNama.replace(lokasi, "");
+      }
+      if (sksMatch) {
+        rawNama = rawNama.replace(sksMatch[0], "");
+      }
+      rawNama = rawNama.replace(/\(?[RDG]\.?\s*\d{2,4}\w*\)?/gi, "");
+      rawNama = cleanCourseName(rawNama);
+
+      if (rawNama && rawNama.length >= 2) {
+        rawItems.push({
+          namaMatkul: rawNama,
+          hari: dayCol.day,
+          waktuMulai: block.waktuMulai,
+          waktuSelesai: block.waktuSelesai,
+          lokasi: lokasi ? cleanRoomName(lokasi) : null,
+          kodeMatkul,
+          sks,
+          dosen: null,
+          kategori: "Wajib",
+          rawText: `[${dayCol.day} ${block.waktuMulai}-${block.waktuSelesai}] ${cellText}`,
+          rawFields: {
+            namaMatkul: rawNama,
+            hari: dayCol.day,
+            waktuMulai: block.waktuMulai,
+            waktuSelesai: block.waktuSelesai,
+            lokasi: lokasi || "",
+            kodeMatkul: kodeMatkul || "",
+          },
+          layoutKind: "matrix_grid_table",
+          extractionSource: "local_ocr",
+        });
+      }
+    }
+  }
+
+  return finalizeScheduleBatch(rawItems, existingCourses, userMappings, {
+    layoutKind: "matrix_grid_table",
+    hasRecognizedHeaders: true,
+  });
+}
+
+/**
+ * Infers spatial columns when no explicit table header row is present in the document.
+ */
+function inferColumnsFromSpatialTokens(
+  lines: VisualLine[],
+  userMappings: UserScheduleMapping[] = []
+): DetectedColumnHeader[] | null {
+  const dayBoxes: Array<{ x0: number; x1: number }> = [];
+  const timeBoxes: Array<{ x0: number; x1: number }> = [];
+  const codeBoxes: Array<{ x0: number; x1: number }> = [];
+  const sksBoxes: Array<{ x0: number; x1: number }> = [];
+
+  for (const line of lines) {
+    for (const w of line.words) {
+      if (normalizeHari(w.text, userMappings)) {
+        dayBoxes.push({ x0: w.bbox.x0, x1: w.bbox.x1 });
+      }
+      if (normalizeTime(w.text) || extractTimePairFromCell(w.text)) {
+        timeBoxes.push({ x0: w.bbox.x0, x1: w.bbox.x1 });
+      }
+      if (normalizeCourseCode(w.text, userMappings)) {
+        codeBoxes.push({ x0: w.bbox.x0, x1: w.bbox.x1 });
+      }
+      if (/^[1-8]$/.test(w.text)) {
+        sksBoxes.push({ x0: w.bbox.x0, x1: w.bbox.x1 });
+      }
+    }
+  }
+
+  if (timeBoxes.length < 2) return null;
+
+  const computeSpan = (boxes: Array<{ x0: number; x1: number }>) => {
+    if (boxes.length === 0) return null;
+    const sortedX0 = boxes.map((b) => b.x0).sort((a, b) => a - b);
+    const sortedX1 = boxes.map((b) => b.x1).sort((a, b) => a - b);
+    const q1Idx = Math.floor(boxes.length * 0.15);
+    const q3Idx = Math.ceil(boxes.length * 0.85) - 1;
+    return {
+      x0: sortedX0[q1Idx],
+      x1: sortedX1[Math.max(q1Idx, q3Idx)],
+      count: boxes.length,
+    };
+  };
+
+  const daySpan = computeSpan(dayBoxes);
+  const timeSpan = computeSpan(timeBoxes);
+  const codeSpan = computeSpan(codeBoxes);
+  const sksSpan = computeSpan(sksBoxes);
+
+  const cols: DetectedColumnHeader[] = [];
+
+  if (daySpan && (!timeSpan || daySpan.x1 < timeSpan.x0)) {
+    cols.push({
+      field: "hari",
+      label: "Hari",
+      x0: daySpan.x0,
+      x1: daySpan.x1,
+      y0: 0,
+      y1: 0,
+      minX: 0,
+      maxX: timeSpan ? (daySpan.x1 + timeSpan.x0) / 2 : daySpan.x1 + 40,
+    });
+  }
+
+  if (timeSpan) {
+    const prevCol = cols.length > 0 ? cols[cols.length - 1] : null;
+    const minX = prevCol ? prevCol.maxX : 0;
+    const nextBoundary = codeSpan ? (timeSpan.x1 + codeSpan.x0) / 2 : timeSpan.x1 + 60;
+    cols.push({
+      field: "waktuGabungan",
+      label: "Waktu",
+      x0: timeSpan.x0,
+      x1: timeSpan.x1,
+      y0: 0,
+      y1: 0,
+      minX,
+      maxX: nextBoundary,
+    });
+  }
+
+  const afterTimeX = timeSpan ? timeSpan.x1 + 20 : 250;
+  const beforeEndCol = codeSpan ? codeSpan.x0 - 20 : sksSpan ? sksSpan.x0 - 20 : 800;
+  if (beforeEndCol > afterTimeX + 40) {
+    const prevCol = cols.length > 0 ? cols[cols.length - 1] : null;
+    cols.push({
+      field: "namaMatkul",
+      label: "Mata Kuliah",
+      x0: afterTimeX,
+      x1: beforeEndCol,
+      y0: 0,
+      y1: 0,
+      minX: prevCol ? prevCol.maxX : afterTimeX,
+      maxX: beforeEndCol,
+    });
+  }
+
+  if (codeSpan && codeSpan.x0 > afterTimeX) {
+    const prevCol = cols.length > 0 ? cols[cols.length - 1] : null;
+    cols.push({
+      field: "kodeMatkul",
+      label: "Kode MK",
+      x0: codeSpan.x0,
+      x1: codeSpan.x1,
+      y0: 0,
+      y1: 0,
+      minX: prevCol ? prevCol.maxX : codeSpan.x0 - 20,
+      maxX: sksSpan ? (codeSpan.x1 + sksSpan.x0) / 2 : Infinity,
+    });
+  }
+
+  if (sksSpan && cols.length > 0) {
+    const prevCol = cols[cols.length - 1];
+    cols.push({
+      field: "sks",
+      label: "SKS",
+      x0: sksSpan.x0,
+      x1: sksSpan.x1,
+      y0: 0,
+      y1: 0,
+      minX: prevCol.maxX,
+      maxX: Infinity,
+    });
+  }
+
+  return cols.filter((c) => c.field !== "ignore").length >= 3 ? cols : null;
 }
 
 /**
@@ -1123,6 +1578,15 @@ export function detectScheduleLayout(input: {
 }): LayoutDetectionResult {
   if (Array.isArray(input.words) && input.words.length > 0) {
     const vLines = groupWordsIntoVisualLines(input.words);
+    const gridHeader = detectMatrixGridHeaderFromLines(vLines);
+    if (gridHeader) {
+      return {
+        kind: "matrix_grid_table",
+        label: "Tabel Matriks Jadwal (Kolom Hari, Baris Jam)",
+        hasRecognizedHeaders: true,
+        detectedColumns: ["waktu", ...gridHeader.dayColumns.map((d) => d.day)],
+      };
+    }
     const headerInfo = detectTableHeaderFromLines(vLines);
     if (headerInfo) {
       return classifyColumnsToLayout(headerInfo.columns.map((c) => c.field));
@@ -1134,6 +1598,32 @@ export function detectScheduleLayout(input: {
     .split(/\r?\n/)
     .map((l) => l.trimEnd())
     .filter((l) => l.trim().length > 0 && !/^--\s*\d+\s+of\s+\d+\s*--$/i.test(l));
+
+  // Check for text-based matrix grid layout (header line contains 2 or more days)
+  for (const line of lines) {
+    const dayMatches = (line.match(/\b(senin|selasa|rabu|kamis|jumat|jum'at|sabtu|minggu)\b/gi) || []).length;
+    if (dayMatches >= 2) {
+      return {
+        kind: "matrix_grid_table",
+        label: "Tabel Matriks Jadwal (Format Kolom Hari)",
+        hasRecognizedHeaders: true,
+        detectedColumns: ["waktu", "hari"],
+      };
+    }
+  }
+
+  // Check for day-grouped subheader layout
+  const daySubheaderCount = lines.filter((l) =>
+    /^(?:hari\s*:?\s*|=+\s*)?(senin|selasa|rabu|kamis|jumat|jum'at|sabtu|minggu)(?:\s*=+)?$/i.test(l.trim())
+  ).length;
+  if (daySubheaderCount >= 2) {
+    return {
+      kind: "day_grouped_timetable",
+      label: "Jadwal Terkelompok per Hari (Seksi Hari)",
+      hasRecognizedHeaders: true,
+      detectedColumns: ["hari", "waktuMulai", "waktuSelesai", "namaMatkul"],
+    };
+  }
 
   for (const line of lines) {
     if (isHeaderTextLine(line)) {
@@ -1265,6 +1755,15 @@ export function parseScheduleFromWords(
   const visualLines = groupWordsIntoVisualLines(words);
   if (visualLines.length === 0) return [];
 
+  // Check if timetable is a Matrix/Grid layout (Days as columns, Times as rows)
+  const matrixHeader = detectMatrixGridHeaderFromLines(visualLines, userMappings);
+  if (matrixHeader) {
+    const matrixItems = parseMatrixGridFromWords(visualLines, matrixHeader, existingCourses, userMappings);
+    if (matrixItems.length > 0) {
+      return matrixItems;
+    }
+  }
+
   const headerInfo = detectTableHeaderFromLines(visualLines);
   if (!headerInfo) {
     // If no table header detected from words, reconstruct text from visual lines and delegate to text parser
@@ -1276,7 +1775,7 @@ export function parseScheduleFromWords(
 
   const { headerLineIndex, columns } = headerInfo;
   const layoutInfo = classifyColumnsToLayout(columns.map((c) => c.field));
-  const dataLines = visualLines.slice(headerLineIndex + 1);
+  const dataLines = headerLineIndex >= 0 ? visualLines.slice(headerLineIndex + 1) : visualLines;
   if (dataLines.length === 0) return [];
 
   interface BucketedLine {
@@ -1285,7 +1784,19 @@ export function parseScheduleFromWords(
     isAnchor: boolean;
   }
 
+  let activeSectionDay = "";
+
   const bucketedLines: BucketedLine[] = dataLines.map((vLine) => {
+    // Check if line is a standalone day header line (e.g. "SENIN" or "HARI: SENIN")
+    const lineText = vLine.words.map((w) => w.text).join(" ").trim();
+    const dayHeaderMatch = lineText.match(/^(?:hari\s*:?\s*|=+\s*)?(senin|selasa|rabu|kamis|jumat|jum'at|sabtu|minggu)(?:\s*=+)?$/i);
+    if (dayHeaderMatch) {
+      const parsedDay = normalizeHari(dayHeaderMatch[1], userMappings);
+      if (parsedDay) {
+        activeSectionDay = parsedDay;
+      }
+    }
+
     const buckets: Record<TableColumnField, OcrWord[]> = {
       hari: [],
       waktuMulai: [],
@@ -1305,6 +1816,13 @@ export function parseScheduleFromWords(
       if (/^[|¦—–_]+$/.test(w.text.trim())) continue;
       const colField = assignWordToColumn(w, columns, userMappings);
       buckets[colField].push(w);
+    }
+
+    if (buckets.hari.length === 0 && activeSectionDay && !dayHeaderMatch) {
+      buckets.hari.push({
+        text: activeSectionDay,
+        bbox: vLine.words[0].bbox,
+      });
     }
 
     // If waktuGabungan has words, split into waktuMulai and waktuSelesai
@@ -2093,28 +2611,35 @@ export function mergeVisionWithOcrSchedule(
           finalNama = lr.namaMatkul;
         } else if (lr.namaMatkul !== finalNama) {
           const sim = computeTextSimilarity(lr.namaMatkul, finalNama);
-          if (sim < 0.6) {
-            // Serious discrepancy
-            warnings.push(
-              `Perbedaan nama mata kuliah: Vision '${finalNama}' vs OCR Lokal '${lr.namaMatkul}'. Harap pastikan nama yang benar.`
-            );
-            tentativeSuggestions.namaMatkul = lr.namaMatkul;
-          } else if (isLocalConfirmed) {
+          const lrLower = lr.namaMatkul.toLowerCase().trim();
+          const vLower = finalNama.toLowerCase().trim();
+          const isSubstringOrSuper = vLower.includes(lrLower) || lrLower.includes(vLower);
+
+          if (isLocalConfirmed) {
             finalNama = lr.namaMatkul;
-          } else {
+          } else if (isSubstringOrSuper || sim >= 0.6) {
             // Check if local OCR has noise or column leakage (SKS, lecturer titles like Dr., Prof., Ir., M.T)
             const localHasNoise =
               /\b(sks|dr|prof|ir|drs|dra|phd|m\s*\.?\s*t|m\s*\.?\s*kom|\d+)\b|[|_\t\\]/i.test(lr.namaMatkul);
             const visionIsClean = !/[|_\t\\]/.test(finalNama);
 
-            if (localHasNoise && visionIsClean) {
-              // Keep clean vision name, do not overwrite with noisy local string
+            if (finalNama.length >= lr.namaMatkul.length || (localHasNoise && visionIsClean)) {
+              if (lr.namaMatkul !== finalNama) {
+                appliedCorrections.push(
+                  `Nama mata kuliah disempurnakan oleh Vision AI: '${lr.namaMatkul}' → '${finalNama}'`
+                );
+              }
             } else if (finalNama.includes(".") && !lr.namaMatkul.includes(".") && !localHasNoise) {
-              // Expand abbreviations (e.g. "Tek. Inf." -> "Teknologi Informasi")
               finalNama = lr.namaMatkul;
             } else if (lr.namaMatkul.length > finalNama.length && !localHasNoise) {
               finalNama = lr.namaMatkul;
             }
+          } else {
+            // Serious discrepancy between completely different course names
+            warnings.push(
+              `Perbedaan nama mata kuliah: Vision '${finalNama}' vs OCR Lokal '${lr.namaMatkul}'. Harap pastikan nama yang benar.`
+            );
+            tentativeSuggestions.namaMatkul = lr.namaMatkul;
           }
         }
       }
@@ -2250,6 +2775,9 @@ function isHeaderTextLine(line: string): boolean {
   if (/\bkartu\s+rencana\s+studi\b/.test(clean) && !/\bhari\b/.test(clean) && !/\bmulai\b/.test(clean)) {
     return false;
   }
+  const dayCount = (clean.match(/\b(senin|selasa|rabu|kamis|jumat|jum'at|sabtu|minggu)\b/gi) || []).length;
+  if (dayCount >= 2) return true;
+
   let matches = 0;
   if (/\bhari\b/.test(clean)) matches++;
   if (/\b(mulai|start)\b/.test(clean)) matches++;
@@ -2262,6 +2790,82 @@ function isHeaderTextLine(line: string): boolean {
   if (/\bsks\b/.test(clean)) matches++;
   if (/\b(dosen|pengajar|guru|instruktur)\b/.test(clean)) matches++;
   return matches >= 3;
+}
+
+function parseDelimitedMatrixGrid(
+  dataLines: string[],
+  delimiter: string,
+  dayCols: Array<{ day: string; colIdx: number }>,
+  existingCourses: ExistingSchedule[],
+  userMappings: UserScheduleMapping[]
+): ParsedScheduleItem[] {
+  const rawItems: Partial<ParsedScheduleItem>[] = [];
+
+  for (const line of dataLines) {
+    if (!line.includes(delimiter)) continue;
+    if (/^[\s|:-]+$/.test(line)) continue;
+    if (isHeaderTextLine(line)) continue;
+
+    const parts = splitDelimitedRow(line, delimiter, 0);
+    if (parts.length === 0) continue;
+
+    const timeCell = parts[0] || "";
+    const pair = extractTimePairFromCell(timeCell);
+    const waktuMulai = pair?.waktuMulai || normalizeTime(timeCell) || "";
+    const waktuSelesai = pair?.waktuSelesai || "";
+
+    for (const dc of dayCols) {
+      if (dc.colIdx < parts.length) {
+        const cellText = parts[dc.colIdx].trim();
+        if (cellText.length < 2) continue;
+
+        let kodeMatkul: string | null = null;
+        const codeMatch = cellText.match(/['"`‘“]?[A-Z]{2,4}[-\s]?\d{3,6}['"`’”]?/);
+        if (codeMatch) {
+          const cNorm = normalizeCourseCode(codeMatch[0], userMappings);
+          if (cNorm) kodeMatkul = cNorm.code;
+        }
+
+        let lokasi: string | null = null;
+        const roomMatch = cellText.match(/\b(?:R\.|Ruang|Lab|Studio|Gedung|D\.)\s*[A-Za-z0-9.-]+/i);
+        if (roomMatch) {
+          lokasi = cleanRoomName(roomMatch[0]);
+        }
+
+        let sks: number | null = null;
+        const sksMatch = cellText.match(/\b([1-8])\s*sks\b/i) || cellText.match(/\(([1-8])\)/);
+        if (sksMatch) sks = parseInt(sksMatch[1], 10);
+
+        let namaMatkul = cellText;
+        if (codeMatch) namaMatkul = namaMatkul.replace(codeMatch[0], "");
+        if (lokasi) namaMatkul = namaMatkul.replace(lokasi, "");
+        if (sksMatch) namaMatkul = namaMatkul.replace(sksMatch[0], "");
+        namaMatkul = cleanCourseName(namaMatkul);
+
+        if (namaMatkul && namaMatkul.length >= 2) {
+          rawItems.push({
+            namaMatkul,
+            hari: dc.day,
+            waktuMulai,
+            waktuSelesai,
+            lokasi,
+            kodeMatkul,
+            sks,
+            dosen: null,
+            kategori: "Wajib",
+            rawText: `[${dc.day} ${waktuMulai}-${waktuSelesai}] ${cellText}`,
+            layoutKind: "matrix_grid_table",
+            extractionSource: "local_ocr",
+          });
+        }
+      }
+    }
+  }
+
+  return finalizeScheduleBatch(rawItems, existingCourses, userMappings, {
+    layoutKind: "matrix_grid_table",
+    hasRecognizedHeaders: true,
+  });
 }
 
 /**
@@ -2291,6 +2895,15 @@ function parseDelimitedTableLines(
   for (let i = 0; i < lines.length; i++) {
     if (isHeaderTextLine(lines[i])) {
       const rawCells = splitDelimitedRow(lines[i], delimiter, 0);
+      const dayCells = rawCells.map((cell) => normalizeHari(cell, userMappings));
+      const validDayCols = dayCells
+        .map((d, colIdx) => ({ day: d, colIdx }))
+        .filter((c): c is { day: string; colIdx: number } => Boolean(c.day));
+
+      if (validDayCols.length >= 2) {
+        return parseDelimitedMatrixGrid(lines.slice(i + 1), delimiter, validDayCols, existingCourses, userMappings);
+      }
+
       const detectedMap = rawCells.map((cell) => classifyHeaderPhrase(cell) || "ignore");
       if (detectedMap.filter((f) => f !== "ignore").length >= 3) {
         columnMap = detectedMap;
@@ -2842,9 +3455,9 @@ function parseTabularTextLines(
 ): ParsedScheduleItem[] {
   const hasHeader = lines.some((l) => isHeaderTextLine(l));
 
-  // Pattern for a line that has two time tokens (Mulai & Akhir) with or without a hyphen
+  // Pattern for a line that has two time tokens (Mulai & Akhir) with or without spaces around hyphen/separator
   const twoTimesRegex =
-    /\b([0-9OQoIl|SBZ]{1,2}[:.][0-9OQoIl|SBZ]{2}(?:[:.][0-9OQoIl|SBZ]{2})?)\s*(?:-|–|—|s\.?d\.?|sampai|to)?\s+([0-9OQoIl|SBZ]{1,2}[:.][0-9OQoIl|SBZ]{2}(?:[:.][0-9OQoIl|SBZ]{2})?)\b/i;
+    /\b([0-9OQoIl|SBZ]{1,2}[:.][0-9OQoIl|SBZ]{2}(?:[:.][0-9OQoIl|SBZ]{2})?)(?:\s*(?:-|–|—|s\.?d\.?|sampai|to)\s*|\s+)([0-9OQoIl|SBZ]{1,2}[:.][0-9OQoIl|SBZ]{2}(?:[:.][0-9OQoIl|SBZ]{2})?)\b/i;
 
   const hasCourseCodeAnywhere = lines.some((l) =>
     l

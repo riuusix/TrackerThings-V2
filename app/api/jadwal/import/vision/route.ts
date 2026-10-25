@@ -58,6 +58,7 @@ export async function POST(req: NextRequest) {
 
     // 5. File Validation
     const file = formData.get("file") as File | null;
+    const rawTextParam = formData.get("rawText");
     if (!file) {
       return apiError("File dokumen jadwal wajib disertakan untuk vision fallback.", 400);
     }
@@ -117,13 +118,18 @@ export async function POST(req: NextRequest) {
     ]);
 
     // 10. Merge Vision Output with Local OCR Evidence (Phase E)
-    const detectedLayout = detectScheduleLayout({ text: "" });
+    const effectiveLayoutKind =
+      (visionResult.layoutKind as any) ||
+      (localItems.length > 0 && localItems[0].layoutKind) ||
+      (typeof rawTextParam === "string" && rawTextParam.trim().length > 0
+        ? detectScheduleLayout({ text: rawTextParam }).kind
+        : "unas_8col_table");
     const mergedItems = mergeVisionWithOcrSchedule(
       localItems,
       visionResult.rows,
       existingCourses,
       userMappings,
-      detectedLayout.kind
+      effectiveLayoutKind
     );
 
     const requiresReview = mergedItems.some((item) => item.needsReview);
@@ -155,7 +161,17 @@ export async function POST(req: NextRequest) {
         items: mergedItems,
         total: mergedItems.length,
         requires_review: requiresReview,
-        layout: detectedLayout,
+        layout: {
+          kind: effectiveLayoutKind,
+          label:
+            effectiveLayoutKind === "matrix_grid_table"
+              ? "Tabel Matriks Jadwal"
+              : effectiveLayoutKind === "day_grouped_timetable"
+              ? "Jadwal Terkelompok per Hari"
+              : "Tabel Akademik",
+          hasRecognizedHeaders: true,
+          detectedColumns: [],
+        },
         recognition_summary: {
           high_confidence_count: highConfidenceCount,
           needs_review_count: needsReviewCount,
