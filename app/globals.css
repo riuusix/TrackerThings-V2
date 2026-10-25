@@ -59,6 +59,18 @@ body {
   color: var(--text-primary);
 }
 
+/* Tabular numeral discipline for schedules, SKS, dates, and progress metrics */
+.font-mono,
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Consistent accessible focus-visible treatment */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* Custom Clean Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

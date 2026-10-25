@@ -17,6 +17,7 @@ export interface UserProfile {
   createdAt: Date;
   profileUpdatedAt: Date | null;
   passwordChangedAt: Date | null;
+  role?: string | null;
 }
 
 export interface JadwalItem {

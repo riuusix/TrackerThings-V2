@@ -9,10 +9,8 @@ import {
   Edit2,
   Trash2,
   Check,
-  CheckCircle2,
   Loader2,
   Clock,
-  Sparkles,
 } from "lucide-react";
 import { useToast } from "./ToastProvider";
 import { classifyApiError } from "@/lib/feedback";
@@ -159,35 +157,35 @@ export function TaskItem({ task, onEdit }: TaskItemProps) {
                 {task.namaTugas}
               </h4>
 
-              {/* Scannable Metadata Line (Course • Due Date • Priority) */}
+              {/* Scannable Metadata Line (Course · Due Date · Priority) */}
               <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 mt-1.5 text-xs text-content-secondary">
                 {task.jadwal?.namaMatkul && (
-                  <span className="font-medium text-accent hover:underline truncate max-w-[220px]">
+                  <span className="font-medium text-accent truncate max-w-[220px]">
                     {task.jadwal.namaMatkul}
                   </span>
                 )}
 
                 {task.jadwal?.namaMatkul && (
-                  <span className="text-content-muted">•</span>
+                  <span className="text-content-muted">·</span>
                 )}
 
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 font-mono tabular-nums">
                   <Calendar className="w-3.5 h-3.5 text-content-muted" />
                   <span>{formatIndonesianDate(task.deadline)}</span>
                 </div>
 
                 {isPast ? (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-800/40">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-800/40">
                     Terlewat
                   </span>
                 ) : isUrgent ? (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800/40">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800/40">
                     <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
                     {daysLeft === 0 ? "Hari Ini" : "Besok"}
                   </span>
                 ) : null}
 
-                <span className="text-content-muted">•</span>
+                <span className="text-content-muted">·</span>
 
                 {/* Restrained Priority Indicator: Color Dot + Label */}
                 <div className="flex items-center gap-1.5 font-medium">
@@ -197,7 +195,7 @@ export function TaskItem({ task, onEdit }: TaskItemProps) {
 
                 {task.jenis && (
                   <>
-                    <span className="text-content-muted">•</span>
+                    <span className="text-content-muted">·</span>
                     <span className="text-content-muted">{task.jenis}</span>
                   </>
                 )}
@@ -211,6 +209,7 @@ export function TaskItem({ task, onEdit }: TaskItemProps) {
                 onClick={() => onEdit(task)}
                 disabled={isPending || isDeleting}
                 title="Edit Tugas"
+                aria-label="Edit Tugas"
                 className="p-1.5 rounded-lg text-content-secondary hover:text-content-primary hover:bg-surface border border-transparent hover:border-line transition-all active:scale-95 disabled:opacity-50"
               >
                 <Edit2 className="w-3.5 h-3.5" />
@@ -222,6 +221,7 @@ export function TaskItem({ task, onEdit }: TaskItemProps) {
                 disabled={isDeleting || isPending}
                 aria-busy={isDeleting}
                 title="Hapus Tugas"
+                aria-label="Hapus Tugas"
                 className="p-1.5 rounded-lg text-content-secondary hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-transparent hover:border-rose-200 dark:hover:border-rose-800/40 transition-all active:scale-95 disabled:opacity-50"
               >
                 {isDeleting ? (
@@ -240,7 +240,7 @@ export function TaskItem({ task, onEdit }: TaskItemProps) {
                 Progress
                 {isPending && <Loader2 className="w-3 h-3 animate-spin text-accent" />}
               </span>
-              <span className="font-bold text-accent">{progress}%</span>
+              <span className="font-mono tabular-nums font-bold text-accent">{progress}%</span>
             </div>
 
             <div className="relative flex items-center">
@@ -250,6 +250,7 @@ export function TaskItem({ task, onEdit }: TaskItemProps) {
                 max="100"
                 step="5"
                 value={progress}
+                aria-label={`Progress tugas ${task.namaTugas}`}
                 onChange={(e) => handleProgressChange(parseInt(e.target.value, 10))}
                 className="w-full h-1.5 bg-surface rounded-lg appearance-none cursor-pointer accent-accent transition-all"
               />

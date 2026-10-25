@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getAuthSession } from "@/lib/auth";
+import { getAuthSession, createSession } from "@/lib/auth";
 import { apiSuccess, apiError } from "@/lib/apiResponse";
 
 export const dynamic = "force-dynamic";
@@ -75,6 +75,7 @@ export async function PUT(req: NextRequest) {
       return apiError("Payload permintaan tidak valid.", 400);
     }
 
+    const rawUsername = typeof body.username === "string" ? body.username.trim() : null;
     const fullName = typeof body.full_name === "string" 
       ? body.full_name.trim() 
       : (typeof body.fullName === "string" ? body.fullName.trim() : null);
@@ -86,6 +87,29 @@ export async function PUT(req: NextRequest) {
     const profilePictureUrl = typeof body.profile_picture_url === "string" 
       ? body.profile_picture_url.trim() 
       : (typeof body.profilePictureUrl === "string" ? body.profilePictureUrl.trim() : null);
+
+    if (rawUsername !== null) {
+      if (rawUsername.length === 0) {
+        return apiError("Username tidak boleh kosong.", 400);
+      }
+      const usernameRegex = /^[a-zA-Z0-9_.-]{3,30}$/;
+      if (!usernameRegex.test(rawUsername)) {
+        return apiError(
+          "Username hanya boleh berisi huruf, angka, garis bawah (_), titik (.), atau tanda hubung (-), dengan panjang 3-30 karakter.",
+          400
+        );
+      }
+      const existingUsername = await prisma.user.findFirst({
+        where: {
+          username: { equals: rawUsername, mode: "insensitive" },
+          id: { not: session.userId },
+        },
+        select: { id: true },
+      });
+      if (existingUsername) {
+        return apiError("Username sudah digunakan oleh akun lain, silakan pilih yang lain.", 409);
+      }
+    }
 
     if (fullName !== null && fullName.length === 0) {
       return apiError("Nama lengkap tidak boleh kosong.", 400);
@@ -115,6 +139,7 @@ export async function PUT(req: NextRequest) {
       profileUpdatedAt: new Date(),
     };
 
+    if (rawUsername !== null) updatePayload.username = rawUsername;
     if (fullName !== null) updatePayload.fullName = fullName;
     if (email) updatePayload.email = email;
     if (phoneNumber !== null) updatePayload.phoneNumber = phoneNumber;
@@ -134,6 +159,18 @@ export async function PUT(req: NextRequest) {
         profileUpdatedAt: true,
       },
     });
+
+    // Refresh session cookie for web clients
+    try {
+      await createSession({
+        id: updatedUser.id,
+        username: updatedUser.username,
+        email: updatedUser.email,
+        role: updatedUser.role || "user",
+      });
+    } catch {
+      // Ignored if outside cookie context
+    }
 
     const role = updatedUser.role || "user";
 
@@ -158,4 +195,3 @@ export async function PUT(req: NextRequest) {
     return apiError("Terjadi kesalahan internal pada server.", 500);
   }
 }
-

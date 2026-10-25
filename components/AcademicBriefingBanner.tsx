@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Sparkles,
   BookOpen,
   Clock,
   GraduationCap,
@@ -38,8 +37,7 @@ export function AcademicBriefingBanner({ summary }: AcademicBriefingBannerProps)
       case "moderate":
         return {
           label: "Beban Moderat",
-          className:
-            "bg-accent-muted text-accent border-line-subtle",
+          className: "bg-accent-muted text-accent border-line-subtle",
           dotColor: "bg-accent",
         };
       default:
@@ -55,72 +53,78 @@ export function AcademicBriefingBanner({ summary }: AcademicBriefingBannerProps)
   const badge = getStatusBadge(briefing?.status);
 
   return (
-    <div className="relative rounded-2xl p-5 sm:p-6 bg-surface-elevated border border-line shadow-2xs space-y-4 overflow-hidden">
+    <section
+      aria-label="Ringkasan Akademik Hari Ini"
+      className="relative rounded-2xl bg-surface-elevated border border-line shadow-2xs overflow-hidden"
+    >
       {/* Subtle Soft-Blue Left Accent Rail */}
-      <div className="absolute top-0 left-0 bottom-0 w-1 bg-accent/60" />
+      <div className="absolute top-0 left-0 bottom-0 w-1 bg-accent" />
 
-      {/* Top Meta & Status Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pl-1">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-accent-muted border border-line-subtle flex items-center justify-center text-accent">
-            <Sparkles className="w-3.5 h-3.5" />
-          </div>
-          <span className="text-xs font-bold uppercase tracking-wider text-content-secondary">
-            Ringkasan Akademik Hari Ini
-          </span>
-          {briefing && (
-            <span className="hidden sm:inline text-xs text-content-muted font-normal">
-              • {briefing.dayName}, {briefing.date}
+      {/* Top Narrative Strip */}
+      <div className="p-5 sm:px-6 sm:py-5 pl-6 flex flex-col lg:flex-row lg:items-center justify-between gap-3.5">
+        <div className="space-y-1.5 max-w-3xl">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-accent">
+              Ringkasan Akademik Hari Ini
             </span>
+            {briefing && (
+              <span className="text-xs font-mono tabular-nums text-content-muted">
+                · {briefing.dayName}, {briefing.date}
+              </span>
+            )}
+          </div>
+
+          {briefing && (
+            <p className="text-base sm:text-lg font-bold text-content-primary leading-snug tracking-tight">
+              {briefing.headline}
+            </p>
           )}
         </div>
 
         <div
-          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border shadow-2xs ${badge.className}`}
+          className={`self-start lg:self-center inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold border shrink-0 ${badge.className}`}
         >
           <span className={`w-1.5 h-1.5 rounded-full ${badge.dotColor}`} />
           <span>{badge.label}</span>
         </div>
       </div>
 
-      {/* Editorial Narrative Headline */}
+      {/* Hairline-Divided Metric Strip (Eliminating Card-Inside-Card Nesting) */}
       {briefing && (
-        <div className="pl-1">
-          <p className="text-base sm:text-lg font-bold text-content-primary leading-snug tracking-tight">
-            {briefing.headline}
-          </p>
-        </div>
-      )}
-
-      {/* Scannable Metric Counters Grid */}
-      {briefing && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1 pl-1">
+        <div className="border-t border-line bg-surface/40 grid grid-cols-2 sm:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-line pl-1">
           {/* Today's Classes */}
-          <div className="p-3 rounded-xl bg-surface/70 border border-line-subtle">
+          <div className="px-4 py-3.5 sm:px-5">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-content-secondary font-medium">Jadwal Kuliah</span>
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-content-muted">
+                Jadwal Kuliah
+              </span>
               <BookOpen className="w-3.5 h-3.5 text-accent" />
             </div>
-            <div className="text-xl sm:text-2xl font-black text-content-primary tracking-tight">
-              {briefing.todayClassesCount} <span className="text-xs font-semibold text-content-muted">Kelas</span>
+            <div className="text-xl sm:text-2xl font-black font-mono tabular-nums text-content-primary tracking-tight">
+              {briefing.todayClassesCount}{" "}
+              <span className="text-xs font-sans font-semibold text-content-secondary">
+                Kelas
+              </span>
             </div>
-            <div className="text-[11px] text-content-muted mt-0.5">
+            <div className="text-[11px] font-mono tabular-nums text-content-muted mt-0.5">
               {briefing.todayTotalSks} SKS hari ini
             </div>
           </div>
 
           {/* Overdue Tasks */}
           <div
-            className={`p-3 rounded-xl border ${
+            className={`px-4 py-3.5 sm:px-5 ${
               briefing.overdueTasksCount > 0
-                ? "bg-rose-50/40 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/40"
-                : "bg-surface/70 border-line-subtle"
+                ? "bg-rose-50/40 dark:bg-rose-950/20"
+                : ""
             }`}
           >
             <div className="flex items-center justify-between mb-1">
               <span
-                className={`text-xs font-medium ${
-                  briefing.overdueTasksCount > 0 ? "text-rose-700 dark:text-rose-300" : "text-content-secondary"
+                className={`text-[11px] font-semibold uppercase tracking-wider ${
+                  briefing.overdueTasksCount > 0
+                    ? "text-rose-700 dark:text-rose-300"
+                    : "text-content-muted"
                 }`}
               >
                 Tugas Terlewat
@@ -132,41 +136,58 @@ export function AcademicBriefingBanner({ summary }: AcademicBriefingBannerProps)
               )}
             </div>
             <div
-              className={`text-xl sm:text-2xl font-black tracking-tight ${
+              className={`text-xl sm:text-2xl font-black font-mono tabular-nums tracking-tight ${
                 briefing.overdueTasksCount > 0
                   ? "text-rose-700 dark:text-rose-300"
                   : "text-content-primary"
               }`}
             >
-              {briefing.overdueTasksCount} <span className="text-xs font-semibold text-content-muted">Tugas</span>
+              {briefing.overdueTasksCount}{" "}
+              <span className="text-xs font-sans font-semibold text-content-secondary">
+                Tugas
+              </span>
             </div>
             <div className="text-[11px] text-content-muted mt-0.5">
-              {briefing.overdueTasksCount > 0 ? "Perlu segera ditinjau" : "Semua terkendali"}
+              {briefing.overdueTasksCount > 0
+                ? "Perlu segera ditinjau"
+                : "Semua terkendali"}
             </div>
           </div>
 
           {/* Due Today Tasks */}
-          <div className="p-3 rounded-xl bg-surface/70 border border-line-subtle">
+          <div className="px-4 py-3.5 sm:px-5">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-content-secondary font-medium">Tenggat Hari Ini</span>
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-content-muted">
+                Tenggat Hari Ini
+              </span>
               <Clock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
             </div>
-            <div className="text-xl sm:text-2xl font-black text-content-primary tracking-tight">
-              {briefing.dueTodayTasksCount} <span className="text-xs font-semibold text-content-muted">Tugas</span>
+            <div className="text-xl sm:text-2xl font-black font-mono tabular-nums text-content-primary tracking-tight">
+              {briefing.dueTodayTasksCount}{" "}
+              <span className="text-xs font-sans font-semibold text-content-secondary">
+                Tugas
+              </span>
             </div>
             <div className="text-[11px] text-content-muted mt-0.5">
-              {briefing.dueTodayTasksCount > 0 ? "Batas akhir 23:59" : "Tidak ada batas akhir"}
+              {briefing.dueTodayTasksCount > 0
+                ? "Batas akhir 23:59"
+                : "Tidak ada batas akhir"}
             </div>
           </div>
 
           {/* Upcoming Exams (7 Days) */}
-          <div className="p-3 rounded-xl bg-surface/70 border border-line-subtle">
+          <div className="px-4 py-3.5 sm:px-5">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-content-secondary font-medium">Ujian Mendatang</span>
-              <GraduationCap className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-content-muted">
+                Ujian Mendatang
+              </span>
+              <GraduationCap className="w-3.5 h-3.5 text-accent" />
             </div>
-            <div className="text-xl sm:text-2xl font-black text-content-primary tracking-tight">
-              {briefing.upcomingExamsCount} <span className="text-xs font-semibold text-content-muted">Ujian</span>
+            <div className="text-xl sm:text-2xl font-black font-mono tabular-nums text-content-primary tracking-tight">
+              {briefing.upcomingExamsCount}{" "}
+              <span className="text-xs font-sans font-semibold text-content-secondary">
+                Ujian
+              </span>
             </div>
             <div className="text-[11px] text-content-muted mt-0.5">
               Dalam 7 hari ke depan
@@ -177,7 +198,7 @@ export function AcademicBriefingBanner({ summary }: AcademicBriefingBannerProps)
 
       {/* Schedule Conflicts Alert Banner */}
       {conflicts.length > 0 && (
-        <div className="p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/40 text-rose-800 dark:text-rose-200 text-xs sm:text-sm space-y-1.5 animate-in fade-in-50 duration-200 ml-1">
+        <div className="px-6 py-3.5 bg-rose-50 dark:bg-rose-950/30 border-t border-rose-200 dark:border-rose-800/40 text-rose-800 dark:text-rose-200 text-xs sm:text-sm space-y-1.5">
           <div className="flex items-center gap-2 font-bold text-rose-700 dark:text-rose-300">
             <AlertOctagon className="w-4 h-4 shrink-0" />
             <span>Peringatan Bentrok Jadwal Kuliah ({conflicts.length})</span>
@@ -191,6 +212,6 @@ export function AcademicBriefingBanner({ summary }: AcademicBriefingBannerProps)
           </ul>
         </div>
       )}
-    </div>
+    </section>
   );
 }

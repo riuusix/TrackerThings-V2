@@ -20,8 +20,8 @@ import {
   Edit2,
   Trash2,
   Loader2,
-  BookOpen,
   FileText,
+  CheckCircle2,
 } from "lucide-react";
 import { useToast } from "@/components/ToastProvider";
 import { classifyApiError } from "@/lib/feedback";
@@ -46,7 +46,9 @@ export function UjianClient({
   const router = useRouter();
   const [exams, setExams] = useState(initialExams);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [examToEdit, setExamToEdit] = useState<(UjianItem & { jadwal?: { namaMatkul: string } }) | null>(null);
+  const [examToEdit, setExamToEdit] = useState<
+    (UjianItem & { jadwal?: { namaMatkul: string } }) | null
+  >(null);
   const [isPending, startTransition] = useTransition();
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -62,7 +64,9 @@ export function UjianClient({
     setIsModalOpen(true);
   };
 
-  const handleOpenEdit = (exam: UjianItem & { jadwal?: { namaMatkul: string } }) => {
+  const handleOpenEdit = (
+    exam: UjianItem & { jadwal?: { namaMatkul: string } }
+  ) => {
     setExamToEdit(exam);
     setError(null);
     setIsModalOpen(true);
@@ -79,11 +83,17 @@ export function UjianClient({
         showSuccess("Jadwal ujian berhasil dihapus.");
         router.refresh();
       } else {
-        const friendly = classifyApiError(res.error, "Gagal menghapus jadwal ujian.");
+        const friendly = classifyApiError(
+          res.error,
+          "Gagal menghapus jadwal ujian."
+        );
         showError(friendly);
       }
     } catch (err) {
-      const friendly = classifyApiError(err, "Gagal memproses penghapusan ujian.");
+      const friendly = classifyApiError(
+        err,
+        "Gagal memproses penghapusan ujian."
+      );
       showError(friendly);
     } finally {
       setDeletingId(null);
@@ -115,12 +125,18 @@ export function UjianClient({
           setIsModalOpen(false);
           router.refresh();
         } else {
-          const friendly = classifyApiError(res.error, "Gagal menyimpan jadwal ujian.");
+          const friendly = classifyApiError(
+            res.error,
+            "Gagal menyimpan jadwal ujian."
+          );
           setError(friendly);
           showError(friendly);
         }
       } catch (err) {
-        const friendly = classifyApiError(err, "Gagal memproses jadwal ujian.");
+        const friendly = classifyApiError(
+          err,
+          "Gagal memproses jadwal ujian."
+        );
         setError(friendly);
         showError(friendly);
       }
@@ -133,158 +149,285 @@ export function UjianClient({
     return dateObj.toISOString().slice(0, 10);
   };
 
+  // Partition exams into Upcoming (including Today) vs Past
+  const upcomingExams = exams
+    .filter((u) => getDaysDifference(u.tanggal) >= 0)
+    .sort(
+      (a, b) => new Date(a.tanggal).getTime() - new Date(b.tanggal).getTime()
+    );
+
+  const pastExams = exams
+    .filter((u) => getDaysDifference(u.tanggal) < 0)
+    .sort(
+      (a, b) => new Date(b.tanggal).getTime() - new Date(a.tanggal).getTime()
+    );
+
   return (
-    <div className="min-h-screen bg-canvas text-content-primary pb-16">
+    <div className="min-h-screen bg-canvas text-content-primary pb-20">
       <Navbar
         username={username}
         userEmail={userEmail}
         profilePictureUrl={profilePictureUrl}
       />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-line">
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 pt-7 sm:pt-9 space-y-7">
+        {/* Editorial Page Header (No Decorative Eyebrow Pill) */}
+        <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-4 border-b border-line">
           <div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-[11px] px-3 py-1 rounded-full font-semibold bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60">
-                Jadwal Evaluasi
+            <div className="flex items-center gap-2 mb-1.5 text-xs text-content-secondary font-medium">
+              <span className="text-accent font-semibold">Evaluasi Akademik</span>
+              <span className="text-content-muted">·</span>
+              <span className="font-mono tabular-nums text-content-muted">
+                {upcomingExams.length} Mendatang · {pastExams.length} Selesai
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-content-primary tracking-tight">
               Jadwal Ujian Semester
             </h1>
-            <p className="text-sm text-content-secondary mt-1">
-              Persiapkan Ujian Tengah Semester (UTS), UAS, dan kuis akademik Anda.
+            <p className="text-xs sm:text-sm text-content-secondary mt-1">
+              Pantau hitung mundur Ujian Tengah Semester (UTS), UAS, kuis, dan materi evaluasi Anda.
             </p>
           </div>
 
           <button
+            type="button"
             onClick={handleOpenAdd}
             disabled={courses.length === 0}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm text-accent-text bg-accent hover:bg-accent-hover shadow-xs transition-all duration-200 self-start sm:self-auto active:scale-95 disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-xs sm:text-sm text-accent-text bg-accent hover:bg-accent-hover shadow-xs transition-all duration-200 self-start sm:self-auto active:scale-95 disabled:opacity-50 shrink-0"
           >
             <Plus className="w-4 h-4" />
             <span>Tambah Jadwal Ujian</span>
           </button>
-        </div>
+        </header>
 
-        {/* Exams Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {exams.length === 0 ? (
-            <div className="col-span-full bg-surface-elevated border border-line rounded-2xl p-12 text-center shadow-xs">
-              <GraduationCap className="w-12 h-12 text-content-muted mx-auto mb-3 opacity-60" />
-              <h3 className="font-bold text-content-primary text-lg">
-                Belum Ada Jadwal Ujian
-              </h3>
-              <p className="text-sm text-content-secondary mt-1 max-w-md mx-auto">
-                {courses.length === 0
-                  ? "Tambahkan mata kuliah terlebih dahulu sebelum menjadwalkan ujian."
-                  : "Klik tombol Tambah Jadwal Ujian untuk mencatat jadwal UTS atau UAS Anda."}
-              </p>
-            </div>
-          ) : (
-            exams.map((u) => {
-              const daysLeft = getDaysDifference(u.tanggal);
-              const isPast = daysLeft < 0;
-              const isToday = daysLeft === 0;
+        {exams.length === 0 ? (
+          <div className="bg-surface-elevated border border-line rounded-2xl p-12 text-center shadow-2xs">
+            <GraduationCap className="w-10 h-10 text-content-muted mx-auto mb-3 opacity-60" />
+            <h3 className="font-bold text-content-primary text-base sm:text-lg">
+              Belum Ada Jadwal Ujian
+            </h3>
+            <p className="text-xs sm:text-sm text-content-secondary mt-1 max-w-md mx-auto">
+              {courses.length === 0
+                ? "Tambahkan mata kuliah terlebih dahulu sebelum menjadwalkan ujian."
+                : "Klik tombol Tambah Jadwal Ujian untuk mencatat jadwal UTS, UAS, atau kuis Anda."}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-8">
+            {/* Section 1: Chronological Upcoming Exams Countdown */}
+            <section className="space-y-3.5" aria-label="Evaluasi Mendatang">
+              <div className="flex items-center justify-between px-1">
+                <div className="flex items-center gap-2">
+                  <GraduationCap className="w-4 h-4 text-accent shrink-0" />
+                  <h2 className="text-base font-bold text-content-primary tracking-tight">
+                    Evaluasi Mendatang
+                  </h2>
+                </div>
+                <span className="text-xs font-mono tabular-nums font-semibold px-2.5 py-0.5 rounded-md bg-accent-muted text-accent border border-line-subtle">
+                  {upcomingExams.length} Jadwal
+                </span>
+              </div>
 
-              return (
-                <div
-                  key={u.id}
-                  className={`bg-surface-elevated rounded-2xl p-5 flex flex-col justify-between hover:shadow-md transition-all duration-200 border ${
-                    isPast
-                      ? "opacity-60 border-line"
-                      : isToday
-                      ? "border-rose-500/60 dark:border-rose-500/60 shadow-xs ring-1 ring-rose-500/30"
-                      : "border-line hover:border-line-strong shadow-xs"
-                  }`}
-                >
-                  <div>
-                    <div className="flex items-start justify-between gap-2 mb-3">
-                      <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-rose-50 text-rose-700 dark:bg-rose-950/80 dark:text-rose-300 border border-rose-200 dark:border-rose-900">
-                        {u.jenisUjian}
-                      </span>
+              {upcomingExams.length === 0 ? (
+                <div className="rounded-2xl p-7 text-center bg-surface-elevated border border-line shadow-2xs">
+                  <CheckCircle2 className="w-7 h-7 text-emerald-500 mx-auto mb-2 opacity-80" />
+                  <p className="text-sm font-semibold text-content-primary">
+                    Tidak Ada Ujian Aktif Mendatang
+                  </p>
+                  <p className="text-xs text-content-secondary mt-0.5">
+                    Seluruh jadwal evaluasi yang tercatat telah selesai dilaksanakan.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {upcomingExams.map((u) => {
+                    const daysLeft = getDaysDifference(u.tanggal);
+                    const isToday = daysLeft === 0;
+                    const isSoon = daysLeft > 0 && daysLeft <= 3;
 
-                      {isPast ? (
-                        <span className="text-xs px-2.5 py-0.5 rounded-full font-medium bg-surface text-content-muted border border-line">
-                          Selesai
+                    return (
+                      <div
+                        key={u.id}
+                        className={`rounded-2xl p-4 sm:p-5 bg-surface-elevated border transition-all duration-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xs ${
+                          isToday
+                            ? "border-rose-400 dark:border-rose-600"
+                            : isSoon
+                            ? "border-amber-300 dark:border-amber-700/70"
+                            : "border-line hover:border-line-strong"
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-4 min-w-0 flex-1">
+                          {/* Left Tabular Countdown Block */}
+                          <div
+                            className={`sm:w-28 shrink-0 py-3 px-3 rounded-xl border text-center ${
+                              isToday
+                                ? "bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/50 text-rose-700 dark:text-rose-300"
+                                : isSoon
+                                ? "bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/50 text-amber-700 dark:text-amber-300"
+                                : "bg-surface border-line-subtle text-content-primary"
+                            }`}
+                          >
+                            <span className="block text-[10px] font-bold uppercase tracking-wider opacity-75">
+                              {u.jenisUjian}
+                            </span>
+                            <p className="font-mono tabular-nums text-lg sm:text-xl font-black mt-0.5">
+                              {isToday ? "Hari Ini" : `H-${daysLeft}`}
+                            </p>
+                            <span className="block text-[10px] font-mono tabular-nums opacity-75 mt-0.5">
+                              {daysLeft === 0 ? "Berlangsung" : `${daysLeft} hari lagi`}
+                            </span>
+                          </div>
+
+                          {/* Center Exam Identity & Metadata */}
+                          <div className="min-w-0 flex-1 space-y-1.5">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/50">
+                                {u.jenisUjian}
+                              </span>
+                              <h3 className="text-base sm:text-lg font-bold text-content-primary tracking-tight truncate">
+                                {u.jadwal?.namaMatkul}
+                              </h3>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-content-secondary font-mono tabular-nums">
+                              <span className="inline-flex items-center gap-1.5">
+                                <Calendar className="w-3.5 h-3.5 text-content-muted shrink-0" />
+                                <span className="text-content-primary font-medium">
+                                  {formatIndonesianDate(u.tanggal)}
+                                </span>
+                              </span>
+
+                              {u.waktuMulai && (
+                                <span className="inline-flex items-center gap-1.5">
+                                  <Clock className="w-3.5 h-3.5 text-accent shrink-0" />
+                                  <span>
+                                    {u.waktuMulai}
+                                    {u.waktuSelesai ? ` – ${u.waktuSelesai}` : ""}
+                                  </span>
+                                </span>
+                              )}
+
+                              {u.ruangan && (
+                                <span className="inline-flex items-center gap-1.5 font-sans">
+                                  <MapPin className="w-3.5 h-3.5 text-content-muted shrink-0" />
+                                  <span className="font-medium text-content-primary">
+                                    {u.ruangan}
+                                  </span>
+                                </span>
+                              )}
+                            </div>
+
+                            {u.catatan && (
+                              <div className="pt-1 flex items-start gap-1.5 text-xs text-content-secondary">
+                                <FileText className="w-3.5 h-3.5 text-content-muted shrink-0 mt-0.5" />
+                                <span>
+                                  <strong className="text-content-primary">Materi/Catatan:</strong>{" "}
+                                  {u.catatan}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Right Action Controls */}
+                        <div className="flex items-center justify-end gap-1.5 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-line/50">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEdit(u)}
+                            disabled={deletingId !== null}
+                            className="p-2 rounded-lg text-content-secondary hover:text-content-primary hover:bg-surface border border-transparent hover:border-line transition-colors disabled:opacity-50"
+                            title="Edit Ujian"
+                            aria-label="Edit Ujian"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(u)}
+                            disabled={deletingId !== null}
+                            aria-busy={deletingId === u.id}
+                            className="p-2 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-transparent hover:border-rose-200 dark:border-rose-900 transition-colors disabled:opacity-50"
+                            title="Hapus Ujian"
+                            aria-label="Hapus Ujian"
+                          >
+                            {deletingId === u.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+
+            {/* Section 2: Completed / Past Exams Archive Ledger */}
+            {pastExams.length > 0 && (
+              <section className="space-y-3" aria-label="Riwayat Ujian Selesai">
+                <div className="flex items-center justify-between px-1">
+                  <h2 className="text-sm font-bold uppercase tracking-wider text-content-muted">
+                    Riwayat Evaluasi Selesai ({pastExams.length})
+                  </h2>
+                </div>
+
+                <div className="bg-surface-elevated border border-line rounded-2xl divide-y divide-line overflow-hidden opacity-80">
+                  {pastExams.map((u) => (
+                    <div
+                      key={u.id}
+                      className="px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-surface/40 transition-colors"
+                    >
+                      <div className="flex flex-wrap items-center gap-3 min-w-0">
+                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-surface text-content-secondary border border-line-subtle">
+                          {u.jenisUjian}
                         </span>
-                      ) : isToday ? (
-                        <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-rose-500 text-white animate-pulse">
-                          Hari Ini!
+                        <span className="font-bold text-sm text-content-primary truncate">
+                          {u.jadwal?.namaMatkul}
                         </span>
-                      ) : (
-                        <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-amber-50 text-amber-700 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-200 dark:border-amber-900/60">
-                          {daysLeft} hari lagi
+                        <span className="text-xs font-mono tabular-nums text-content-muted">
+                          · {formatIndonesianDate(u.tanggal)}
                         </span>
-                      )}
-                    </div>
-
-                    <h3 className="text-lg font-bold text-content-primary tracking-tight mb-3">
-                      {u.jadwal?.namaMatkul}
-                    </h3>
-
-                    <div className="space-y-2 text-xs sm:text-sm text-content-secondary">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-content-muted shrink-0" />
-                        <span>{formatIndonesianDate(u.tanggal)}</span>
+                        {u.ruangan && (
+                          <span className="text-xs text-content-muted">
+                            · {u.ruangan}
+                          </span>
+                        )}
                       </div>
 
-                      {u.waktuMulai && (
-                        <div className="flex items-center gap-2">
-                          <Clock className="w-4 h-4 text-accent shrink-0" />
-                          <span>
-                            {u.waktuMulai}
-                            {u.waktuSelesai ? ` - ${u.waktuSelesai}` : ""}
-                          </span>
-                        </div>
-                      )}
-
-                      {u.ruangan && (
-                        <div className="flex items-center gap-2">
-                          <MapPin className="w-4 h-4 text-rose-500 shrink-0" />
-                          <span className="truncate">{u.ruangan}</span>
-                        </div>
-                      )}
-
-                      {u.catatan && (
-                        <div className="p-2.5 rounded-xl bg-surface border border-line text-xs text-content-secondary mt-2">
-                          <strong className="text-content-primary">Materi/Catatan:</strong> {u.catatan}
-                        </div>
-                      )}
+                      <div className="flex items-center justify-end gap-1.5 shrink-0">
+                        <span className="text-[11px] font-medium text-content-muted mr-2">
+                          Selesai
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEdit(u)}
+                          disabled={deletingId !== null}
+                          className="p-1.5 rounded-lg text-content-muted hover:text-content-primary hover:bg-surface transition-colors"
+                          title="Edit Ujian"
+                          aria-label="Edit Ujian"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(u)}
+                          disabled={deletingId !== null}
+                          className="p-1.5 rounded-lg text-content-muted hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                          title="Hapus Ujian"
+                          aria-label="Hapus Ujian"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
-                  </div>
-
-                  <div className="flex items-center justify-end gap-2 pt-4 mt-4 border-t border-line">
-                    <button
-                      onClick={() => handleOpenEdit(u)}
-                      disabled={deletingId !== null}
-                      className="p-2 rounded-xl text-content-secondary hover:text-content-primary hover:bg-surface border border-transparent hover:border-line transition-colors disabled:opacity-50"
-                      title="Edit Ujian"
-                      aria-label="Edit Ujian"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(u)}
-                      disabled={deletingId !== null}
-                      aria-busy={deletingId === u.id}
-                      className="p-2 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-transparent hover:border-rose-200 dark:border-rose-900 transition-colors disabled:opacity-50"
-                      title="Hapus Ujian"
-                      aria-label="Hapus Ujian"
-                    >
-                      {deletingId === u.id ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="w-4 h-4" />
-                      )}
-                    </button>
-                  </div>
+                  ))}
                 </div>
-              );
-            })
-          )}
-        </div>
+              </section>
+            )}
+          </div>
+        )}
       </main>
 
       {/* Add / Edit Exam Modal */}
@@ -347,7 +490,7 @@ export function UjianClient({
                 name="tanggal"
                 required
                 defaultValue={formatForDateInput(examToEdit?.tanggal)}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-content-primary placeholder:text-content-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent text-sm transition-colors"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-content-primary placeholder:text-content-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent text-sm font-mono tabular-nums transition-colors"
               />
             </div>
           </div>
@@ -361,7 +504,7 @@ export function UjianClient({
                 type="time"
                 name="waktu_mulai"
                 defaultValue={examToEdit?.waktuMulai || "08:00"}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-content-primary placeholder:text-content-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent text-sm transition-colors"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-content-primary placeholder:text-content-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent text-sm font-mono tabular-nums transition-colors"
               />
             </div>
 
@@ -373,7 +516,7 @@ export function UjianClient({
                 type="time"
                 name="waktu_selesai"
                 defaultValue={examToEdit?.waktuSelesai || "10:00"}
-                className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-content-primary placeholder:text-content-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent text-sm transition-colors"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-surface border border-line text-content-primary placeholder:text-content-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent text-sm font-mono tabular-nums transition-colors"
               />
             </div>
           </div>

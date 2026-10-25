@@ -45,7 +45,6 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       onAction?: () => void;
       durationMs?: number;
     }) => {
-      // Prevent exact duplicate notifications from flooding
       setToasts((prev) => {
         const isDuplicate = prev.some((t) => t.message === message && t.severity === severity);
         if (isDuplicate) return prev;
@@ -55,10 +54,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           durationMs !== undefined
             ? durationMs
             : severity === "error"
-            ? 7000 // Errors stay longer to be read
+            ? 7000
             : severity === "warning"
             ? 5500
-            : 3800; // Success/Info dismiss faster
+            : 3800;
 
         const newToast: FeedbackMessage = {
           id,
@@ -70,7 +69,6 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           durationMs: autoDuration,
         };
 
-        // Keep maximum 3 toasts stacked at once
         const nextList = [...prev.slice(-2), newToast];
 
         if (autoDuration > 0) {
@@ -113,7 +111,6 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       }}
     >
       {children}
-      {/* Toast Render Viewport: Top-Right on Desktop, Top-Center on Mobile */}
       <div
         aria-live="polite"
         aria-atomic="true"
@@ -143,20 +140,20 @@ function ToastItem({
       case "warning":
         return <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />;
       default:
-        return <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />;
+        return <Info className="w-4 h-4 text-accent shrink-0" />;
     }
   };
 
   const getBorderAndBg = () => {
     switch (toast.severity) {
       case "success":
-        return "border-emerald-200/90 dark:border-emerald-800/60 bg-white/95 dark:bg-slate-900/95 text-slate-800 dark:text-slate-100 shadow-md shadow-slate-900/5";
+        return "border-emerald-300/80 dark:border-emerald-800/60 bg-surface-elevated/95 text-content-primary shadow-lg";
       case "error":
-        return "border-rose-200/90 dark:border-rose-800/60 bg-white/95 dark:bg-slate-900/95 text-slate-800 dark:text-slate-100 shadow-md shadow-slate-900/5";
+        return "border-rose-300/80 dark:border-rose-800/60 bg-surface-elevated/95 text-content-primary shadow-lg";
       case "warning":
-        return "border-amber-200/90 dark:border-amber-800/60 bg-white/95 dark:bg-slate-900/95 text-slate-800 dark:text-slate-100 shadow-md shadow-slate-900/5";
+        return "border-amber-300/80 dark:border-amber-800/60 bg-surface-elevated/95 text-content-primary shadow-lg";
       default:
-        return "border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 text-slate-800 dark:text-slate-100 shadow-md shadow-slate-900/5";
+        return "border-line bg-surface-elevated/95 text-content-primary shadow-lg";
     }
   };
 
@@ -168,11 +165,11 @@ function ToastItem({
       <div className="mt-0.5">{getIcon()}</div>
       <div className="flex-1 min-w-0">
         {toast.title && (
-          <p className="text-xs font-bold tracking-tight text-slate-900 dark:text-white mb-0.5">
+          <p className="text-xs font-bold tracking-tight text-content-primary mb-0.5">
             {toast.title}
           </p>
         )}
-        <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-300 break-words font-medium">
+        <p className="text-xs leading-relaxed text-content-secondary break-words font-medium">
           {toast.message}
         </p>
         {toast.actionLabel && toast.onAction && (
@@ -182,7 +179,7 @@ function ToastItem({
               toast.onAction?.();
               onDismiss();
             }}
-            className="mt-2 text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+            className="mt-2 text-[11px] font-semibold text-accent hover:underline"
           >
             {toast.actionLabel}
           </button>
@@ -192,7 +189,7 @@ function ToastItem({
         type="button"
         onClick={onDismiss}
         aria-label="Tutup notifikasi"
-        className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
+        className="p-1 rounded-lg text-content-muted hover:text-content-primary hover:bg-surface transition-colors shrink-0"
       >
         <X className="w-3.5 h-3.5" />
       </button>
@@ -207,4 +204,3 @@ export function useToast() {
   }
   return context;
 }
-

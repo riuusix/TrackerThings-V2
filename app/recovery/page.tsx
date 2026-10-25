@@ -85,7 +85,7 @@ export default function RecoveryPage() {
           </p>
         </div>
 
-        <div className="bg-surface-elevated border border-line rounded-3xl p-6 sm:p-8 shadow-xs">
+        <div className="bg-surface-elevated border border-line rounded-2xl p-6 sm:p-8 shadow-2xs">
           {error && (
             <div className="mb-5 p-3.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-400 text-sm flex items-start gap-2.5">
               <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />

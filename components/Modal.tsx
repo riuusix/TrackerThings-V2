@@ -37,20 +37,25 @@ export function Modal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto animate-in fade-in-50 duration-150">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto animate-in fade-in-50 duration-150"
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+    >
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-slate-900/50 dark:bg-black/70 backdrop-blur-xs transition-opacity"
+        className="fixed inset-0 bg-black/55 backdrop-blur-xs transition-opacity"
         onClick={onClose}
       />
 
       {/* Modal Dialog */}
       <div
-        className={`relative w-full ${maxWidth} max-h-[90vh] flex flex-col rounded-3xl p-6 sm:p-7 bg-surface-elevated border border-line shadow-xl z-10 animate-in zoom-in-95 duration-150`}
+        className={`relative w-full ${maxWidth} max-h-[90vh] flex flex-col rounded-2xl p-6 sm:p-7 bg-surface-elevated border border-line shadow-xl z-10 animate-in zoom-in-95 duration-150`}
       >
         <div className="flex items-start justify-between mb-4 border-b border-line pb-3.5 shrink-0">
           <div>
-            <h3 className="text-xl font-bold text-content-primary tracking-tight">
+            <h3 className="text-lg sm:text-xl font-bold text-content-primary tracking-tight">
               {title}
             </h3>
             {description && (

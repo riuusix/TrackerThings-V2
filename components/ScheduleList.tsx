@@ -33,7 +33,7 @@ export function ScheduleList({
     <div className="space-y-4">
       {/* 1. Day Selector Tabs (Senin - Minggu) */}
       <div className="rounded-2xl p-1.5 bg-surface border border-line shadow-2xs">
-        <div className="grid grid-cols-4 sm:grid-cols-7 gap-1">
+        <div className="grid grid-cols-4 sm:grid-cols-7 gap-1" role="tablist" aria-label="Pilih Hari Kuliah">
           {DAYS_OF_WEEK.map((day) => {
             const isActive = selectedDay === day;
             const count = schedulesByDay[day]?.length || 0;
@@ -41,6 +41,8 @@ export function ScheduleList({
               <button
                 key={day}
                 type="button"
+                role="tab"
+                aria-selected={isActive}
                 onClick={() => setSelectedDay(day)}
                 className={`relative z-10 flex flex-col items-center py-2 px-1 rounded-xl text-xs font-semibold transition-colors duration-150 ${
                   isActive
@@ -59,7 +61,7 @@ export function ScheduleList({
 
                 <span className="relative z-10">{day}</span>
                 <span
-                  className={`relative z-10 text-[10px] mt-0.5 px-1.5 rounded-full font-bold transition-colors ${
+                  className={`relative z-10 font-mono tabular-nums text-[10px] mt-0.5 px-1.5 rounded-md font-bold transition-colors ${
                     isActive
                       ? "bg-accent-text/25 text-accent-text"
                       : "bg-surface-elevated text-content-secondary border border-line-subtle"
@@ -73,19 +75,15 @@ export function ScheduleList({
         </div>
       </div>
 
-      {/* 2. Section Header Title */}
-      <div className="flex items-center justify-between px-1">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-accent-muted border border-line-subtle flex items-center justify-center text-accent shadow-2xs">
-            <CalendarDays className="w-4 h-4" />
-          </div>
-          <div>
-            <h3 className="text-base sm:text-lg font-bold text-content-primary tracking-tight">
-              Jadwal Kuliah: {selectedDay}
-            </h3>
-          </div>
+      {/* 2. Editorial Section Header */}
+      <div className="flex items-center justify-between px-1 pb-1 border-b border-line/60">
+        <div className="flex items-center gap-2">
+          <CalendarDays className="w-4 h-4 text-accent shrink-0" />
+          <h3 className="text-base sm:text-lg font-bold text-content-primary tracking-tight">
+            Jadwal Kuliah: <span className="text-accent">{selectedDay}</span>
+          </h3>
         </div>
-        <span className="text-xs px-2.5 py-1 rounded-full bg-surface-elevated border border-line text-content-secondary font-semibold shadow-2xs">
+        <span className="text-xs font-mono tabular-nums px-2.5 py-1 rounded-lg bg-surface-elevated border border-line text-content-secondary font-semibold shadow-2xs">
           {currentSchedule.length} Sesi
         </span>
       </div>
@@ -94,9 +92,7 @@ export function ScheduleList({
       <div className="space-y-3">
         {currentSchedule.length === 0 ? (
           <div className="rounded-2xl p-7 sm:p-9 text-center bg-surface-elevated border border-line shadow-2xs">
-            <div className="w-11 h-11 rounded-xl bg-accent-muted border border-line-subtle flex items-center justify-center text-accent mx-auto mb-2.5 shadow-2xs">
-              <BookOpen className="w-5 h-5" />
-            </div>
+            <BookOpen className="w-7 h-7 text-accent mx-auto mb-2.5 opacity-80" />
             <h4 className="font-bold text-content-primary text-sm sm:text-base">
               Tidak Ada Jadwal Kuliah
             </h4>

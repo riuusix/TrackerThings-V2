@@ -1,7 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
-import { Clock, MapPin, UserCheck, Sparkles, CheckCircle2, Loader2 } from "lucide-react";
+import { Clock, MapPin, UserCheck, CalendarClock, CheckCircle2, Loader2 } from "lucide-react";
 import { JadwalGabunganItem } from "@/types";
 import { selesaiKelasPenggantiAction } from "@/app/actions/kelasPengganti";
 import { useToast } from "./ToastProvider";
@@ -44,12 +44,14 @@ export function ScheduleCard({ item }: ScheduleCardProps) {
     >
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
         {/* Left Time Rail: Monospace Tabular Digits */}
-        <div className="flex sm:flex-col items-center sm:items-start gap-2 sm:gap-0.5 sm:w-28 shrink-0 sm:pr-3 sm:border-r border-line/60">
-          <div className="flex items-center gap-1.5 sm:gap-1 text-content-primary font-bold text-sm sm:text-base tracking-tight">
+        <div className="flex sm:flex-col items-center sm:items-start gap-2 sm:gap-0.5 sm:w-32 shrink-0 sm:pr-3.5 sm:border-r border-line/70">
+          <div className="flex items-center gap-1.5 sm:gap-1 font-mono tabular-nums text-content-primary font-bold text-sm sm:text-base tracking-tight">
             <Clock className="w-3.5 h-3.5 text-accent sm:hidden" />
             <span>{item.waktuMulai}</span>
-            <span className="text-content-muted font-normal text-xs">—</span>
-            <span className="text-content-secondary font-medium text-xs sm:text-sm">{item.waktuSelesai}</span>
+            <span className="text-content-muted font-normal text-xs">–</span>
+            <span className="text-content-secondary font-medium text-xs sm:text-sm">
+              {item.waktuSelesai}
+            </span>
           </div>
           <span className="text-[10px] text-content-muted hidden sm:inline uppercase tracking-wider font-medium">
             Waktu Kuliah
@@ -60,18 +62,18 @@ export function ScheduleCard({ item }: ScheduleCardProps) {
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2 mb-1">
             {isPengganti ? (
-              <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200 dark:border-amber-800/50">
-                <Sparkles className="w-3 h-3 text-amber-500" />
+              <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200 dark:border-amber-800/50">
+                <CalendarClock className="w-3 h-3 text-amber-500" />
                 Kelas Pengganti
               </span>
             ) : (
-              <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-accent-muted text-accent border border-line-subtle">
+              <span className="text-[11px] px-2 py-0.5 rounded-md font-semibold bg-accent-muted text-accent border border-line-subtle">
                 Reguler
               </span>
             )}
 
             {item.kategori && (
-              <span className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-surface text-content-secondary border border-line-subtle">
+              <span className="text-[11px] px-2 py-0.5 rounded-md font-medium bg-surface text-content-secondary border border-line-subtle">
                 {item.kategori}
               </span>
             )}
@@ -91,7 +93,7 @@ export function ScheduleCard({ item }: ScheduleCardProps) {
             )}
 
             {item.lokasi && item.dosen && (
-              <span className="text-content-muted">•</span>
+              <span className="text-content-muted">·</span>
             )}
 
             {item.dosen && (

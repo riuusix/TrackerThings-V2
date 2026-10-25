@@ -20,7 +20,7 @@ import {
   Clock,
   Plus,
   GraduationCap,
-  Sparkles,
+  CalendarPlus,
   MapPin,
 } from "lucide-react";
 
@@ -87,12 +87,14 @@ export function DashboardClient({
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 space-y-7">
         {/* Editorial Academic Greeting & Context Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-line">
+        <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-line">
           <div>
-            <div className="flex items-center gap-2 mb-1.5 text-xs text-content-secondary font-medium">
-              <span className="text-accent font-semibold">{todayFormatted}</span>
-              <span className="text-content-muted">•</span>
-              <span className="px-2 py-0.5 rounded-full bg-surface text-content-secondary border border-line-subtle text-[11px]">
+            <div className="flex flex-wrap items-center gap-2 mb-1.5 text-xs text-content-secondary font-medium">
+              <span className="text-accent font-semibold font-mono tabular-nums">
+                {todayFormatted}
+              </span>
+              <span className="text-content-muted">·</span>
+              <span className="text-content-secondary font-medium">
                 Semester Aktif 2026/2027
               </span>
             </div>
@@ -122,11 +124,11 @@ export function DashboardClient({
               onClick={() => setIsPenggantiModalOpen(true)}
               className="flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-xs sm:text-sm text-content-primary bg-surface-elevated hover:bg-surface border border-line shadow-2xs transition-all duration-200 active:scale-95"
             >
-              <Sparkles className="w-3.5 h-3.5 text-accent" />
+              <CalendarPlus className="w-3.5 h-3.5 text-accent" />
               <span>Kelas Pengganti</span>
             </button>
           </div>
-        </div>
+        </header>
 
         {/* Academic Intelligence Daily Briefing Banner */}
         {academicSummary && (
@@ -145,67 +147,65 @@ export function DashboardClient({
 
           {/* Right Column: Upcoming Exam Widget & Tasks (5 cols) */}
           <div className="lg:col-span-5 space-y-6">
-            {/* Upcoming Exam Card Widget */}
+            {/* Upcoming Exam Editorial Countdown Callout */}
             {upcomingExam && (
               <div className="space-y-3">
-                <div className="flex items-center gap-2.5 px-1">
-                  <div className="w-8 h-8 rounded-xl bg-accent-muted border border-line-subtle flex items-center justify-center text-accent shadow-2xs">
-                    <GraduationCap className="w-4 h-4" />
-                  </div>
-                  <div>
+                <div className="flex items-center justify-between px-1 pb-1 border-b border-line/60">
+                  <div className="flex items-center gap-2">
+                    <GraduationCap className="w-4 h-4 text-accent shrink-0" />
                     <h3 className="text-base sm:text-lg font-bold text-content-primary tracking-tight">
                       Ujian Terdekat
                     </h3>
                   </div>
+                  <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/50">
+                    {upcomingExam.jenisUjian}
+                  </span>
                 </div>
 
-                <div className="group relative rounded-2xl p-4 sm:p-5 bg-surface-elevated border border-line shadow-2xs transition-all duration-200 hover:border-line-strong hover:shadow-xs">
-                  <div className="flex items-start justify-between gap-3 mb-2">
-                    <div>
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/50">
-                          {upcomingExam.jenisUjian}
-                        </span>
-                        <span className="text-xs font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-1">
-                          <Sparkles className="w-3 h-3" />
-                          {(() => {
-                            const diff = getDaysDifference(upcomingExam.tanggal);
-                            if (diff === 0) return "Hari Ini!";
-                            if (diff < 0) return "Selesai";
-                            return `${diff} hari lagi`;
-                          })()}
-                        </span>
-                      </div>
+                <div className="group relative rounded-2xl p-4 sm:p-5 bg-surface-elevated border border-line shadow-2xs transition-all duration-200 hover:border-line-strong">
+                  <div className="flex items-center gap-4">
+                    {/* Tabular Countdown Block */}
+                    <div className="shrink-0 w-20 sm:w-24 py-2.5 px-2 rounded-xl bg-surface border border-line-subtle text-center">
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-content-muted">
+                        Tenggat
+                      </span>
+                      <p className="font-mono tabular-nums text-sm sm:text-base font-extrabold text-rose-600 dark:text-rose-400 mt-0.5">
+                        {(() => {
+                          const diff = getDaysDifference(upcomingExam.tanggal);
+                          if (diff === 0) return "Hari Ini";
+                          if (diff < 0) return "Selesai";
+                          return `H-${diff}`;
+                        })()}
+                      </p>
+                    </div>
 
-                      <h4 className="text-base sm:text-lg font-bold text-content-primary tracking-tight group-hover:text-accent transition-colors leading-snug">
+                    <div className="min-w-0 flex-1">
+                      <h4 className="text-base sm:text-lg font-bold text-content-primary tracking-tight group-hover:text-accent transition-colors leading-snug truncate">
                         {upcomingExam.jadwal?.namaMatkul}
                       </h4>
-                    </div>
-                  </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 pt-3 border-t border-line text-xs sm:text-sm text-content-secondary">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-3.5 h-3.5 text-content-muted" />
-                      <span className="text-content-primary font-medium">
-                        {formatIndonesianDate(upcomingExam.tanggal)}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-3.5 h-3.5 text-content-muted" />
-                      <span className="text-content-primary font-medium">
-                        {upcomingExam.waktuMulai} - {upcomingExam.waktuSelesai} WIB
-                      </span>
-                    </div>
-
-                    {upcomingExam.ruangan && (
-                      <div className="flex items-center gap-2 sm:col-span-2">
-                        <MapPin className="w-3.5 h-3.5 text-content-muted" />
-                        <span className="text-content-secondary">
-                          Ruang {upcomingExam.ruangan}
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-xs text-content-secondary font-mono tabular-nums">
+                        <span className="inline-flex items-center gap-1.5">
+                          <Calendar className="w-3.5 h-3.5 text-content-muted shrink-0" />
+                          <span className="text-content-primary font-medium">
+                            {formatIndonesianDate(upcomingExam.tanggal)}
+                          </span>
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-content-muted shrink-0" />
+                          <span>
+                            {upcomingExam.waktuMulai} – {upcomingExam.waktuSelesai} WIB
+                          </span>
                         </span>
                       </div>
-                    )}
+
+                      {upcomingExam.ruangan && (
+                        <div className="flex items-center gap-1.5 mt-1 text-xs text-content-secondary">
+                          <MapPin className="w-3.5 h-3.5 text-content-muted shrink-0" />
+                          <span>Ruang {upcomingExam.ruangan}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

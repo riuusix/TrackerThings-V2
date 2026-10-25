@@ -74,8 +74,19 @@ export function Navbar({
         setNotifDropdownOpen(false);
       }
     }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setProfileDropdownOpen(false);
+        setNotifDropdownOpen(false);
+        setMobileMenuOpen(false);
+      }
+    }
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, []);
 
   const navLinks = [
@@ -90,7 +101,7 @@ export function Navbar({
     : "U";
 
   return (
-    <nav className="sticky top-0 z-40 w-full bg-canvas/95 backdrop-blur-md border-b border-line transition-colors duration-200 shadow-2xs">
+    <nav className="sticky top-0 z-40 w-full bg-canvas/95 backdrop-blur-md border-b border-line transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="relative flex items-center justify-between h-16">
           {/* Logo & Brand (Left Region) */}
@@ -100,6 +111,7 @@ export function Navbar({
               className="flex items-center gap-2.5 font-extrabold text-xl sm:text-2xl tracking-tight group"
             >
               <div className="w-9 h-9 rounded-xl overflow-hidden shadow-xs transition-transform group-hover:scale-105 bg-accent flex items-center justify-center">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src="/icon.png"
                   alt="TrackerThings Logo"
@@ -123,7 +135,7 @@ export function Navbar({
                   href={link.href}
                   className={`relative flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${
                     isActive
-                      ? "text-accent font-bold bg-accent-muted border border-line-subtle shadow-xs"
+                      ? "text-accent font-bold bg-accent-muted border border-line-subtle shadow-2xs"
                       : "text-content-secondary hover:text-content-primary hover:bg-surface"
                   }`}
                 >
@@ -141,14 +153,14 @@ export function Navbar({
               <button
                 type="button"
                 onClick={() => setNotifDropdownOpen(!notifDropdownOpen)}
-                className="relative p-2.5 rounded-xl bg-surface-elevated hover:bg-surface text-content-primary border border-line transition-all shadow-xs"
+                className="relative p-2.5 rounded-xl bg-surface-elevated hover:bg-surface text-content-primary border border-line transition-all shadow-2xs"
                 aria-label="Notifikasi"
+                aria-expanded={notifDropdownOpen}
               >
                 <Bell className="w-4 h-4" />
                 {notifications.length > 0 && (
                   <span className="absolute -top-1 -right-1 flex h-4 w-4">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-4 w-4 bg-accent text-[10px] font-bold text-accent-text items-center justify-center">
+                    <span className="relative inline-flex rounded-full h-4 w-4 bg-accent text-[10px] font-bold font-mono tabular-nums text-accent-text items-center justify-center">
                       {notifications.length}
                     </span>
                   </span>
@@ -157,13 +169,13 @@ export function Navbar({
 
               {/* Notification Popover */}
               {notifDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl p-4 bg-surface-elevated border border-line shadow-xl z-50 animate-in fade-in-50 zoom-in-95 duration-150">
+                <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl p-4 bg-surface-elevated border border-line shadow-lg z-50 animate-in fade-in-50 zoom-in-95 duration-150">
                   <div className="flex items-center justify-between pb-3 border-b border-line">
                     <div className="flex items-center gap-2 font-bold text-content-primary text-sm">
                       <Bell className="w-4 h-4 text-accent" />
                       <span>Notifikasi Penting</span>
                     </div>
-                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-accent-muted text-accent font-semibold border border-line-subtle">
+                    <span className="text-xs px-2.5 py-0.5 rounded-md bg-accent-muted text-accent font-mono tabular-nums font-semibold border border-line-subtle">
                       {notifications.length} Jadwal
                     </span>
                   </div>
@@ -171,8 +183,8 @@ export function Navbar({
                   <div className="divide-y divide-line max-h-72 overflow-y-auto mt-2">
                     {notifications.length === 0 ? (
                       <div className="py-6 text-center text-content-muted">
-                        <CheckCircle2 className="w-8 h-8 mx-auto text-emerald-500 mb-2 opacity-80" />
-                        <p className="text-sm font-semibold text-content-primary">Semua Terkendali!</p>
+                        <CheckCircle2 className="w-7 h-7 mx-auto text-emerald-500 mb-2 opacity-80" />
+                        <p className="text-sm font-semibold text-content-primary">Semua Terkendali</p>
                         <p className="text-xs text-content-secondary">Tidak ada tugas atau evaluasi terdekat.</p>
                       </div>
                     ) : (
@@ -182,7 +194,7 @@ export function Navbar({
                           className="py-2.5 flex items-start gap-3 hover:bg-surface p-2 rounded-xl transition-colors"
                         >
                           <div
-                            className={`p-1.5 rounded-lg text-xs font-semibold shrink-0 ${
+                            className={`px-2 py-1 rounded-md text-[11px] font-semibold shrink-0 ${
                               item.tipe === "Tugas"
                                 ? "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/40"
                                 : "bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/40"
@@ -197,7 +209,7 @@ export function Navbar({
                             <p className="text-xs text-content-secondary truncate">
                               {item.namaMatkul}
                             </p>
-                            <div className="flex items-center gap-1 text-[11px] text-content-muted mt-0.5">
+                            <div className="flex items-center gap-1 text-[11px] font-mono tabular-nums text-content-muted mt-0.5">
                               <Clock className="w-3 h-3" />
                               <span>{item.waktu}</span>
                             </div>
@@ -215,12 +227,12 @@ export function Navbar({
               <button
                 type="button"
                 onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-                className="flex items-center gap-2 p-1.5 sm:px-3 sm:py-1.5 rounded-xl bg-surface-elevated hover:bg-surface text-content-primary border border-line transition-all shadow-xs"
+                className="flex items-center gap-2 p-1.5 sm:px-3 sm:py-1.5 rounded-xl bg-surface-elevated hover:bg-surface text-content-primary border border-line transition-all shadow-2xs"
                 aria-expanded={profileDropdownOpen}
                 aria-haspopup="true"
               >
                 {/* User Avatar with Image or Initial Fallback */}
-                <div className="w-8 h-8 rounded-lg bg-accent text-accent-text flex items-center justify-center font-bold text-sm shadow-xs overflow-hidden shrink-0">
+                <div className="w-8 h-8 rounded-lg bg-accent text-accent-text flex items-center justify-center font-bold text-sm shadow-2xs overflow-hidden shrink-0">
                   {profilePictureUrl && !avatarImgError ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -246,9 +258,9 @@ export function Navbar({
 
               {/* Profile Dropdown Menu */}
               {profileDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-64 rounded-2xl p-2 bg-surface-elevated border border-line shadow-xl z-50 animate-in fade-in-50 zoom-in-95 duration-150">
+                <div className="absolute right-0 mt-2 w-64 rounded-2xl p-2 bg-surface-elevated border border-line shadow-lg z-50 animate-in fade-in-50 zoom-in-95 duration-150">
                   <div className="px-3 py-2.5 border-b border-line mb-1 flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-accent text-accent-text flex items-center justify-center font-bold text-sm shadow-xs overflow-hidden shrink-0">
+                    <div className="w-9 h-9 rounded-xl bg-accent text-accent-text flex items-center justify-center font-bold text-sm shadow-2xs overflow-hidden shrink-0">
                       {profilePictureUrl && !avatarImgError ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
@@ -307,7 +319,7 @@ export function Navbar({
                     onClick={() => setProfileDropdownOpen(false)}
                     className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-content-secondary hover:text-content-primary hover:bg-surface transition-colors"
                   >
-                    <Shield className="w-4 h-4 text-emerald-500" />
+                    <Shield className="w-4 h-4 text-accent" />
                     <span>Keamanan & Sandi</span>
                   </Link>
 
@@ -327,7 +339,7 @@ export function Navbar({
                         onClick={() => setTheme("light")}
                         className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all ${
                           mounted && !isDark
-                            ? "bg-surface-elevated text-accent shadow-xs border border-line"
+                            ? "bg-surface-elevated text-accent shadow-2xs border border-line"
                             : "text-content-secondary hover:text-content-primary"
                         }`}
                         aria-label="Pilih Tema Terang"
@@ -341,7 +353,7 @@ export function Navbar({
                         onClick={() => setTheme("dark")}
                         className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all ${
                           mounted && isDark
-                            ? "bg-surface-elevated text-accent shadow-xs border border-line"
+                            ? "bg-surface-elevated text-accent shadow-2xs border border-line"
                             : "text-content-secondary hover:text-content-primary"
                         }`}
                         aria-label="Pilih Tema Gelap"
@@ -390,6 +402,7 @@ export function Navbar({
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="p-2 rounded-xl bg-surface-elevated text-content-primary border border-line"
                 aria-label="Menu Navigasi"
+                aria-expanded={mobileMenuOpen}
               >
                 {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
               </button>
@@ -411,7 +424,7 @@ export function Navbar({
                     onClick={() => setMobileMenuOpen(false)}
                     className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
                       isActive
-                        ? "bg-accent-muted text-accent border border-line-subtle shadow-xs"
+                        ? "bg-accent-muted text-accent border border-line-subtle shadow-2xs"
                         : "text-content-secondary hover:text-content-primary hover:bg-surface"
                     }`}
                   >
@@ -436,7 +449,7 @@ export function Navbar({
                   onClick={() => setTheme("light")}
                   className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-all ${
                     mounted && !isDark
-                      ? "bg-surface-elevated text-accent shadow-xs border border-line"
+                      ? "bg-surface-elevated text-accent shadow-2xs border border-line"
                       : "text-content-secondary hover:text-content-primary"
                   }`}
                 >
@@ -448,7 +461,7 @@ export function Navbar({
                   onClick={() => setTheme("dark")}
                   className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-all ${
                     mounted && isDark
-                      ? "bg-surface-elevated text-accent shadow-xs border border-line"
+                      ? "bg-surface-elevated text-accent shadow-2xs border border-line"
                       : "text-content-secondary hover:text-content-primary"
                   }`}
                 >

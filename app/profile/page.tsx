@@ -23,6 +23,7 @@ export default async function ProfilePage() {
     id: session.userId,
     username: rawUser?.username || session.username,
     email: rawUser?.email || session.email,
+    role: rawUser?.role || session.role || "user",
     fullName: rawUser?.fullName || null,
     phoneNumber: rawUser?.phoneNumber || null,
     profilePictureUrl: rawUser?.profilePictureUrl || null,
