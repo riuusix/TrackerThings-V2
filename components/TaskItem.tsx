@@ -8,8 +8,10 @@ import {
   Calendar,
   Edit2,
   Trash2,
+  Check,
   CheckCircle2,
   Loader2,
+  Clock,
   Sparkles,
 } from "lucide-react";
 import { useToast } from "./ToastProvider";
@@ -27,8 +29,9 @@ export function TaskItem({ task, onEdit }: TaskItemProps) {
   const { showSuccess, showError } = useToast();
 
   const daysLeft = getDaysDifference(task.deadline);
-  const isUrgent = daysLeft <= 1 && task.status !== "Selesai";
-  const isPast = daysLeft < 0 && task.status !== "Selesai";
+  const isCompleted = task.status === "Selesai" || progress >= 100;
+  const isUrgent = daysLeft <= 1 && !isCompleted;
+  const isPast = daysLeft < 0 && !isCompleted;
 
   const handleProgressChange = (newVal: number) => {
     if (isPending || isDeleting) return;
@@ -45,19 +48,24 @@ export function TaskItem({ task, onEdit }: TaskItemProps) {
     });
   };
 
-  const handleMarkComplete = () => {
+  const handleToggleComplete = () => {
     if (isPending || isDeleting) return;
-    setProgress(100);
+    const nextProgress = isCompleted ? 0 : 100;
+    setProgress(nextProgress);
     startTransition(async () => {
       try {
-        const res = await updateTugasProgressAction(task.id, 100);
+        const res = await updateTugasProgressAction(task.id, nextProgress);
         if (res.success) {
-          showSuccess(`Tugas "${task.namaTugas}" selesai!`);
+          if (nextProgress === 100) {
+            showSuccess(`Tugas "${task.namaTugas}" selesai!`);
+          } else {
+            showSuccess(`Tugas "${task.namaTugas}" dibuka kembali.`);
+          }
         } else {
-          showError(classifyApiError(res.error, "Gagal menyelesaikan tugas."));
+          showError(classifyApiError(res.error, "Gagal memperbarui status tugas."));
         }
       } catch (err) {
-        showError(classifyApiError(err, "Gagal menyelesaikan tugas."));
+        showError(classifyApiError(err, "Gagal memperbarui status tugas."));
       }
     });
   };
@@ -80,138 +88,173 @@ export function TaskItem({ task, onEdit }: TaskItemProps) {
     }
   };
 
-  const getPriorityBadge = (p: string) => {
-    switch (p.toLowerCase()) {
+  const getPriorityDot = (p?: string | null) => {
+    switch ((p || "").toLowerCase()) {
       case "tinggi":
-        return "bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800/40";
+        return {
+          dot: "bg-rose-500",
+          text: "text-rose-600 dark:text-rose-400",
+          label: "Tinggi",
+        };
       case "sedang":
-        return "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/40";
+        return {
+          dot: "bg-amber-500",
+          text: "text-amber-600 dark:text-amber-400",
+          label: "Sedang",
+        };
       default:
-        return "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/40";
+        return {
+          dot: "bg-emerald-500",
+          text: "text-emerald-600 dark:text-emerald-400",
+          label: "Rendah",
+        };
     }
   };
 
+  const priority = getPriorityDot(task.prioritas);
+
   return (
     <div
-      className={`group relative rounded-2xl p-5 sm:p-6 bg-surface-elevated border border-line shadow-xs transition-all duration-200 hover:border-line-strong ${
-        task.status === "Selesai"
-          ? "opacity-60 bg-surface/40 border-line-subtle"
+      className={`group relative rounded-2xl p-4 sm:p-5 bg-surface-elevated border transition-all duration-200 ${
+        isCompleted
+          ? "opacity-65 bg-surface/50 border-line-subtle"
           : isUrgent
-          ? "border-rose-300 dark:border-rose-800/60 bg-rose-50/20 dark:bg-rose-950/10"
-          : ""
+          ? "border-rose-300 dark:border-rose-800/60 shadow-2xs hover:border-rose-400"
+          : "border-line shadow-2xs hover:border-line-strong hover:shadow-xs"
       }`}
     >
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+      <div className="flex items-start gap-3.5">
+        {/* Left Completion Ring / Checkbox */}
+        <button
+          type="button"
+          onClick={handleToggleComplete}
+          disabled={isPending || isDeleting}
+          aria-label={isCompleted ? "Tandai belum selesai" : "Tandai selesai"}
+          className={`mt-0.5 shrink-0 w-6 h-6 rounded-full border flex items-center justify-center transition-all duration-200 ${
+            isCompleted
+              ? "bg-emerald-600 border-emerald-600 text-white dark:bg-emerald-500 dark:border-emerald-500 shadow-xs"
+              : "border-line-strong hover:border-accent hover:bg-accent-muted/40 text-transparent hover:text-accent"
+          } disabled:opacity-50`}
+        >
+          {isPending ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin text-accent" />
+          ) : isCompleted ? (
+            <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+          ) : (
+            <Check className="w-3.5 h-3.5 stroke-[2.5] opacity-0 group-hover:opacity-60" />
+          )}
+        </button>
+
+        {/* Center: Title & Metadata Hierarchy */}
         <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-2 mb-2">
-            <span
-              className={`text-[11px] px-2.5 py-0.5 rounded-full font-bold border ${getPriorityBadge(
-                task.prioritas
-              )}`}
-            >
-              {task.prioritas}
-            </span>
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <h4
+                className={`text-base font-semibold tracking-tight transition-colors leading-snug ${
+                  isCompleted
+                    ? "line-through text-content-muted"
+                    : "text-content-primary group-hover:text-accent"
+                }`}
+              >
+                {task.namaTugas}
+              </h4>
 
-            <span className="text-[11px] px-2.5 py-0.5 rounded-full font-medium bg-surface text-content-secondary border border-line-subtle">
-              {task.jenis}
-            </span>
+              {/* Scannable Metadata Line (Course • Due Date • Priority) */}
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 mt-1.5 text-xs text-content-secondary">
+                {task.jadwal?.namaMatkul && (
+                  <span className="font-medium text-accent hover:underline truncate max-w-[220px]">
+                    {task.jadwal.namaMatkul}
+                  </span>
+                )}
 
-            {task.jadwal?.namaMatkul && (
-              <span className="text-[11px] px-2.5 py-0.5 rounded-full font-semibold bg-accent-muted text-accent border border-line-subtle truncate max-w-[220px]">
-                {task.jadwal.namaMatkul}
-              </span>
-            )}
+                {task.jadwal?.namaMatkul && (
+                  <span className="text-content-muted">•</span>
+                )}
+
+                <div className="flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-content-muted" />
+                  <span>{formatIndonesianDate(task.deadline)}</span>
+                </div>
+
+                {isPast ? (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-800/40">
+                    Terlewat
+                  </span>
+                ) : isUrgent ? (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800/40">
+                    <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                    {daysLeft === 0 ? "Hari Ini" : "Besok"}
+                  </span>
+                ) : null}
+
+                <span className="text-content-muted">•</span>
+
+                {/* Restrained Priority Indicator: Color Dot + Label */}
+                <div className="flex items-center gap-1.5 font-medium">
+                  <span className={`w-1.5 h-1.5 rounded-full ${priority.dot}`} />
+                  <span className={priority.text}>{priority.label}</span>
+                </div>
+
+                {task.jenis && (
+                  <>
+                    <span className="text-content-muted">•</span>
+                    <span className="text-content-muted">{task.jenis}</span>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Right Action Icons (Edit & Delete) */}
+            <div className="flex items-center gap-1 shrink-0 opacity-80 group-hover:opacity-100 transition-opacity">
+              <button
+                type="button"
+                onClick={() => onEdit(task)}
+                disabled={isPending || isDeleting}
+                title="Edit Tugas"
+                className="p-1.5 rounded-lg text-content-secondary hover:text-content-primary hover:bg-surface border border-transparent hover:border-line transition-all active:scale-95 disabled:opacity-50"
+              >
+                <Edit2 className="w-3.5 h-3.5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={isDeleting || isPending}
+                aria-busy={isDeleting}
+                title="Hapus Tugas"
+                className="p-1.5 rounded-lg text-content-secondary hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-transparent hover:border-rose-200 dark:hover:border-rose-800/40 transition-all active:scale-95 disabled:opacity-50"
+              >
+                {isDeleting ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-600" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5" />
+                )}
+              </button>
+            </div>
           </div>
 
-          <h4
-            className={`text-base sm:text-lg font-bold tracking-tight transition-colors ${
-              task.status === "Selesai"
-                ? "line-through text-content-muted"
-                : "text-content-primary group-hover:text-accent"
-            }`}
-          >
-            {task.namaTugas}
-          </h4>
-        </div>
+          {/* Interactive Progress Bar */}
+          <div className="mt-3 pt-2.5 border-t border-line/60">
+            <div className="flex items-center justify-between text-[11px] mb-1.5">
+              <span className="text-content-muted font-medium flex items-center gap-1.5">
+                Progress
+                {isPending && <Loader2 className="w-3 h-3 animate-spin text-accent" />}
+              </span>
+              <span className="font-bold text-accent">{progress}%</span>
+            </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-1.5 self-end sm:self-center shrink-0">
-          {task.status !== "Selesai" && (
-            <button
-              type="button"
-              onClick={handleMarkComplete}
-              disabled={isPending || isDeleting}
-              aria-busy={isPending}
-              title="Tandai Selesai"
-              className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40 transition-all active:scale-95 disabled:opacity-50"
-            >
-              {isPending ? (
-                <Loader2 className="w-4 h-4 animate-spin text-emerald-600 dark:text-emerald-400" />
-              ) : (
-                <CheckCircle2 className="w-4 h-4" />
-              )}
-            </button>
-          )}
-
-          <button
-            type="button"
-            onClick={() => onEdit(task)}
-            disabled={isPending || isDeleting}
-            title="Edit Tugas"
-            className="p-2 rounded-xl bg-surface hover:bg-surface-hover text-content-secondary hover:text-content-primary border border-line transition-all active:scale-95 disabled:opacity-50"
-          >
-            <Edit2 className="w-4 h-4" />
-          </button>
-
-          <button
-            type="button"
-            onClick={handleDelete}
-            disabled={isDeleting || isPending}
-            aria-busy={isDeleting}
-            title="Hapus Tugas"
-            className="p-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/40 transition-all disabled:opacity-50 active:scale-95"
-          >
-            {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-          </button>
-        </div>
-      </div>
-
-      {/* Deadline Info */}
-      <div className="flex items-center gap-2 text-xs sm:text-sm text-content-secondary mb-3.5">
-        <Calendar className="w-4 h-4 text-content-muted" />
-        <span>Deadline: {formatIndonesianDate(task.deadline)}</span>
-        {isPast ? (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/50">
-            Terlewat
-          </span>
-        ) : isUrgent ? (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/50 flex items-center gap-1">
-            <Sparkles className="w-3 h-3 text-amber-500" />
-            {daysLeft === 0 ? "Hari Ini!" : "Besok!"}
-          </span>
-        ) : null}
-      </div>
-
-      {/* Interactive Progress Slider */}
-      <div className="space-y-1.5 pt-2.5 border-t border-line">
-        <div className="flex items-center justify-between text-xs font-semibold">
-          <span className="text-content-secondary flex items-center gap-1.5 font-medium">
-            Progress Pengerjaan
-            {isPending && <Loader2 className="w-3 h-3 animate-spin text-accent" />}
-          </span>
-          <span className="text-accent tracking-wide font-bold">{progress}%</span>
-        </div>
-
-        <div className="relative flex items-center">
-          <input
-            type="range"
-            min="0"
-            max="100"
-            step="5"
-            value={progress}
-            onChange={(e) => handleProgressChange(parseInt(e.target.value, 10))}
-            className="w-full h-2 bg-surface rounded-lg appearance-none cursor-pointer accent-accent transition-all"
-          />
+            <div className="relative flex items-center">
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="5"
+                value={progress}
+                onChange={(e) => handleProgressChange(parseInt(e.target.value, 10))}
+                className="w-full h-1.5 bg-surface rounded-lg appearance-none cursor-pointer accent-accent transition-all"
+              />
+            </div>
+          </div>
         </div>
       </div>
     </div>

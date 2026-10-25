@@ -72,6 +72,8 @@
 		A9D8BB074DCB3FB83D8C6B22 /* TaskFormSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42889202DCA0F4023AA3AD70 /* TaskFormSheet.swift */; };
 		66ABF26ED665F1CC9C656831 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 3C8EBF3400A776331E8E440B /* Assets.xcassets */; };
 		17BDDA9B8C2B7BC2B2ED553E /* Loaders in Resources */ = {isa = PBXBuildFile; fileRef = F6662FEC199F7675BD94CD87 /* Loaders */; };
+		A1100001278F69F254CA3C11 /* AcademicIntelligence.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1100001536A25C371627C11 /* AcademicIntelligence.swift */; };
+		A2200001278F69F254CA3C22 /* AcademicBriefingCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2200001536A25C371627C22 /* AcademicBriefingCardView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */

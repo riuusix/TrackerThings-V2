@@ -234,7 +234,7 @@ export default async function DashboardPage() {
       courseName: t.jadwal?.namaMatkul,
       type: "tugas" as const,
       priority: t.prioritas?.toLowerCase() || "sedang",
-      dueDate: extractCalendarDate(t.deadline, timezone),
+      date: t.deadline,
       status: t.status,
     })),
     ...upcomingExamsRaw.map((e) => ({
@@ -243,7 +243,7 @@ export default async function DashboardPage() {
       courseName: e.jadwal?.namaMatkul,
       type: "ujian" as const,
       priority: "tinggi",
-      dueDate: extractCalendarDate(e.tanggal, timezone),
+      date: e.tanggal,
     })),
   ];
 

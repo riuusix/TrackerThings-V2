@@ -21,7 +21,6 @@ import {
   Plus,
   GraduationCap,
   Sparkles,
-  CheckCircle2,
   MapPin,
 } from "lucide-react";
 
@@ -68,6 +67,13 @@ export function DashboardClient({
     setIsTaskModalOpen(true);
   };
 
+  const todayFormatted = new Intl.DateTimeFormat("id-ID", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date());
+
   return (
     <div className="relative min-h-screen bg-canvas text-content-primary transition-colors duration-200 pb-20 overflow-x-hidden">
       {/* Navbar with Role & Profile Picture */}
@@ -79,39 +85,33 @@ export function DashboardClient({
         notifications={notifications}
       />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 space-y-8">
-        {/* Clean Academic Welcome Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5 pb-3 border-b border-line">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 space-y-7">
+        {/* Editorial Academic Greeting & Context Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-line">
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-[11px] px-3 py-1 rounded-full font-semibold bg-accent-muted text-accent border border-line-subtle">
-                Semester Aktif
-              </span>
-              <span className="text-xs text-content-secondary font-medium">
-                Tahun Akademik 2026/2027
+            <div className="flex items-center gap-2 mb-1.5 text-xs text-content-secondary font-medium">
+              <span className="text-accent font-semibold">{todayFormatted}</span>
+              <span className="text-content-muted">•</span>
+              <span className="px-2 py-0.5 rounded-full bg-surface text-content-secondary border border-line-subtle text-[11px]">
+                Semester Aktif 2026/2027
               </span>
             </div>
 
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-content-primary">
-              Tracker<span className="text-accent font-extrabold">Things</span>
-              <span className="text-content-muted font-light text-2xl sm:text-3xl"> — Halo, </span>
-              <span className="text-accent font-bold">
-                {username}
-              </span>
-              !
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-content-primary">
+              Selamat Datang, <span className="text-accent">{username}</span>
             </h1>
 
-            <p className="text-sm text-content-secondary mt-1.5 max-w-2xl font-normal">
-              Pantau jadwal kuliah harian, target tugas akademik, dan persiapan jadwal ujian semester Anda secara efisien.
+            <p className="text-xs sm:text-sm text-content-secondary mt-1 font-normal">
+              Ringkasan jadwal kuliah, persiapan ujian, dan prioritas tugas akademik Anda.
             </p>
           </div>
 
           {/* Quick Action Buttons */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 shrink-0">
             <button
               type="button"
               onClick={handleOpenAddTask}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-2xl font-semibold text-sm text-accent-text bg-accent hover:bg-accent-hover shadow-xs transition-all duration-200 active:scale-95"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-xs sm:text-sm text-accent-text bg-accent hover:bg-accent-hover shadow-xs transition-all duration-200 active:scale-95"
             >
               <Plus className="w-4 h-4" />
               <span>Tambah Tugas</span>
@@ -120,9 +120,9 @@ export function DashboardClient({
             <button
               type="button"
               onClick={() => setIsPenggantiModalOpen(true)}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-2xl font-semibold text-sm text-content-primary bg-surface-elevated hover:bg-surface border border-line shadow-xs transition-all duration-200 active:scale-95"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl font-semibold text-xs sm:text-sm text-content-primary bg-surface-elevated hover:bg-surface border border-line shadow-2xs transition-all duration-200 active:scale-95"
             >
-              <Sparkles className="w-4 h-4 text-accent" />
+              <Sparkles className="w-3.5 h-3.5 text-accent" />
               <span>Kelas Pengganti</span>
             </button>
           </div>
@@ -133,11 +133,10 @@ export function DashboardClient({
           <AcademicBriefingBanner summary={academicSummary} />
         )}
 
-        {/* 2-Column Responsive Layout - Fully Focused on Academic Features */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Left Column: Schedules (7 cols) */}
-          <div className="lg:col-span-7 space-y-7">
-            {/* Schedule List with Active Tab Soft Blue Pill */}
+        {/* 2-Column Responsive Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-7">
+          {/* Left Column: Schedules Timeline (7 cols) */}
+          <div className="lg:col-span-7 space-y-6">
             <ScheduleList
               schedulesByDay={schedulesByDay}
               initialDay={initialDay}
@@ -145,24 +144,26 @@ export function DashboardClient({
           </div>
 
           {/* Right Column: Upcoming Exam Widget & Tasks (5 cols) */}
-          <div className="lg:col-span-5 space-y-7">
+          <div className="lg:col-span-5 space-y-6">
             {/* Upcoming Exam Card Widget */}
             {upcomingExam && (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <div className="flex items-center gap-2.5 px-1">
-                  <div className="w-8 h-8 rounded-xl bg-accent-muted border border-line-subtle flex items-center justify-center text-accent shadow-xs">
+                  <div className="w-8 h-8 rounded-xl bg-accent-muted border border-line-subtle flex items-center justify-center text-accent shadow-2xs">
                     <GraduationCap className="w-4 h-4" />
                   </div>
-                  <h3 className="text-lg font-bold text-content-primary tracking-tight">
-                    Ujian Terdekat
-                  </h3>
+                  <div>
+                    <h3 className="text-base sm:text-lg font-bold text-content-primary tracking-tight">
+                      Ujian Terdekat
+                    </h3>
+                  </div>
                 </div>
 
-                <div className="group relative rounded-2xl p-5 sm:p-6 bg-surface-elevated border border-line shadow-xs transition-all duration-200 hover:border-line-strong">
+                <div className="group relative rounded-2xl p-4 sm:p-5 bg-surface-elevated border border-line shadow-2xs transition-all duration-200 hover:border-line-strong hover:shadow-xs">
                   <div className="flex items-start justify-between gap-3 mb-2">
                     <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/50">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/50">
                           {upcomingExam.jenisUjian}
                         </span>
                         <span className="text-xs font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-1">
@@ -176,22 +177,22 @@ export function DashboardClient({
                         </span>
                       </div>
 
-                      <h4 className="text-xl font-bold text-content-primary tracking-tight group-hover:text-accent transition-colors">
+                      <h4 className="text-base sm:text-lg font-bold text-content-primary tracking-tight group-hover:text-accent transition-colors leading-snug">
                         {upcomingExam.jadwal?.namaMatkul}
                       </h4>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4 pt-3.5 border-t border-line text-xs sm:text-sm text-content-secondary">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 pt-3 border-t border-line text-xs sm:text-sm text-content-secondary">
                     <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-content-muted" />
+                      <Calendar className="w-3.5 h-3.5 text-content-muted" />
                       <span className="text-content-primary font-medium">
                         {formatIndonesianDate(upcomingExam.tanggal)}
                       </span>
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-content-muted" />
+                      <Clock className="w-3.5 h-3.5 text-content-muted" />
                       <span className="text-content-primary font-medium">
                         {upcomingExam.waktuMulai} - {upcomingExam.waktuSelesai} WIB
                       </span>
@@ -199,7 +200,7 @@ export function DashboardClient({
 
                     {upcomingExam.ruangan && (
                       <div className="flex items-center gap-2 sm:col-span-2">
-                        <MapPin className="w-4 h-4 text-content-muted" />
+                        <MapPin className="w-3.5 h-3.5 text-content-muted" />
                         <span className="text-content-secondary">
                           Ruang {upcomingExam.ruangan}
                         </span>
