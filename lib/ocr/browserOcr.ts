@@ -4,7 +4,9 @@
  * Provides on-origin client-side OCR without external CDN dependencies.
  * Uses local assets located in /public/tesseract/:
  * - worker.min.js
- * - core/tesseract-core-simd-lstm.wasm.js (or fallback lstm)
+ * - core/tesseract-core-relaxedsimd-lstm.wasm.js (preferred by modern SIMD/Relaxed-SIMD browsers)
+ * - core/tesseract-core-simd-lstm.wasm.js (standard WASM SIMD browsers)
+ * - core/tesseract-core-lstm.wasm.js (fallback for non-SIMD browsers)
  * - lang/ind.traineddata.gz & lang/eng.traineddata.gz
  */
 

@@ -38,8 +38,12 @@ if (fs.existsSync(workerSrc)) {
 
 // 2. Copy core wasm.js files from installed tesseract.js-core
 const coreFiles = [
+  "tesseract-core-relaxedsimd-lstm.wasm.js",
   "tesseract-core-simd-lstm.wasm.js",
   "tesseract-core-lstm.wasm.js",
+  "tesseract-core-relaxedsimd.wasm.js",
+  "tesseract-core-simd.wasm.js",
+  "tesseract-core.wasm.js",
 ];
 
 for (const file of coreFiles) {
@@ -49,7 +53,13 @@ for (const file of coreFiles) {
     fs.copyFileSync(src, dest);
     console.log(`[OCR Setup] Copied ${file} (${(fs.statSync(dest).size / (1024 * 1024)).toFixed(2)} MB)`);
   } else {
-    console.warn(`[OCR Setup] Core source not found: ${src}`);
+    const isLstm = file.includes("-lstm.");
+    if (isLstm) {
+      console.error(`[OCR Setup] CRITICAL: Required core source not found: ${src}`);
+      process.exit(1);
+    } else {
+      console.warn(`[OCR Setup] Core source not found: ${src}`);
+    }
   }
 }
 

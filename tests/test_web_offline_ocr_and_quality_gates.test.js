@@ -109,6 +109,11 @@ test.describe("Phase 3 & 4: Web Offline OCR & Quality Gates Suite", () => {
       assert.ok(fs.existsSync(workerPath), "worker.min.js must exist");
       assert.ok(fs.statSync(workerPath).size > 100000, "worker.min.js must be > 100 KB");
 
+      // Modern browser preferred Relaxed-SIMD core
+      const relaxedSimdCorePath = path.join(publicDir, "core", "tesseract-core-relaxedsimd-lstm.wasm.js");
+      assert.ok(fs.existsSync(relaxedSimdCorePath), "Relaxed-SIMD LSTM core must exist");
+      assert.ok(fs.statSync(relaxedSimdCorePath).size > 3500000, "Relaxed-SIMD LSTM core must be > 3.5 MB");
+
       const simdCorePath = path.join(publicDir, "core", "tesseract-core-simd-lstm.wasm.js");
       assert.ok(fs.existsSync(simdCorePath), "SIMD core must exist");
       assert.ok(fs.statSync(simdCorePath).size > 3500000, "SIMD core must be > 3.5 MB");
@@ -116,6 +121,19 @@ test.describe("Phase 3 & 4: Web Offline OCR & Quality Gates Suite", () => {
       const lstmCorePath = path.join(publicDir, "core", "tesseract-core-lstm.wasm.js");
       assert.ok(fs.existsSync(lstmCorePath), "LSTM core fallback must exist");
       assert.ok(fs.statSync(lstmCorePath).size > 3500000, "LSTM core fallback must be > 3.5 MB");
+
+      // Full/combined model fallbacks
+      const relaxedSimdFullPath = path.join(publicDir, "core", "tesseract-core-relaxedsimd.wasm.js");
+      assert.ok(fs.existsSync(relaxedSimdFullPath), "Relaxed-SIMD full core must exist");
+      assert.ok(fs.statSync(relaxedSimdFullPath).size > 4000000, "Relaxed-SIMD full core must be > 4.0 MB");
+
+      const simdFullPath = path.join(publicDir, "core", "tesseract-core-simd.wasm.js");
+      assert.ok(fs.existsSync(simdFullPath), "SIMD full core must exist");
+      assert.ok(fs.statSync(simdFullPath).size > 4000000, "SIMD full core must be > 4.0 MB");
+
+      const genericFullPath = path.join(publicDir, "core", "tesseract-core.wasm.js");
+      assert.ok(fs.existsSync(genericFullPath), "Generic full core must exist");
+      assert.ok(fs.statSync(genericFullPath).size > 4000000, "Generic full core must be > 4.0 MB");
 
       const indLangPath = path.join(publicDir, "lang", "ind.traineddata.gz");
       assert.ok(fs.existsSync(indLangPath), "ind.traineddata.gz must exist");

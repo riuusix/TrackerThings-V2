@@ -119,9 +119,16 @@ test.describe("OCR Image Failure & Field Completeness Audit Suite", () => {
   });
 
   test("4. Live concrete test on Screenshot 2026-10-22 155017.png when available", async () => {
-    const imgPath = "C:/Users/Budy/Downloads/Screenshot 2026-10-22 155017.png";
-    if (!fs.existsSync(imgPath)) {
-      console.log("Screenshot file not found in Downloads, skipping live test");
+    const defaultFixture = path.resolve("datasets/fixtures/schedule_table_fixture.png");
+    const downloadPath = "C:/Users/Budy/Downloads/Screenshot 2026-10-22 155017.png";
+    const imgPath = fs.existsSync(defaultFixture)
+      ? defaultFixture
+      : fs.existsSync(downloadPath)
+      ? downloadPath
+      : null;
+
+    if (!imgPath) {
+      console.log("Screenshot fixture not found, skipping live test");
       return;
     }
 

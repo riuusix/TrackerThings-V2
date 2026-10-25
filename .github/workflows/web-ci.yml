@@ -96,8 +96,14 @@ jobs:
       - name: Run Phase 3 & 4 Web Offline OCR & Quality Gates Suite
         run: node --test tests/test_web_offline_ocr_and_quality_gates.test.js
 
+      - name: Run Tesseract Asset Resolution & Browser OCR Suite
+        run: node --test tests/test_tesseract_asset_resolution.test.js
+
       - name: Run Centralized Schedule Import & Layout Generalization Benchmark Suite
         run: node --test tests/test_centralized_schedule_import.test.js
+
+      - name: Run Image Schedule Generalization Benchmark Suite
+        run: node --test tests/test_image_schedule_generalization_benchmark.test.js
 
       - name: Run PDF Import Cross-Platform Contract Suite
         run: node --test tests/test_pdf_import_cross_platform_contract.test.js
