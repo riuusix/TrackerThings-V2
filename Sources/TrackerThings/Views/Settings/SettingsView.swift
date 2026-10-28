@@ -343,17 +343,34 @@ public struct SettingsView: View {
                 Section {
                     HStack {
                         Label {
-                            Text("Status Sinkronisasi")
-                                .font(AppTheme.Typography.body)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Status Sinkronisasi")
+                                    .font(AppTheme.Typography.body)
+
+                                if let checked = viewModel.lastCheckedAt {
+                                    Text("Dicek \(formatLastSyncDate(checked))")
+                                        .font(AppTheme.Typography.caption)
+                                        .foregroundStyle(AppTheme.Colors.textTertiary)
+                                }
+                            }
                         } icon: {
                             switch viewModel.connectionStatus {
                             case .checking:
                                 Image(systemName: "arrow.triangle.2.circlepath")
-                                    .foregroundStyle(AppTheme.Colors.brandAccent)
+                                    .foregroundStyle(AppTheme.Colors.accent)
                             case .connected:
                                 Image(systemName: "checkmark.circle.fill")
                                     .foregroundStyle(AppTheme.Colors.success)
-                            case .unreachable:
+                            case .offline:
+                                Image(systemName: "wifi.slash")
+                                    .foregroundStyle(AppTheme.Colors.textSecondary)
+                            case .timedOut:
+                                Image(systemName: "clock.badge.exclamationmark")
+                                    .foregroundStyle(AppTheme.Colors.warning)
+                            case .authenticationRequired:
+                                Image(systemName: "lock.shield")
+                                    .foregroundStyle(AppTheme.Colors.urgent)
+                            case .serverUnavailable:
                                 Image(systemName: "exclamationmark.triangle.fill")
                                     .foregroundStyle(AppTheme.Colors.warning)
                             }
@@ -370,33 +387,91 @@ public struct SettingsView: View {
                                     .font(AppTheme.Typography.secondary)
                                     .foregroundStyle(AppTheme.Colors.textSecondary)
                             }
-                        case .connected:
-                            Text("Terhubung")
+                        case .connected(let lastSync):
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text("Terhubung")
+                                    .font(AppTheme.Typography.badge)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .background(AppTheme.Colors.successBackground)
+                                    .foregroundStyle(AppTheme.Colors.success)
+                                    .clipShape(Capsule())
+                                if let lastSync = lastSync {
+                                    Text("Sinkron \(formatLastSyncDate(lastSync))")
+                                        .font(AppTheme.Typography.caption)
+                                        .foregroundStyle(AppTheme.Colors.textSecondary)
+                                }
+                            }
+                        case .offline:
+                            HStack(spacing: 6) {
+                                Text("Offline")
+                                    .font(AppTheme.Typography.badge)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .background(AppTheme.Colors.neutralBackground)
+                                    .foregroundStyle(AppTheme.Colors.textSecondary)
+                                    .clipShape(Capsule())
+                                Button {
+                                    Task { await viewModel.checkServerConnection() }
+                                } label: {
+                                    Image(systemName: "arrow.clockwise")
+                                        .font(.caption)
+                                        .foregroundStyle(AppTheme.Colors.accent)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        case .timedOut:
+                            HStack(spacing: 6) {
+                                Text("Timeout")
+                                    .font(AppTheme.Typography.badge)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .background(AppTheme.Colors.warningBackground)
+                                    .foregroundStyle(AppTheme.Colors.warning)
+                                    .clipShape(Capsule())
+                                Button {
+                                    Task { await viewModel.checkServerConnection() }
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Text("Coba Lagi")
+                                            .font(AppTheme.Typography.captionBold)
+                                        Image(systemName: "arrow.clockwise")
+                                            .font(.caption2)
+                                    }
+                                    .foregroundStyle(AppTheme.Colors.accent)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        case .authenticationRequired:
+                            Text("Sesi Berakhir")
                                 .font(AppTheme.Typography.badge)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 3)
-                                .background(AppTheme.Colors.successBackground)
-                                .foregroundStyle(AppTheme.Colors.success)
+                                .background(AppTheme.Colors.urgentBackground)
+                                .foregroundStyle(AppTheme.Colors.urgent)
                                 .clipShape(Capsule())
-                        case .unreachable:
-                            Button {
-                                Task {
-                                    await viewModel.checkServerConnection()
+                        case .serverUnavailable(let code, _):
+                            HStack(spacing: 6) {
+                                Text(code != nil ? "Error \(code!)" : "Tidak Terhubung")
+                                    .font(AppTheme.Typography.badge)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .background(AppTheme.Colors.warningBackground)
+                                    .foregroundStyle(AppTheme.Colors.warning)
+                                    .clipShape(Capsule())
+                                Button {
+                                    Task { await viewModel.checkServerConnection() }
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Text("Coba Lagi")
+                                            .font(AppTheme.Typography.captionBold)
+                                        Image(systemName: "arrow.clockwise")
+                                            .font(.caption2)
+                                    }
+                                    .foregroundStyle(AppTheme.Colors.accent)
                                 }
-                            } label: {
-                                HStack(spacing: 4) {
-                                    Text("Coba Lagi")
-                                        .font(AppTheme.Typography.badge)
-                                    Image(systemName: "arrow.clockwise")
-                                        .font(.caption2)
-                                }
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(AppTheme.Colors.warningBackground)
-                                .foregroundStyle(AppTheme.Colors.warning)
-                                .clipShape(Capsule())
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
                         }
                     }
                     .frame(minHeight: AppTheme.Metrics.minTouchTarget)
@@ -512,6 +587,25 @@ public struct SettingsView: View {
         @unknown default:
             isNotificationAuthorized = false
             notificationStatusText = "Tidak Diketahui"
+        }
+    }
+
+    private func formatLastSyncDate(_ date: Date) -> String {
+        let now = Date()
+        let interval = now.timeIntervalSince(date)
+        if interval < 60 {
+            return "baru saja"
+        } else if interval < 3600 {
+            let mins = Int(interval / 60)
+            return "\(mins)m lalu"
+        } else if Calendar.current.isDateInToday(date) {
+            let df = DateFormatter()
+            df.dateFormat = "HH:mm"
+            return "hari ini \(df.string(from: date))"
+        } else {
+            let df = DateFormatter()
+            df.dateFormat = "d MMM HH:mm"
+            return df.string(from: date)
         }
     }
 

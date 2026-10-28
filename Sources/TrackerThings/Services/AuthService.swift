@@ -13,12 +13,27 @@ public struct BaseResponse: Codable, Sendable {
     public let error: String?
 }
 
+public struct ServerHealthResponse: Codable, Sendable {
+    public let status: String
+    public let timestamp: String?
+    public let service: String?
+    public let version: String?
+
+    public init(status: String, timestamp: String? = nil, service: String? = nil, version: String? = nil) {
+        self.status = status
+        self.timestamp = timestamp
+        self.service = service
+        self.version = version
+    }
+}
+
 public protocol AuthServiceProtocol: Sendable {
     func login(username: String, password: String) async throws -> UserProfile
     func register(username: String, email: String, password: String, fullName: String?, phoneNumber: String?) async throws -> BaseResponse
     func restoreSession() async throws -> UserProfile?
     func logout() async
     func getProfile() async throws -> UserProfile
+    func checkServerHealth() async throws -> ServerHealthResponse
     func updateProfile(fullName: String?, email: String, phoneNumber: String?, profilePictureUrl: String?) async throws -> BaseResponse
     func updatePassword(currentPassword: String, newPassword: String) async throws -> BaseResponse
     func updateUserSettings(fullName: String?, phoneNumber: String?, profilePictureUrl: String?) async throws -> UserProfile
@@ -29,6 +44,10 @@ public protocol AuthServiceProtocol: Sendable {
 public extension AuthServiceProtocol {
     func updateUserSettings(fullName: String?, phoneNumber: String?) async throws -> UserProfile {
         try await updateUserSettings(fullName: fullName, phoneNumber: phoneNumber, profilePictureUrl: nil)
+    }
+
+    func checkServerHealth() async throws -> ServerHealthResponse {
+        return ServerHealthResponse(status: "ok", timestamp: nil, service: "TrackerThings API", version: "2.0")
     }
 }
 
@@ -181,6 +200,10 @@ public actor AuthService: AuthServiceProtocol {
 
     public func getProfile() async throws -> UserProfile {
         return try await network.request(endpoint: "profile", method: "GET")
+    }
+
+    public func checkServerHealth() async throws -> ServerHealthResponse {
+        return try await network.request(endpoint: "health", method: "GET")
     }
 
     public func updateProfile(

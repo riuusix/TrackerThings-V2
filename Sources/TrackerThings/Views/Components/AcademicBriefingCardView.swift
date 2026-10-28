@@ -130,7 +130,7 @@ public struct AcademicBriefingCardView: View {
                 .clipShape(RoundedRectangle(cornerRadius: AppTheme.Metrics.cornerRadiusSmall, style: .continuous))
             }
         }
-        .cardSurface(strokeColor: statusColor.opacity(0.25), strokeWidth: 1)
+        .cardSurface(strokeColor: AppTheme.Colors.borderSubtle, strokeWidth: 1)
     }
 }
 
@@ -141,23 +141,28 @@ private struct MetricChip: View {
     let color: Color
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 5) {
             Image(systemName: icon)
-                .font(.system(size: 10, weight: .semibold))
+                .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(color)
 
-            VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text(title)
                     .font(AppTheme.Typography.badge)
                     .foregroundStyle(AppTheme.Colors.textPrimary)
+                    .monospacedDigit()
                 Text(subtitle)
-                    .font(.system(size: 9))
+                    .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(AppTheme.Colors.textTertiary)
             }
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
         .background(AppTheme.Colors.surfaceElevated)
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.Metrics.cornerRadiusSmall, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.Metrics.cornerRadiusSmall, style: .continuous)
+                .stroke(AppTheme.Colors.borderSubtle, lineWidth: 0.5)
+        )
     }
 }

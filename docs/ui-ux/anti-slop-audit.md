@@ -91,3 +91,4 @@ All project-local and workspace skills were discovered and inspected in full bef
 4. **Slice 4 — Mata Kuliah (Day-Grouped Directory) & Jadwal Ujian (Chronological Countdown):** `app/matakuliah/MatakuliahClient.tsx`, `app/ujian/UjianClient.tsx`.
 5. **Slice 5 — Riwayat Kelas Archive Ledger & Modals / Import Workflow:** `app/history/page.tsx`, `components/TaskModal.tsx`, `components/KelasPenggantiModal.tsx`, `components/ImportScheduleModal.tsx`.
 6. **Slice 6 — Verification, Regression Suite & GitHub Actions CI:** TypeScript typecheck, existing + new anti-slop regression tests, and CI verification.
+

@@ -144,9 +144,9 @@ jobs:
       - name: Compile Swift Package (iOS Simulator Target)
         run: |
           SDK_PATH=$(xcrun --sdk iphonesimulator --show-sdk-path)
-          swift build -v --triple arm64-apple-ios18.0-simulator --sdk "$SDK_PATH" || xcodebuild -scheme TrackerThings -destination "generic/platform=iOS Simulator" -derivedDataPath .build/derivedData || true
+          swift build -v --triple arm64-apple-ios18.0-simulator --sdk "$SDK_PATH"
 
-      - name: Execute Swift Unit Tests (AppleVisionOcrTests)
+      - name: Execute Swift Unit Tests
         run: |
           SDK_PATH=$(xcrun --sdk iphonesimulator --show-sdk-path)
-          swift test -v --triple arm64-apple-ios18.0-simulator --sdk "$SDK_PATH" --filter AppleVisionOcrTests || true
+          swift test -v --triple arm64-apple-ios18.0-simulator --sdk "$SDK_PATH"

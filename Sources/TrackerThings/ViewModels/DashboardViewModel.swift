@@ -113,16 +113,31 @@ public final class DashboardViewModel {
         }
 
         do {
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "yyyy-MM-dd"
+            dateFormatter.locale = Locale(identifier: "en_US_POSIX")
+            dateFormatter.timeZone = TimeZone.current
+            let refDate = dateFormatter.string(from: Date())
+            let tz = TimeZone.current.identifier
+
             async let fetchCourses = dataService.getJadwalList()
             async let fetchTasks = dataService.getTugasList()
             async let fetchExams = dataService.getUjianList()
             async let fetchKP = dataService.getKelasPenggantiList()
+            async let fetchIntelligence: AcademicIntelligenceSummary? = {
+                do {
+                    return try await dataService.getAcademicInsights(referenceDate: refDate, timezone: tz, upcomingWindowDays: 7)
+                } catch {
+                    return nil
+                }
+            }()
 
-            let (loadedCourses, loadedTasks, loadedExams, loadedKP) = try await (
+            let (loadedCourses, loadedTasks, loadedExams, loadedKP, loadedIntelligence) = try await (
                 fetchCourses,
                 fetchTasks,
                 fetchExams,
-                fetchKP
+                fetchKP,
+                fetchIntelligence
             )
 
             // Race condition check: ensure newer request has not overtaken this one

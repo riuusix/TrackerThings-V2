@@ -56,88 +56,44 @@ public struct ExamListView: View {
                         description: Text("Jadwal Ujian Tengah Semester (UTS) atau UAS yang ditambahkan akan muncul di sini.")
                     )
                 } else {
-                    ForEach(viewModel.exams) { exam in
-                        let diff = daysDifference(to: exam.tanggal)
-                        NavigationLink {
-                            ExamDetailView(
-                                examId: exam.id,
-                                initialExam: exam,
-                                viewModel: viewModel
-                            )
-                        } label: {
-                            VStack(alignment: .leading, spacing: 10) {
-                                HStack {
-                                    Text(exam.jenisUjian)
-                                        .font(.caption2.weight(.bold))
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 3)
-                                        .background(Color.red.opacity(0.12))
-                                        .foregroundStyle(.red)
-                                        .clipShape(Capsule())
+                    let upcoming = viewModel.exams.filter { daysDifference(to: $0.tanggal) >= 0 }.sorted { $0.tanggal < $1.tanggal }
+                    let past = viewModel.exams.filter { daysDifference(to: $0.tanggal) < 0 }.sorted { $0.tanggal > $1.tanggal }
 
-                                    Spacer()
-
-                                    if diff < 0 {
-                                        Text("Selesai")
-                                            .font(.caption2.weight(.semibold))
-                                            .foregroundStyle(.secondary)
-                                    } else if diff == 0 {
-                                        Text("Hari Ini!")
-                                            .font(.caption2.weight(.bold))
-                                            .foregroundStyle(.red)
-                                    } else {
-                                        Text("\(diff) hari lagi")
-                                            .font(.caption2.weight(.semibold))
-                                            .foregroundStyle(.orange)
-                                    }
-                                }
-
-                                Text(exam.jadwal?.namaMatkul ?? "Ujian Akademik")
-                                    .font(.headline)
-
-                                HStack(spacing: 12) {
-                                    Label(exam.tanggal.formatted(date: .abbreviated, time: .omitted), systemImage: "calendar")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-
-                                    if let start = exam.waktuMulai {
-                                        Label("\(start)\(exam.waktuSelesai.map { " - " + $0 } ?? "")", systemImage: "clock")
-                                            .font(.subheadline)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-
-                                if let room = exam.ruangan, !room.isEmpty {
-                                    Label("Ruangan: \(room)", systemImage: "mappin")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-
-                                if let note = exam.catatan, !note.isEmpty {
-                                    Text("Catatan: \(note)")
-                                        .font(.caption)
-                                        .padding(8)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .background(Color.secondary.opacity(0.08))
-                                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                                }
+                    if !upcoming.isEmpty {
+                        Section {
+                            ForEach(upcoming) { exam in
+                                examRow(for: exam)
                             }
-                            .padding(.vertical, 4)
+                        } header: {
+                            HStack {
+                                Text("Akan Datang")
+                                    .font(AppTheme.Typography.sectionHeader)
+                                    .foregroundStyle(AppTheme.Colors.textPrimary)
+                                Spacer()
+                                Text("\(upcoming.count) Ujian")
+                                    .font(AppTheme.Typography.caption)
+                                    .foregroundStyle(AppTheme.Colors.textSecondary)
+                                    .monospacedDigit()
+                            }
                         }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button(role: .destructive) {
-                                examPendingDeletion = exam
-                            } label: {
-                                Label("Hapus", systemImage: "trash")
-                            }
+                    }
 
-                            Button {
-                                viewModel.editingExam = exam
-                                viewModel.isPresentingSheet = true
-                            } label: {
-                                Label("Edit", systemImage: "pencil")
+                    if !past.isEmpty {
+                        Section {
+                            ForEach(past) { exam in
+                                examRow(for: exam)
                             }
-                            .tint(.orange)
+                        } header: {
+                            HStack {
+                                Text("Riwayat Ujian")
+                                    .font(AppTheme.Typography.sectionHeader)
+                                    .foregroundStyle(AppTheme.Colors.textSecondary)
+                                Spacer()
+                                Text("\(past.count) Selesai")
+                                    .font(AppTheme.Typography.caption)
+                                    .foregroundStyle(AppTheme.Colors.textTertiary)
+                                    .monospacedDigit()
+                            }
                         }
                     }
                 }
@@ -187,6 +143,149 @@ public struct ExamListView: View {
                 await viewModel.fetchExams()
             }
             .feedbackToast(toast: $viewModel.toast)
+        }
+    }
+
+    private func examMonthText(_ date: Date) -> String {
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "id_ID")
+        df.dateFormat = "MMM"
+        return df.string(from: date)
+    }
+
+    private func examDayText(_ date: Date) -> String {
+        let df = DateFormatter()
+        df.dateFormat = "d"
+        return df.string(from: date)
+    }
+
+    @ViewBuilder
+    private func countdownBadge(diff: Int) -> some View {
+        if diff < 0 {
+            Text("Selesai")
+                .font(.system(size: 8, weight: .medium))
+                .foregroundStyle(AppTheme.Colors.textTertiary)
+        } else if diff == 0 {
+            Text("Hari Ini")
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(AppTheme.Colors.urgent)
+        } else {
+            Text("\(diff) hari")
+                .font(.system(size: 8, weight: .semibold))
+                .foregroundStyle(diff <= 3 ? AppTheme.Colors.urgent : AppTheme.Colors.warning)
+        }
+    }
+
+    private func examBadgeBg(diff: Int) -> Color {
+        if diff < 0 { return AppTheme.Colors.neutralBackground }
+        if diff == 0 { return AppTheme.Colors.urgentBackground }
+        return AppTheme.Colors.infoBackground
+    }
+
+    private func examBadgeFg(diff: Int) -> Color {
+        if diff < 0 { return AppTheme.Colors.textTertiary }
+        if diff == 0 { return AppTheme.Colors.urgent }
+        return AppTheme.Colors.brandPrimary
+    }
+
+    @ViewBuilder
+    private func examRow(for exam: UjianItem) -> some View {
+        let diff = daysDifference(to: exam.tanggal)
+        NavigationLink {
+            ExamDetailView(
+                examId: exam.id,
+                initialExam: exam,
+                viewModel: viewModel
+            )
+        } label: {
+            HStack(alignment: .top, spacing: AppTheme.Metrics.spacingMedium) {
+                // Left Chronological Date Block
+                VStack(spacing: 2) {
+                    Text(examMonthText(exam.tanggal))
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(diff < 0 ? AppTheme.Colors.textTertiary : AppTheme.Colors.brandPrimary)
+                        .textCase(.uppercase)
+
+                    Text(examDayText(exam.tanggal))
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(diff < 0 ? AppTheme.Colors.textTertiary : AppTheme.Colors.textPrimary)
+                        .monospacedDigit()
+
+                    countdownBadge(diff: diff)
+                }
+                .frame(width: 52)
+                .padding(.vertical, 4)
+                .padding(.horizontal, 4)
+                .background(AppTheme.Colors.surfaceElevated)
+                .clipShape(RoundedRectangle(cornerRadius: AppTheme.Metrics.cornerRadiusSmall, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: AppTheme.Metrics.cornerRadiusSmall, style: .continuous)
+                        .stroke(AppTheme.Colors.borderSubtle, lineWidth: 0.5)
+                )
+
+                // Exam Info Content
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        Text(exam.jenisUjian)
+                            .font(AppTheme.Typography.badge)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 2)
+                            .background(examBadgeBg(diff: diff))
+                            .foregroundStyle(examBadgeFg(diff: diff))
+                            .clipShape(Capsule())
+
+                        Spacer()
+                    }
+
+                    Text(exam.jadwal?.namaMatkul ?? "Ujian Akademik")
+                        .font(AppTheme.Typography.cardTitle)
+                        .foregroundStyle(AppTheme.Colors.textPrimary)
+                        .lineLimit(2)
+
+                    HStack(spacing: 12) {
+                        if let start = exam.waktuMulai {
+                            Label("\(start)\(exam.waktuSelesai.map { " - " + $0 } ?? "")", systemImage: "clock")
+                                .font(AppTheme.Typography.caption)
+                                .foregroundStyle(AppTheme.Colors.textSecondary)
+                                .monospacedDigit()
+                        }
+
+                        if let room = exam.ruangan, !room.isEmpty {
+                            Label(room, systemImage: "mappin")
+                                .font(AppTheme.Typography.caption)
+                                .foregroundStyle(AppTheme.Colors.textTertiary)
+                                .lineLimit(1)
+                        }
+                    }
+
+                    if let note = exam.catatan, !note.isEmpty {
+                        Text(note)
+                            .font(AppTheme.Typography.caption)
+                            .foregroundStyle(AppTheme.Colors.textSecondary)
+                            .lineLimit(2)
+                            .padding(6)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(AppTheme.Colors.neutralBackground)
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    }
+                }
+            }
+            .padding(.vertical, 3)
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button(role: .destructive) {
+                examPendingDeletion = exam
+            } label: {
+                Label("Hapus", systemImage: "trash")
+            }
+
+            Button {
+                viewModel.editingExam = exam
+                viewModel.isPresentingSheet = true
+            } label: {
+                Label("Edit", systemImage: "pencil")
+            }
+            .tint(AppTheme.Colors.warning)
         }
     }
 }

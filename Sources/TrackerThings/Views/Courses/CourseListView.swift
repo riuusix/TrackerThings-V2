@@ -77,62 +77,65 @@ public struct CourseListView: View {
                             .listRowBackground(Color.clear)
                             .listRowSeparator(.hidden)
                     }
-                } else {
+                } else if !viewModel.searchText.isEmpty {
                     Section {
                         ForEach(viewModel.filteredCourses) { course in
-                            ZStack {
-                                NavigationLink {
-                                    CourseDetailView(
-                                        courseId: course.id,
-                                        initialCourse: course,
-                                        courseViewModel: viewModel,
-                                        dashboardViewModel: dashboardViewModel,
-                                        examViewModel: examViewModel
-                                    )
-                                } label: {
-                                    EmptyView()
-                                }
-                                .opacity(0)
-
-                                CourseCardView(
-                                    course: course,
-                                    onEdit: {
-                                        viewModel.editingCourse = course
-                                        viewModel.isPresentingSheet = true
-                                    },
-                                    onDelete: {
-                                        coursePendingDeletion = course
-                                    }
-                                )
-                            }
-                            .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
-                            .listRowBackground(Color.clear)
-                            .listRowSeparator(.hidden)
-                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                Button(role: .destructive) {
-                                    coursePendingDeletion = course
-                                } label: {
-                                    Label("Hapus", systemImage: "trash")
-                                }
-
-                                Button {
-                                    viewModel.editingCourse = course
-                                    viewModel.isPresentingSheet = true
-                                } label: {
-                                    Label("Edit", systemImage: "pencil")
-                                }
-                                .tint(.orange)
-                            }
+                            courseRow(for: course)
                         }
                     } header: {
-                        if !viewModel.filteredCourses.isEmpty {
-                            HStack {
-                                Text("\(viewModel.filteredCourses.count) MATA KULIAH")
-                                    .font(AppTheme.Typography.badge)
-                                    .foregroundStyle(AppTheme.Colors.textTertiary)
-                                Spacer()
+                        HStack {
+                            Text("\(viewModel.filteredCourses.count) MATA KULIAH DITEMUKAN")
+                                .font(AppTheme.Typography.badge)
+                                .foregroundStyle(AppTheme.Colors.textTertiary)
+                            Spacer()
+                        }
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 4, trailing: 16))
+                    }
+                } else {
+                    let daysOrder = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]
+                    ForEach(daysOrder, id: \.self) { day in
+                        let coursesForDay = viewModel.filteredCourses.filter { $0.hari.caseInsensitiveCompare(day) == .orderedSame }
+                        if !coursesForDay.isEmpty {
+                            Section {
+                                ForEach(coursesForDay) { course in
+                                    courseRow(for: course)
+                                }
+                            } header: {
+                                HStack {
+                                    Text(day)
+                                        .font(AppTheme.Typography.sectionHeader)
+                                        .foregroundStyle(AppTheme.Colors.textPrimary)
+                                    Spacer()
+                                    Text("\(coursesForDay.count) Kuliah")
+                                        .font(AppTheme.Typography.caption)
+                                        .foregroundStyle(AppTheme.Colors.textSecondary)
+                                        .monospacedDigit()
+                                }
+                                .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 4, trailing: 16))
                             }
-                            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 4, trailing: 16))
+                        }
+                    }
+
+                    let otherCourses = viewModel.filteredCourses.filter { course in
+                        !daysOrder.contains(where: { $0.caseInsensitiveCompare(course.hari) == .orderedSame })
+                    }
+                    if !otherCourses.isEmpty {
+                        Section {
+                            ForEach(otherCourses) { course in
+                                courseRow(for: course)
+                            }
+                        } header: {
+                            HStack {
+                                Text("Lainnya")
+                                    .font(AppTheme.Typography.sectionHeader)
+                                    .foregroundStyle(AppTheme.Colors.textPrimary)
+                                Spacer()
+                                Text("\(otherCourses.count) Kuliah")
+                                    .font(AppTheme.Typography.caption)
+                                    .foregroundStyle(AppTheme.Colors.textSecondary)
+                                    .monospacedDigit()
+                            }
+                            .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 4, trailing: 16))
                         }
                     }
                 }
@@ -223,6 +226,53 @@ public struct CourseListView: View {
                 await viewModel.fetchCourses()
             }
             .feedbackToast(toast: $viewModel.toast)
+        }
+    }
+
+    @ViewBuilder
+    private func courseRow(for course: JadwalItem) -> some View {
+        ZStack {
+            NavigationLink {
+                CourseDetailView(
+                    courseId: course.id,
+                    initialCourse: course,
+                    courseViewModel: viewModel,
+                    dashboardViewModel: dashboardViewModel,
+                    examViewModel: examViewModel
+                )
+            } label: {
+                EmptyView()
+            }
+            .opacity(0)
+
+            CourseCardView(
+                course: course,
+                onEdit: {
+                    viewModel.editingCourse = course
+                    viewModel.isPresentingSheet = true
+                },
+                onDelete: {
+                    coursePendingDeletion = course
+                }
+            )
+        }
+        .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button(role: .destructive) {
+                coursePendingDeletion = course
+            } label: {
+                Label("Hapus", systemImage: "trash")
+            }
+
+            Button {
+                viewModel.editingCourse = course
+                viewModel.isPresentingSheet = true
+            } label: {
+                Label("Edit", systemImage: "pencil")
+            }
+            .tint(AppTheme.Colors.warning)
         }
     }
 }

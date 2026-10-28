@@ -142,6 +142,16 @@ public final class LocalCacheService: Sendable {
     public static let keyKelasPengganti = "cached_kelas_pengganti_list"
     public static let keyAcademicIntelligence = "cached_academic_intelligence"
     public static let keyOfflineScheduleDrafts = "cached_offline_schedule_drafts"
+    public static let keyLastSync = "cached_last_sync_timestamp"
+
+    // MARK: - Last Sync Timestamp
+    public func saveLastSyncDate(_ date: Date = Date()) {
+        save(date, forKey: Self.keyLastSync)
+    }
+
+    public func getLastSyncDate() -> Date? {
+        load(forKey: Self.keyLastSync)
+    }
 
     // MARK: - Offline Schedule Drafts Persistence
     public func saveScheduleDrafts(_ drafts: [OfflineScheduleDraft]) {

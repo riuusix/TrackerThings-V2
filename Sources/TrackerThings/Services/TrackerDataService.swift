@@ -72,6 +72,7 @@ public actor TrackerDataService: TrackerDataServiceProtocol {
         do {
             let items: [JadwalItem] = try await network.request(endpoint: "jadwal", method: "GET")
             LocalCacheService.shared.save(items, forKey: LocalCacheService.keyJadwal)
+            LocalCacheService.shared.saveLastSyncDate()
             return items
         } catch {
             if let cached: [JadwalItem] = LocalCacheService.shared.load(forKey: LocalCacheService.keyJadwal) {
@@ -104,6 +105,7 @@ public actor TrackerDataService: TrackerDataServiceProtocol {
         do {
             let items: [TugasItem] = try await network.request(endpoint: "tugas", method: "GET")
             LocalCacheService.shared.save(items, forKey: LocalCacheService.keyTugas)
+            LocalCacheService.shared.saveLastSyncDate()
             return items
         } catch {
             if let cached: [TugasItem] = LocalCacheService.shared.load(forKey: LocalCacheService.keyTugas) {
@@ -138,6 +140,7 @@ public actor TrackerDataService: TrackerDataServiceProtocol {
         do {
             let items: [UjianItem] = try await network.request(endpoint: "ujian", method: "GET")
             LocalCacheService.shared.save(items, forKey: LocalCacheService.keyUjian)
+            LocalCacheService.shared.saveLastSyncDate()
             return items
         } catch {
             if let cached: [UjianItem] = LocalCacheService.shared.load(forKey: LocalCacheService.keyUjian) {
@@ -166,6 +169,7 @@ public actor TrackerDataService: TrackerDataServiceProtocol {
         do {
             let items: [KelasPenggantiItem] = try await network.request(endpoint: "kelas-pengganti", method: "GET")
             LocalCacheService.shared.save(items, forKey: LocalCacheService.keyKelasPengganti)
+            LocalCacheService.shared.saveLastSyncDate()
             return items
         } catch {
             if let cached: [KelasPenggantiItem] = LocalCacheService.shared.load(forKey: LocalCacheService.keyKelasPengganti) {
@@ -310,6 +314,7 @@ public actor TrackerDataService: TrackerDataServiceProtocol {
         do {
             let summary: AcademicIntelligenceSummary = try await network.request(endpoint: endpoint, method: "GET")
             LocalCacheService.shared.save(summary, forKey: LocalCacheService.keyAcademicIntelligence)
+            LocalCacheService.shared.saveLastSyncDate()
             return summary
         } catch {
             if let cached: AcademicIntelligenceSummary = LocalCacheService.shared.load(forKey: LocalCacheService.keyAcademicIntelligence) {

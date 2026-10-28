@@ -49,11 +49,18 @@ public final class SettingsViewModel {
 
     public enum ServerConnectionStatus: Equatable, Sendable {
         case checking
-        case connected
-        case unreachable(String)
+        case connected(lastSync: Date?)
+        case offline
+        case serverUnavailable(statusCode: Int?, message: String)
+        case authenticationRequired
+        case timedOut
     }
 
     public var connectionStatus: ServerConnectionStatus = .checking
+    public private(set) var lastCheckedAt: Date? = nil
+
+    private var connectionCheckTask: Task<Void, Never>?
+    private var currentCheckId: UUID = UUID()
 
     private let authService: AuthServiceProtocol
 
@@ -62,19 +69,94 @@ public final class SettingsViewModel {
     }
 
     public func checkServerConnection() async {
-        guard connectionStatus != .checking else { return }
-        connectionStatus = .checking
+        // Batalkan tugas pengecekan sebelumnya agar tidak terjadi race condition
+        connectionCheckTask?.cancel()
+
+        let checkId = UUID()
+        self.currentCheckId = checkId
+
+        // Pengecekan offline langsung tanpa menunggu socket timeout
+        if !NetworkMonitor.shared.isConnected {
+            self.connectionStatus = .offline
+            self.lastCheckedAt = Date()
+            return
+        }
+
+        self.connectionStatus = .checking
+
+        let task = Task { [weak self] () -> ServerConnectionStatus in
+            guard let self = self else { return .serverUnavailable(statusCode: nil, message: "Layanan dilepas") }
+            return await self.performConnectionCheckWithTimeout(timeoutSeconds: 6.0)
+        }
+
+        self.connectionCheckTask = Task { @MainActor [weak self] in
+            let result = await task.value
+            guard let self = self, self.currentCheckId == checkId, !Task.isCancelled else { return }
+            self.connectionStatus = result
+            self.lastCheckedAt = Date()
+        }
+
+        await self.connectionCheckTask?.value
+    }
+
+    private func performConnectionCheckWithTimeout(timeoutSeconds: TimeInterval) async -> ServerConnectionStatus {
         do {
-            _ = try await authService.getProfile()
-            connectionStatus = .connected
+            return try await withThrowingTaskGroup(of: ServerConnectionStatus.self) { group in
+                group.addTask {
+                    try await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000))
+                    return .timedOut
+                }
+
+                group.addTask { [weak self] in
+                    guard let self = self else { return .serverUnavailable(statusCode: nil, message: "Layanan dilepas") }
+                    return await self.probeServerStatus()
+                }
+
+                if let first = try await group.next() {
+                    group.cancelAll()
+                    return first
+                }
+                return .serverUnavailable(statusCode: nil, message: "Koneksi tidak diketahui")
+            }
+        } catch {
+            if Task.isCancelled {
+                return self.connectionStatus
+            }
+            return .serverUnavailable(statusCode: nil, message: error.localizedDescription)
+        }
+    }
+
+    private func probeServerStatus() async -> ServerConnectionStatus {
+        do {
+            _ = try await authService.checkServerHealth()
+            let lastSync = LocalCacheService.shared.getLastSyncDate()
+            return .connected(lastSync: lastSync)
         } catch {
             if case AppError.unauthorized = error {
-                connectionStatus = .connected
-            } else if case AppError.serverError = error {
-                connectionStatus = .connected
-            } else {
-                connectionStatus = .unreachable("Tidak dapat terhubung ke server")
+                return .authenticationRequired
             }
+            if case AppError.offline = error {
+                return .offline
+            }
+            if case AppError.timeout = error {
+                return .timedOut
+            }
+            if case let AppError.serverError(code, message) = error {
+                if code == 401 {
+                    return .authenticationRequired
+                }
+                return .serverUnavailable(statusCode: code, message: message)
+            }
+            if case let AppError.serverUnreachable(message) = error {
+                return .serverUnavailable(statusCode: nil, message: message)
+            }
+            if case let AppError.networkConnection(message) = error {
+                return .serverUnavailable(statusCode: nil, message: message)
+            }
+            if error is CancellationError {
+                return self.connectionStatus
+            }
+            return .serverUnavailable(statusCode: nil, message: error.localizedDescription)
         }
     }
 
