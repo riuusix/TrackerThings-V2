@@ -16,17 +16,6 @@ public struct EditProfileView: View {
         self.viewModel = viewModel
     }
 
-    @ViewBuilder
-    private var galleryPickerLabel: some View {
-        Text(viewModel.isUploadingAvatar ? "Mengunggah..." : "Pilih dari Galeri")
-            .font(AppTheme.Typography.badge)
-            .foregroundStyle(viewModel.isOffline ? AppTheme.Colors.textTertiary : AppTheme.Colors.brandPrimary)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 4)
-            .background(AppTheme.Colors.neutralBackground)
-            .clipShape(Capsule())
-    }
-
     public var body: some View {
         Form {
             // MARK: - Header Avatar Pratinjau & Pemilih Foto
@@ -84,7 +73,17 @@ public struct EditProfileView: View {
                             matching: .images,
                             photoLibrary: .shared()
                         ) {
-                            galleryPickerLabel
+                            HStack(spacing: 4) {
+                                Image(systemName: "photo")
+                                    .font(.caption2)
+                                Text("Pilih dari Galeri")
+                                    .font(AppTheme.Typography.badge)
+                            }
+                            .foregroundStyle(AppTheme.Colors.brandPrimary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(AppTheme.Colors.neutralBackground)
+                            .clipShape(Capsule())
                         }
                         .disabled(viewModel.isUploadingAvatar || viewModel.isOffline)
                     }
