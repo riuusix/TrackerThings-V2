@@ -34,17 +34,6 @@ public struct CourseCardView: View {
                     .font(AppTheme.Typography.caption)
                     .foregroundStyle(AppTheme.Colors.textTertiary)
                     .monospacedDigit()
-
-                if let sks = course.sks, sks > 0 {
-                    Text("\(sks) SKS")
-                        .font(.system(size: 9, weight: .bold))
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 2)
-                        .background(AppTheme.Colors.neutralBackground)
-                        .foregroundStyle(AppTheme.Colors.textSecondary)
-                        .clipShape(Capsule())
-                        .padding(.top, 2)
-                }
             }
             .frame(width: 48)
             .padding(.vertical, 2)

@@ -4,6 +4,7 @@ import PhotosUI
 /// Tampilan native SwiftUI untuk mengedit biodata profil pengguna TrackerThings V2.
 /// Mendukung pemilihan foto via PhotosPicker dengan kompresi lokal, upload ke server,
 /// input URL opsional, validasi instan, loading state, dan toast feedback.
+@MainActor
 public struct EditProfileView: View {
     @Environment(AuthViewModel.self) private var authViewModel
     @Environment(\.dismiss) private var dismiss
@@ -13,6 +14,17 @@ public struct EditProfileView: View {
 
     public init(viewModel: SettingsViewModel) {
         self.viewModel = viewModel
+    }
+
+    @ViewBuilder
+    private var galleryPickerLabel: some View {
+        Text(viewModel.isUploadingAvatar ? "Mengunggah..." : "Pilih dari Galeri")
+            .font(AppTheme.Typography.badge)
+            .foregroundStyle(viewModel.isOffline ? AppTheme.Colors.textTertiary : AppTheme.Colors.brandPrimary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(AppTheme.Colors.neutralBackground)
+            .clipShape(Capsule())
     }
 
     public var body: some View {
@@ -72,13 +84,7 @@ public struct EditProfileView: View {
                             matching: .images,
                             photoLibrary: .shared()
                         ) {
-                            Text(viewModel.isUploadingAvatar ? "Mengunggah..." : "Pilih dari Galeri")
-                                .font(AppTheme.Typography.badge)
-                                .foregroundStyle(viewModel.isOffline ? AppTheme.Colors.textTertiary : AppTheme.Colors.brandPrimary)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 4)
-                                .background(AppTheme.Colors.neutralBackground)
-                                .clipShape(Capsule())
+                            galleryPickerLabel
                         }
                         .disabled(viewModel.isUploadingAvatar || viewModel.isOffline)
                     }

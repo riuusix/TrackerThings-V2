@@ -151,3 +151,4 @@ final class SettingsConnectionStatusTests: XCTestCase {
         XCTAssertNotEqual(vm.connectionStatus, .checking)
     }
 }
+
