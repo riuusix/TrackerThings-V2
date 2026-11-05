@@ -6,6 +6,7 @@ public struct DashboardView: View {
     @State private var examViewModel: ExamViewModel
     @State private var isPresentingAddTask = false
     @State private var isPresentingAddReplacement = false
+    @Namespace private var dayNamespace
 
     public init(
         viewModel: DashboardViewModel,
@@ -37,9 +38,8 @@ public struct DashboardView: View {
     }
 
     public var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: AppTheme.Metrics.spacingSection) {
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppTheme.Metrics.spacingSection) {
                     // 1. Header & Identitas Pengguna Ringkas + 2. Tanggal Hari Ini
                     VStack(alignment: .leading, spacing: AppTheme.Metrics.spacingXXSmall) {
                         HStack(alignment: .center) {
@@ -104,7 +104,8 @@ public struct DashboardView: View {
                                 ForEach(viewModel.daysOfWeek, id: \.self) { day in
                                     let isSelected = viewModel.selectedDay == day
                                     Button {
-                                        withAnimation(.snappy) {
+                                        HapticsHelper.selection()
+                                        withAnimation(AppTheme.Motion.interactiveSpring) {
                                             viewModel.selectedDay = day
                                         }
                                     } label: {
@@ -112,9 +113,17 @@ public struct DashboardView: View {
                                             .font(isSelected ? AppTheme.Typography.captionBold : AppTheme.Typography.caption)
                                             .padding(.horizontal, 14)
                                             .padding(.vertical, 8)
-                                            .background(isSelected ? AppTheme.Colors.brandPrimary : AppTheme.Colors.cardBackground)
                                             .foregroundStyle(isSelected ? Color.white : AppTheme.Colors.textPrimary)
-                                            .clipShape(RoundedRectangle(cornerRadius: AppTheme.Metrics.cornerRadiusSmall, style: .continuous))
+                                            .background {
+                                                if isSelected {
+                                                    RoundedRectangle(cornerRadius: AppTheme.Metrics.cornerRadiusSmall, style: .continuous)
+                                                        .fill(AppTheme.Colors.brandPrimary)
+                                                        .matchedGeometryEffect(id: "DAY_SELECTOR_PILL", in: dayNamespace)
+                                                } else {
+                                                    RoundedRectangle(cornerRadius: AppTheme.Metrics.cornerRadiusSmall, style: .continuous)
+                                                        .fill(AppTheme.Colors.cardBackground)
+                                                }
+                                            }
                                     }
                                     .buttonStyle(.plain)
                                 }
@@ -478,7 +487,6 @@ public struct DashboardView: View {
                 KelasPenggantiFormSheet(viewModel: viewModel)
             }
             .feedbackToast(toast: $viewModel.toast)
-        }
     }
 }
 

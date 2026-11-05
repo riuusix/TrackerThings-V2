@@ -160,11 +160,12 @@ public final class DashboardViewModel {
             // Build notifications for tasks due soon
             generateNotifications()
 
-            // Sinkronkan seluruh pengingat lokal sistem (kuliah, tugas, ujian) secara deterministik
+            // Sinkronkan seluruh pengingat lokal sistem (kuliah, tugas, ujian, kelas pengganti) secara deterministik
             await NotificationService.shared.syncAllReminders(
                 courses: loadedCourses,
                 tasks: loadedTasks,
-                exams: loadedExams
+                exams: loadedExams,
+                replacementClasses: loadedKP
             )
         } catch {
             guard loadId == self.currentLoadId else { return }

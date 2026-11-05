@@ -23,8 +23,7 @@ public struct CourseListView: View {
     }
 
     public var body: some View {
-        NavigationStack {
-            List {
+        List {
                 if viewModel.isOffline {
                     Section {
                         OfflineBannerView(
@@ -226,7 +225,6 @@ public struct CourseListView: View {
                 await viewModel.fetchCourses()
             }
             .feedbackToast(toast: $viewModel.toast)
-        }
     }
 
     @ViewBuilder

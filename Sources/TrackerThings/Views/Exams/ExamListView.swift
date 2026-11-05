@@ -16,8 +16,7 @@ public struct ExamListView: View {
     }
 
     public var body: some View {
-        NavigationStack {
-            List {
+        List {
                 if viewModel.isOffline {
                     Section {
                         OfflineBannerView(
@@ -143,7 +142,6 @@ public struct ExamListView: View {
                 await viewModel.fetchExams()
             }
             .feedbackToast(toast: $viewModel.toast)
-        }
     }
 
     private func examMonthText(_ date: Date) -> String {

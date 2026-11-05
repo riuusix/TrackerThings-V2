@@ -9,6 +9,7 @@ public struct NotificationPreferences: Codable, Sendable, Equatable {
     public var isClassReminderEnabled: Bool
     public var isTaskReminderEnabled: Bool
     public var isExamReminderEnabled: Bool
+    public var isReplacementClassReminderEnabled: Bool
     /// Waktu menit sebelum jadwal kuliah dimulai (default: 15 menit)
     public var classLeadTimeMinutes: Int
     /// Waktu jam sebelum ujian dimulai (default: 24 jam / H-1)
@@ -18,14 +19,35 @@ public struct NotificationPreferences: Codable, Sendable, Equatable {
         isClassReminderEnabled: Bool = true,
         isTaskReminderEnabled: Bool = true,
         isExamReminderEnabled: Bool = true,
+        isReplacementClassReminderEnabled: Bool = true,
         classLeadTimeMinutes: Int = 15,
         examLeadTimeHours: Int = 24
     ) {
         self.isClassReminderEnabled = isClassReminderEnabled
         self.isTaskReminderEnabled = isTaskReminderEnabled
         self.isExamReminderEnabled = isExamReminderEnabled
+        self.isReplacementClassReminderEnabled = isReplacementClassReminderEnabled
         self.classLeadTimeMinutes = classLeadTimeMinutes
         self.examLeadTimeHours = examLeadTimeHours
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case isClassReminderEnabled
+        case isTaskReminderEnabled
+        case isExamReminderEnabled
+        case isReplacementClassReminderEnabled
+        case classLeadTimeMinutes
+        case examLeadTimeHours
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.isClassReminderEnabled = try container.decodeIfPresent(Bool.self, forKey: .isClassReminderEnabled) ?? true
+        self.isTaskReminderEnabled = try container.decodeIfPresent(Bool.self, forKey: .isTaskReminderEnabled) ?? true
+        self.isExamReminderEnabled = try container.decodeIfPresent(Bool.self, forKey: .isExamReminderEnabled) ?? true
+        self.isReplacementClassReminderEnabled = try container.decodeIfPresent(Bool.self, forKey: .isReplacementClassReminderEnabled) ?? true
+        self.classLeadTimeMinutes = try container.decodeIfPresent(Int.self, forKey: .classLeadTimeMinutes) ?? 15
+        self.examLeadTimeHours = try container.decodeIfPresent(Int.self, forKey: .examLeadTimeHours) ?? 24
     }
 
     private static let userDefaultsKey = "trackerthings_notification_preferences"
@@ -62,9 +84,21 @@ private final class LocalNotificationPresentationDelegate: NSObject, UNUserNotif
         didReceive response: UNNotificationResponse
     ) async {
         let userInfo = response.notification.request.content.userInfo
-        if let destination = userInfo["destination"] as? String {
-            logger.info("Notification tapped with destination: \(destination, privacy: .public)")
-            // Simpan pendingDestination agar dapat dikonsumsi saat cold-start
+        logger.info("Notification tapped with userInfo keys: \(userInfo.keys.map { "\($0)" }.joined(separator: ", "), privacy: .public)")
+
+        if let payload = NotificationPayload.parse(from: userInfo) {
+            // Simpan pendingDestination agar kompatibel dengan legacy consumer
+            NotificationService.shared.pendingDestination = payload.entityType
+            await MainActor.run {
+                AppNavigationCoordinator.shared.handleNotificationPayload(payload)
+                NotificationCenter.default.post(
+                    name: .openTrackerThingsDestination,
+                    object: nil,
+                    userInfo: payload.userInfo
+                )
+            }
+        } else if let destination = userInfo["destination"] as? String {
+            logger.info("Notification tapped with legacy destination: \(destination, privacy: .public)")
             NotificationService.shared.pendingDestination = destination
             await MainActor.run {
                 NotificationCenter.default.post(
@@ -227,7 +261,7 @@ public final class NotificationService: Sendable {
         content.body = body
         content.sound = .default
         content.badge = 1
-        content.userInfo = ["destination": "tasks", "taskId": id]
+        content.userInfo = NotificationPayload(entityType: "task", entityId: id).userInfo
 
         let components = calendar.dateComponents(
             [.year, .month, .day, .hour, .minute, .second],
@@ -308,7 +342,7 @@ public final class NotificationService: Sendable {
         body += ". Siapkan materi perkuliahan Anda!"
         content.body = body
         content.sound = .default
-        content.userInfo = ["destination": "courses", "courseId": id]
+        content.userInfo = NotificationPayload(entityType: "course", entityId: id).userInfo
 
         var dateComponents = DateComponents()
         dateComponents.weekday = targetWeekday
@@ -409,7 +443,7 @@ public final class NotificationService: Sendable {
         content.body = body
         content.sound = .default
         content.badge = 1
-        content.userInfo = ["destination": "exams", "examId": id]
+        content.userInfo = NotificationPayload(entityType: "exam", entityId: id).userInfo
 
         let components = calendar.dateComponents(
             [.year, .month, .day, .hour, .minute, .second],
@@ -435,12 +469,106 @@ public final class NotificationService: Sendable {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["exam-\(id)"])
     }
 
+    // MARK: - Penjadwalan Kelas Pengganti (Replacement Classes)
+
+    public func scheduleReminderForReplacementClass(
+        id: Int,
+        courseName: String?,
+        classDate: Date,
+        startTime: String,
+        location: String?
+    ) async {
+        let prefs = getPreferences()
+        guard prefs.isReplacementClassReminderEnabled else {
+            logger.info("Replacement class reminder disabled by preferences for replacement-\(id, privacy: .public)")
+            cancelReminderForReplacementClass(id: id)
+            return
+        }
+
+        let status = await checkAuthorizationStatus()
+        guard status == .authorized || status == .ephemeral || status == .provisional else {
+            logger.warning("Notification permission not granted for replacement-\(id, privacy: .public)")
+            return
+        }
+
+        let now = Date()
+        let calendar = Calendar.current
+        var effectiveClassDate = classDate
+        if let (h, m) = parseHourMinute(startTime) {
+            effectiveClassDate = calendar.date(bySettingHour: h, minute: m, second: 0, of: classDate) ?? classDate
+        } else {
+            effectiveClassDate = calendar.date(bySettingHour: 8, minute: 0, second: 0, of: classDate) ?? classDate
+        }
+
+        guard effectiveClassDate > now else {
+            logger.info("ReplacementClass-\(id, privacy: .public) has already passed. Cancelling reminder.")
+            cancelReminderForReplacementClass(id: id)
+            return
+        }
+
+        let triggerDate: Date
+        let reminderType: String
+
+        // Lead time 30 menit sebelum kelas dimulai
+        let leadTimeTrigger = effectiveClassDate.addingTimeInterval(-1800)
+
+        if leadTimeTrigger > now {
+            triggerDate = leadTimeTrigger
+            reminderType = "LeadTime-30m"
+        } else if effectiveClassDate.timeIntervalSince(now) >= 120 {
+            triggerDate = now.addingTimeInterval(60)
+            reminderType = "Fallback-Hari-H"
+        } else {
+            logger.info("ReplacementClass-\(id, privacy: .public) is less than 2 minutes away. Skipping reminder.")
+            return
+        }
+
+        let content = UNMutableNotificationContent()
+        content.title = "Pengingat Kelas Pengganti"
+        var body = "\(courseName ?? "Kelas Pengganti")"
+        if !startTime.isEmpty {
+            body += " pukul \(startTime)"
+        }
+        if let loc = location, !loc.isEmpty {
+            body += " di ruangan \(loc)"
+        }
+        body += ". Jangan sampai terlewat!"
+        content.body = body
+        content.sound = .default
+        content.badge = 1
+        content.userInfo = NotificationPayload(entityType: "replacementClass", entityId: id).userInfo
+
+        let components = calendar.dateComponents(
+            [.year, .month, .day, .hour, .minute, .second],
+            from: triggerDate
+        )
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+
+        let request = UNNotificationRequest(
+            identifier: "replacement-\(id)",
+            content: content,
+            trigger: trigger
+        )
+
+        do {
+            try await UNUserNotificationCenter.current().add(request)
+            logger.info("Scheduled replacement class reminder [\(reminderType, privacy: .public)] for replacement-\(id, privacy: .public) at \(triggerDate.description, privacy: .public)")
+        } catch {
+            logger.error("Failed to add notification request replacement-\(id, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    public func cancelReminderForReplacementClass(id: Int) {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["replacement-\(id)"])
+    }
+
     // MARK: - Sinkronisasi Menyeluruh (Deduplikasi Bersih & Pembersihan Stale)
 
     public func syncAllReminders(
         courses: [JadwalItem],
         tasks: [TugasItem],
-        exams: [UjianItem]
+        exams: [UjianItem],
+        replacementClasses: [KelasPenggantiItem] = []
     ) async {
         let status = await checkAuthorizationStatus()
         guard status == .authorized || status == .ephemeral || status == .provisional else {
@@ -530,6 +658,35 @@ public final class NotificationService: Sendable {
             center.removePendingNotificationRequests(withIdentifiers: allExamNotifs)
         }
 
+        // 4. Kelas Pengganti
+        let upcomingKP = replacementClasses.filter {
+            $0.status.caseInsensitiveCompare("Selesai") != .orderedSame &&
+            $0.tanggal >= Calendar.current.startOfDay(for: now)
+        }
+        let validKPIds = Set(upcomingKP.map { "replacement-\($0.id)" })
+        let staleKPIds = pendingRequests
+            .filter { $0.identifier.hasPrefix("replacement-") && !validKPIds.contains($0.identifier) }
+            .map { $0.identifier }
+        if !staleKPIds.isEmpty {
+            center.removePendingNotificationRequests(withIdentifiers: staleKPIds)
+            logger.info("Cleaned up \(staleKPIds.count, privacy: .public) stale replacement class reminders")
+        }
+
+        if prefs.isReplacementClassReminderEnabled {
+            for kp in upcomingKP {
+                await scheduleReminderForReplacementClass(
+                    id: kp.id,
+                    courseName: kp.jadwal?.namaMatkul,
+                    classDate: kp.tanggal,
+                    startTime: kp.waktuMulai,
+                    location: kp.lokasi
+                )
+            }
+        } else {
+            let allKPNotifs = pendingRequests.filter { $0.identifier.hasPrefix("replacement-") }.map { $0.identifier }
+            center.removePendingNotificationRequests(withIdentifiers: allKPNotifs)
+        }
+
         logger.info("syncAllReminders completed successfully")
     }
 
@@ -538,7 +695,8 @@ public final class NotificationService: Sendable {
         let courses: [JadwalItem] = LocalCacheService.shared.load(forKey: LocalCacheService.keyJadwal) ?? []
         let tasks: [TugasItem] = LocalCacheService.shared.load(forKey: LocalCacheService.keyTugas) ?? []
         let exams: [UjianItem] = LocalCacheService.shared.load(forKey: LocalCacheService.keyUjian) ?? []
-        await syncAllReminders(courses: courses, tasks: tasks, exams: exams)
+        let replacementClasses: [KelasPenggantiItem] = LocalCacheService.shared.load(forKey: LocalCacheService.keyKelasPengganti) ?? []
+        await syncAllReminders(courses: courses, tasks: tasks, exams: exams, replacementClasses: replacementClasses)
     }
 
     // MARK: - Diagnostik & Pengujian Notifikasi Cepat
@@ -560,7 +718,7 @@ public final class NotificationService: Sendable {
         content.body = "Ini adalah notifikasi uji (\(Int(delaySeconds))s). Mengetuk notifikasi ini akan membuka tab \(category)."
         content.sound = .default
         content.badge = 1
-        content.userInfo = ["destination": destination, "isTestNotification": true]
+        content.userInfo = NotificationPayload(schemaVersion: 2, entityType: destination, entityId: 0, kind: "test").userInfo
 
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: max(1, delaySeconds), repeats: false)
         let request = UNNotificationRequest(

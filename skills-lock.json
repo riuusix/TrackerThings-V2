@@ -1,11 +1,35 @@
 {
   "version": 1,
   "skills": {
+    "animation-performance": {
+      "source": "emilkowalski/skills",
+      "sourceType": "github",
+      "skillPath": "skills/animation-performance/SKILL.md",
+      "computedHash": "9a5cf80000695ae2e340126d44a38305f1f4625ec220c262a7ff59433d9f34c0"
+    },
+    "animation-vocabulary": {
+      "source": "emilkowalski/skills",
+      "sourceType": "github",
+      "skillPath": "skills/animation-vocabulary/SKILL.md",
+      "computedHash": "9aaad861dd54dab7c9bb3fb5bd4c539078d8d06c14530d92d49cdb1509bfa937"
+    },
+    "apple-design": {
+      "source": "dickwu/apple-design-skill",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "a35331c049004f3408e6591ea2f3013cebc8cd7eb673e7713ded8db86b373bc4"
+    },
     "brandkit": {
       "source": "Leonxlnx/taste-skill",
       "sourceType": "github",
       "skillPath": "skills/brandkit/SKILL.md",
       "computedHash": "735007879f5110aeae1e981a53fe74a12afde70347f9773dacd50e4697a091bf"
+    },
+    "choreograph": {
+      "source": "emilkowalski/skills",
+      "sourceType": "github",
+      "skillPath": "skills/choreograph/SKILL.md",
+      "computedHash": "b61be86c966b0cd6f504d1234ae2d361ba5cbd5b883fd96c069a2580371f686e"
     },
     "design-md": {
       "source": "nolly-studio/agent-skills",
@@ -25,6 +49,12 @@
       "sourceType": "github",
       "skillPath": "skills/taste-skill-v1/SKILL.md",
       "computedHash": "0a226c13d69639553cf8a7c40aa5527b026820f8ddaf7a6b263988e32ab44a27"
+    },
+    "find-animation-opportunities": {
+      "source": "emilkowalski/skills",
+      "sourceType": "github",
+      "skillPath": "skills/find-animation-opportunities/SKILL.md",
+      "computedHash": "c6673fadf179233cc0a52c978ea9acc9b82a210665c749307a571a86ed4c092e"
     },
     "frontend-design": {
       "source": "anthropics/skills",
@@ -68,6 +98,12 @@
       "skillPath": "skills/imagegen-frontend-web/SKILL.md",
       "computedHash": "27255c7c50181e58add156b2aa2bd5325285b85f04027e4c8b73742d98d7be0a"
     },
+    "improve-animations": {
+      "source": "emilkowalski/skills",
+      "sourceType": "github",
+      "skillPath": "skills/improve-animations/SKILL.md",
+      "computedHash": "d8c10dad70287ad3a8f85f98dc7e763a490c8d669d883e250c28322a71a79a90"
+    },
     "industrial-brutalist-ui": {
       "source": "Leonxlnx/taste-skill",
       "sourceType": "github",
@@ -79,6 +115,12 @@
       "sourceType": "github",
       "skillPath": "skills/minimalist-skill/SKILL.md",
       "computedHash": "7e88897e0371184e97a82b8d9ef080323c13f21eb067b58ef71eb05173a08ac2"
+    },
+    "mobile-native": {
+      "source": "emilkowalski/skills",
+      "sourceType": "github",
+      "skillPath": "skills/mobile-native/SKILL.md",
+      "computedHash": "8d77850a34ec20f745aed3215aa0d587e90438599bb09dc72d9d09ce896a5765"
     },
     "redesign-existing-projects": {
       "source": "Leonxlnx/taste-skill",
@@ -109,6 +151,12 @@
       "sourceType": "github",
       "skillPath": "skills/web-design-guidelines/SKILL.md",
       "computedHash": "d8e7d3afe37dcc8a97b99ffb5afdb4d0919ae0092ea8b68f44eb201f035e33ac"
+    },
+    "write-swift": {
+      "source": "emilkowalski/skills",
+      "sourceType": "github",
+      "skillPath": "skills/write-swift/SKILL.md",
+      "computedHash": "3c4854221f2c654172c3532e71dcb4ece25ef62057d97bec1c26c3ab17eca191"
     }
   }
 }

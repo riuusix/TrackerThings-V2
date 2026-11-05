@@ -1,7 +1,6 @@
 {
   "css.lint.unknownAtRules": "ignore",
   "typescript.tsdk": "node_modules/typescript/lib",
-  "agents.allowedCommands": [
-    "playwright-cli"
-  ]
+  "agents.allowedCommands": ["playwright-cli"],
+  "python.terminal.useEnvFile": true
 }

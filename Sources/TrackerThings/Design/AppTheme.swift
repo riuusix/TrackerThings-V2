@@ -122,6 +122,24 @@ public enum AppTheme {
         public static let minTouchTarget: CGFloat = 44
     }
 
+    // MARK: - Motion Design Tokens (Apple HIG & Emil Kowalski Principles)
+    public enum Motion {
+        /// Durasi animasi UI interaktif cepat (<300ms)
+        public static let durationInstant: Double = 0.15
+        public static let durationFast: Double = 0.22
+        public static let durationStandard: Double = 0.28
+        public static let durationDeliberate: Double = 0.40
+
+        /// Spring interaktif untuk respons sentuhan dan tombol: response 0.35s, dampingFraction 0.75
+        public static let interactiveSpring: Animation = .spring(response: 0.35, dampingFraction: 0.75, blendDuration: 0)
+        /// Spring untuk transisi spasial, navigasi, dan perpindahan elemen: response 0.45s, dampingFraction 0.80
+        public static let spatialSpring: Animation = .spring(response: 0.45, dampingFraction: 0.80, blendDuration: 0)
+        /// Animasi snappy untuk perubahan tab dan seleksi pill
+        public static let snappy: Animation = .snappy(duration: 0.25, extraBounce: 0.05)
+        /// Ease-out untuk kemunculan konten (entrances)
+        public static let entranceEaseOut: Animation = .easeOut(duration: 0.22)
+    }
+
     // MARK: - Typography Presets
     public enum Typography {
         public static let largeTitle = Font.system(.largeTitle, design: .rounded, weight: .bold)
@@ -158,6 +176,61 @@ public struct CardSurfaceModifier: ViewModifier {
 public extension View {
     func cardSurface(strokeColor: Color = .clear, strokeWidth: CGFloat = 1) -> some View {
         modifier(CardSurfaceModifier(strokeColor: strokeColor, strokeWidth: strokeWidth))
+    }
+}
+
+// MARK: - Haptic Feedback Helper
+public enum HapticsHelper {
+    public static func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle = .light) {
+        #if canImport(UIKit)
+        let generator = UIImpactFeedbackGenerator(style: style)
+        generator.prepare()
+        generator.impactOccurred()
+        #endif
+    }
+
+    public static func notification(_ type: UINotificationFeedbackGenerator.FeedbackType) {
+        #if canImport(UIKit)
+        let generator = UINotificationFeedbackGenerator()
+        generator.prepare()
+        generator.notificationOccurred(type)
+        #endif
+    }
+
+    public static func selection() {
+        #if canImport(UIKit)
+        let generator = UISelectionFeedbackGenerator()
+        generator.prepare()
+        generator.selectionChanged()
+        #endif
+    }
+}
+
+// MARK: - Pressable Micro-Interaction Button Style
+public struct PressableScaleButtonStyle: ButtonStyle {
+    public var scale: CGFloat = 0.97
+    public var hapticStyle: UIImpactFeedbackGenerator.FeedbackStyle? = .light
+
+    public init(scale: CGFloat = 0.97, hapticStyle: UIImpactFeedbackGenerator.FeedbackStyle? = .light) {
+        self.scale = scale
+        self.hapticStyle = hapticStyle
+    }
+
+    public func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? scale : 1.0)
+            .animation(AppTheme.Motion.interactiveSpring, value: configuration.isPressed)
+            .onChange(of: configuration.isPressed) { _, isPressed in
+                if isPressed, let style = hapticStyle {
+                    HapticsHelper.impact(style)
+                }
+            }
+    }
+}
+
+public extension ButtonStyle where Self == PressableScaleButtonStyle {
+    static var pressableScale: PressableScaleButtonStyle {
+        PressableScaleButtonStyle()
     }
 }
 

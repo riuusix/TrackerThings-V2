@@ -18,8 +18,7 @@ public struct SettingsView: View {
     public init() {}
 
     public var body: some View {
-        NavigationStack {
-            Form {
+        Form {
                 if viewModel.isOffline {
                     Section {
                         OfflineBannerView(
@@ -566,7 +565,6 @@ public struct SettingsView: View {
             } message: {
                 Text("Sesi login Anda akan dihapus dari perangkat ini.")
             }
-        }
     }
 
     private func updateNotificationStatus() async {

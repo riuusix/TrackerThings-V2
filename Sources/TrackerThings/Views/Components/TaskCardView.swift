@@ -45,7 +45,10 @@ public struct TaskCardView: View {
             // Left Circular Completion Toggle
             Button {
                 guard !isMarkingComplete, !isOffline, task.status != .selesai else { return }
-                isMarkingComplete = true
+                HapticsHelper.notification(.success)
+                withAnimation(AppTheme.Motion.interactiveSpring) {
+                    isMarkingComplete = true
+                }
                 onMarkCompleted?()
             } label: {
                 if isMarkingComplete {
@@ -57,6 +60,7 @@ public struct TaskCardView: View {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 20, weight: .semibold))
                         .foregroundStyle(AppTheme.Colors.success)
+                        .transition(.scale.combined(with: .opacity))
                 } else {
                     Circle()
                         .strokeBorder(isOffline ? AppTheme.Colors.borderSubtle : AppTheme.Colors.borderStrong, lineWidth: 1.5)

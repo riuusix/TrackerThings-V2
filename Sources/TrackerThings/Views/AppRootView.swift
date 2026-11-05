@@ -27,6 +27,10 @@ public struct AppRootView: View {
         .animation(.easeInOut(duration: 0.3), value: authViewModel.isAuthenticated)
         .onReceive(NotificationCenter.default.publisher(for: .sessionDidExpire)) { _ in
             authViewModel.handleSessionExpired()
+            AppNavigationCoordinator.shared.resetAllPaths()
+        }
+        .onOpenURL { url in
+            AppNavigationCoordinator.shared.handleDeepLink(url: url)
         }
         .task {
             await authViewModel.restoreSession()

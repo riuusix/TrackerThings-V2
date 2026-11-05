@@ -422,6 +422,11 @@ public struct TaskDetailView: View {
                 localProgress = Double(current.progress)
             }
         }
+        .task {
+            if currentTask == nil || viewModel.urgentTasks.isEmpty {
+                await viewModel.loadDashboardData()
+            }
+        }
         .feedbackToast(toast: $viewModel.toast)
     }
 }

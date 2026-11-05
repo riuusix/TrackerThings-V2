@@ -3,63 +3,85 @@ import SwiftUI
 public struct RootTabView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(AuthViewModel.self) private var authViewModel
+    @State private var coordinator = AppNavigationCoordinator.shared
     @State private var dashboardViewModel = DashboardViewModel()
     @State private var courseViewModel = CourseViewModel()
     @State private var examViewModel = ExamViewModel()
     @State private var isShowingLogoutConfirmation: Bool = false
     @State private var isShowingServerSettings: Bool = false
 
-    @State private var selectedTab: Int = 0
-
     public init() {}
 
     public var body: some View {
-        TabView(selection: $selectedTab) {
-            DashboardView(
-                viewModel: dashboardViewModel,
-                courseViewModel: courseViewModel,
-                examViewModel: examViewModel
-            )
-                .tabItem {
-                    Label("Home", systemImage: "house.fill")
+        TabView(selection: $coordinator.selectedTab) {
+            NavigationStack(path: $coordinator.homePath) {
+                DashboardView(
+                    viewModel: dashboardViewModel,
+                    courseViewModel: courseViewModel,
+                    examViewModel: examViewModel
+                )
+                .navigationDestination(for: AppRoute.self) { route in
+                    destinationView(for: route)
                 }
-                .tag(0)
+            }
+            .tabItem {
+                Label("Home", systemImage: "house.fill")
+            }
+            .tag(AppTab.home)
 
-            CourseListView(
-                viewModel: courseViewModel,
-                dashboardViewModel: dashboardViewModel,
-                examViewModel: examViewModel
-            )
+            NavigationStack(path: $coordinator.coursesPath) {
+                CourseListView(
+                    viewModel: courseViewModel,
+                    dashboardViewModel: dashboardViewModel,
+                    examViewModel: examViewModel
+                )
                 .environment(authViewModel)
-                .tabItem {
-                    Label("Mata Kuliah", systemImage: "book.fill")
+                .navigationDestination(for: AppRoute.self) { route in
+                    destinationView(for: route)
                 }
-                .tag(1)
+            }
+            .tabItem {
+                Label("Mata Kuliah", systemImage: "book.fill")
+            }
+            .tag(AppTab.courses)
 
-            ExamListView(viewModel: examViewModel)
-                .tabItem {
-                    Label("Ujian", systemImage: "graduationcap.fill")
+            NavigationStack(path: $coordinator.examsPath) {
+                ExamListView(viewModel: examViewModel)
+                .navigationDestination(for: AppRoute.self) { route in
+                    destinationView(for: route)
                 }
-                .tag(2)
+            }
+            .tabItem {
+                Label("Ujian", systemImage: "graduationcap.fill")
+            }
+            .tag(AppTab.exams)
 
-            SettingsView()
-                .tabItem {
-                    Label("Pengaturan", systemImage: "gearshape.fill")
+            NavigationStack(path: $coordinator.settingsPath) {
+                SettingsView()
+                .navigationDestination(for: AppRoute.self) { route in
+                    destinationView(for: route)
                 }
-                .tag(3)
+            }
+            .tabItem {
+                Label("Pengaturan", systemImage: "gearshape.fill")
+            }
+            .tag(AppTab.settings)
         }
-        .tint(.blue)
+        .tint(AppTheme.Colors.brandPrimary)
         .onAppear {
+            coordinator.markReadyForNavigation()
             if let pending = NotificationService.shared.consumePendingDestination() {
                 navigateToDestination(pending)
             }
         }
         .onOpenURL { url in
-            handleDeepLink(url: url)
+            coordinator.handleDeepLink(url: url)
         }
         .onReceive(NotificationCenter.default.publisher(for: .openTrackerThingsDestination)) { notification in
             _ = NotificationService.shared.consumePendingDestination()
-            if let dest = notification.userInfo?["destination"] as? String {
+            if let userInfo = notification.userInfo, let payload = NotificationPayload.parse(from: userInfo) {
+                coordinator.handleNotificationPayload(payload)
+            } else if let dest = notification.userInfo?["destination"] as? String {
                 navigateToDestination(dest)
             }
         }
@@ -77,51 +99,94 @@ public struct RootTabView: View {
         }
     }
 
+    @ViewBuilder
+    private func destinationView(for route: AppRoute) -> some View {
+        switch route {
+        case .taskDetail(let id):
+            let initialTask = dashboardViewModel.urgentTasks.first(where: { $0.id == id })
+                ?? dashboardViewModel.completedTasks.first(where: { $0.id == id })
+            TaskDetailView(
+                taskId: id,
+                initialTask: initialTask,
+                viewModel: dashboardViewModel
+            )
+
+        case .courseDetail(let id):
+            let initialCourse = courseViewModel.courses.first(where: { $0.id == id })
+                ?? dashboardViewModel.courses.first(where: { $0.id == id })
+            CourseDetailView(
+                courseId: id,
+                initialCourse: initialCourse,
+                courseViewModel: courseViewModel,
+                dashboardViewModel: dashboardViewModel,
+                examViewModel: examViewModel
+            )
+
+        case .examDetail(let id):
+            let initialExam = examViewModel.exams.first(where: { $0.id == id })
+                ?? dashboardViewModel.upcomingExam.flatMap { $0.id == id ? $0 : nil }
+            ExamDetailView(
+                examId: id,
+                initialExam: initialExam,
+                viewModel: examViewModel
+            )
+
+        case .replacementClassDetail(let id):
+            let initialItem = dashboardViewModel.replacementClasses.first(where: { $0.id == id })
+            ReplacementClassDetailView(
+                replacementId: id,
+                initialItem: initialItem,
+                viewModel: dashboardViewModel
+            )
+
+        case .entityNotFound(let entityType, let id, let message):
+            EntityNotFoundView(
+                entityType: entityType,
+                id: id,
+                message: message
+            )
+        }
+    }
+
     private func refreshActiveTabSafely() async {
-        switch selectedTab {
-        case 0:
+        switch coordinator.selectedTab {
+        case .home:
             if !dashboardViewModel.isLoading {
                 await dashboardViewModel.loadDashboardData()
             }
-        case 1:
+        case .courses:
             if !courseViewModel.isLoading {
                 await courseViewModel.fetchCourses()
             }
-        case 2:
+        case .exams:
             if !examViewModel.isLoading {
                 await examViewModel.fetchExams()
             }
-        default:
+        case .settings:
             break
         }
     }
 
-    private func handleDeepLink(url: URL) {
-        guard url.scheme?.lowercased() == "trackerthings" else { return }
-        let host = url.host?.lowercased() ?? ""
-        let path = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")).lowercased()
-        let target = host.isEmpty ? path : host
-        navigateToDestination(target)
-    }
-
     private func navigateToDestination(_ destination: String) {
         switch destination.lowercased() {
-        case "home", "dashboard", "jadwal", "tasks", "task":
-            selectedTab = 0
+        case "home", "dashboard", "jadwal":
+            coordinator.selectedTab = .home
+        case "tasks", "task":
+            coordinator.selectedTab = .home
         case "courses", "course", "matkul":
-            selectedTab = 1
+            coordinator.selectedTab = .courses
         case "exams", "exam", "ujian":
-            selectedTab = 2
+            coordinator.selectedTab = .exams
         case "settings", "pengaturan", "setting":
-            selectedTab = 3
+            coordinator.selectedTab = .settings
         case "admin":
             if authViewModel.currentUser?.role?.lowercased() == "admin" {
                 UIApplication.shared.open(AppConfig.shared.adminWebURL)
             } else {
-                selectedTab = 0
+                coordinator.selectedTab = .home
             }
         default:
-            selectedTab = 0
+            coordinator.selectedTab = .home
         }
     }
 }

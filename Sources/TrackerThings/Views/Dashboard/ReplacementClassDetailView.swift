@@ -373,6 +373,11 @@ public struct ReplacementClassDetailView: View {
             let courseName = courseTitle
             Text("Jadwal kelas pengganti untuk \(courseName) akan dihapus secara permanen.")
         }
+        .task {
+            if currentItem == nil || viewModel.replacementClasses.isEmpty {
+                await viewModel.loadDashboardData()
+            }
+        }
         .feedbackToast(toast: $viewModel.toast)
     }
 }
