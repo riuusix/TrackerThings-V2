@@ -19,7 +19,7 @@ public struct AnchoredFlightModifier: ViewModifier, Animatable {
     public var deltaY: CGFloat
     public var reduceMotion: Bool
 
-    public var animatableData: CGFloat {
+    public nonisolated var animatableData: CGFloat {
         get { progress }
         set { progress = newValue }
     }
@@ -127,7 +127,9 @@ public struct FlyToInboxOverlay: View {
         .allowsHitTesting(store.activeFlightItem != nil && (store.flightPhase == .entering || store.flightPhase == .holding))
         .onPreferenceChange(FlightSourceRectPreferenceKey.self) { rect in
             if rect != .zero {
-                sourceRect = rect
+                Task { @MainActor in
+                    sourceRect = rect
+                }
             }
         }
         .onChange(of: scenePhase) { _, newPhase in

@@ -387,7 +387,9 @@ public struct GooeyActionDock: View {
         }
         .onPreferenceChange(InboxTargetRectPreferenceKey.self) { newRect in
             if newRect != .zero {
-                inboxStore.inboxTargetRect = newRect
+                Task { @MainActor in
+                    inboxStore.inboxTargetRect = newRect
+                }
             }
         }
         .onChange(of: inboxStore.badgePulseTrigger) { _, _ in
