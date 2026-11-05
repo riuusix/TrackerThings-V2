@@ -196,17 +196,25 @@ public enum AppTheme {
         public static let badgePulse: Animation = .spring(response: 0.28, dampingFraction: 0.68, blendDuration: 0)
         /// Ekspansi detail kontekstual baris tugas/jadwal/kuliah
         public static let inlineExpand: Animation = .spring(response: 0.30, dampingFraction: 0.84, blendDuration: 0)
+        /// Respons geser langsung (direct manipulation) saat membuka aksi baris tugas
+        public static let swipeFollow: Animation = .interactiveSpring(response: 0.20, dampingFraction: 0.86, blendDuration: 0)
+        /// Penguncian atau penutupan kembali (snap/settle) baris tugas yang digeser
+        public static let swipeSnap: Animation = .spring(response: 0.30, dampingFraction: 0.82, blendDuration: 0)
+        /// Transisi sematkan/lepas sematan tugas ke bagian "Disematkan"
+        public static let pinCommit: Animation = .spring(response: 0.32, dampingFraction: 0.78, blendDuration: 0)
+        /// Konfirmasi penyimpanan pengingat kustom tugas
+        public static let reminderConfirm: Animation = .spring(response: 0.28, dampingFraction: 0.80, blendDuration: 0)
         /// Fallback halus ketika pengguna mengaktifkan Reduce Motion
         public static let reducedMotionFallback: Animation = .easeOut(duration: 0.18)
 
-        /// Stagger non-uniform (0ms, 35ms, 65ms, 90ms) untuk item menu yang muncul dari Gooey Dock.
+        /// Stagger non-uniform (0ms, 30ms, 55ms, 75ms, 90ms) untuk item menu yang muncul dari Gooey Dock.
         public static func menuItemEntrance(index: Int, reduceMotion: Bool = false) -> Animation {
             if reduceMotion {
                 return reducedMotionFallback
             }
-            let delays: [Double] = [0.0, 0.035, 0.065, 0.090]
+            let delays: [Double] = [0.0, 0.030, 0.055, 0.075, 0.090]
             let delay = index < delays.count ? delays[index] : 0.090
-            return .spring(response: 0.34, dampingFraction: 0.78, blendDuration: 0).delay(delay)
+            return .spring(response: 0.32, dampingFraction: 0.80, blendDuration: 0).delay(delay)
         }
 
         /// Menyesuaikan animasi secara otomatis dengan preferensi `accessibilityReduceMotion`.

@@ -102,20 +102,6 @@ public struct ExamListView: View {
                 Color.clear.frame(height: 76)
             }
             .navigationTitle("Jadwal Ujian")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    HStack(spacing: 8) {
-                        InboxPillButton()
-
-                        Button {
-                            viewModel.editingExam = nil
-                            viewModel.isPresentingSheet = true
-                        } label: {
-                            Image(systemName: "plus")
-                        }
-                    }
-                }
-            }
             .sheet(isPresented: $viewModel.isPresentingSheet) {
                 ExamFormSheet(viewModel: viewModel)
                     .presentationDetents([.medium, .large])

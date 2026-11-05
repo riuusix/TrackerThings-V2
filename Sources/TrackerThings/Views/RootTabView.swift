@@ -96,6 +96,7 @@ public struct RootTabView: View {
             if shouldShowFloatingDock && dockController.activeComposer == nil {
                 GooeyActionDock(
                     controller: dockController,
+                    inboxStore: inboxStore,
                     morphNamespace: morphNamespace,
                     hasCourses: hasAnyCourse
                 )
@@ -116,6 +117,7 @@ public struct RootTabView: View {
             // Signature Interaction 03 — Fly-to-Inbox Arrival Overlay
             FlyToInboxOverlay(store: inboxStore)
         }
+        .coordinateSpace(name: "RootInteractiveSpace")
         .sheet(isPresented: $inboxStore.isPresentingInboxSheet) {
             ActivityInboxSheet(store: inboxStore)
         }

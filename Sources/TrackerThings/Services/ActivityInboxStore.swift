@@ -11,8 +11,9 @@ public enum FlyToInboxPhase: String, Sendable, Equatable {
 }
 
 /// Penyimpanan dan koordinator In-App Activity Inbox yang persisten.
-/// Menggabungkan pengingat akademik nyata (tugas mendesak, ujian terdekat, kelas pengganti)
-/// serta event notifikasi foreground `UNUserNotificationCenter` tanpa membuat data palsu.
+/// Menjamin identitas event kanonik, idempotensi pengiriman berulang, pemisahan antara
+/// pengingat yang baru tiba (`reminder-*`) dengan ringkasan tenggat (`task-*`),
+/// serta pelacakan koordinat tujuan nyata (`inboxTargetRect`) untuk animasi Fly-to-Inbox.
 @Observable
 @MainActor
 public final class ActivityInboxStore {
@@ -21,17 +22,23 @@ public final class ActivityInboxStore {
     private let itemsKey: String
     private let readIdsKey: String
     private let dismissedIdsKey: String
+    private let flightDeliveredIdsKey: String
     private let defaults: UserDefaults
 
     public private(set) var items: [NotificationItem] = []
     private var readIds: Set<String> = []
     private var dismissedIds: Set<String> = []
+    private var flightDeliveredIds: Set<String> = []
 
-    // MARK: - Fly-to-Inbox Live State
+    // MARK: - Fly-to-Inbox Live State & Spatial Target
     public private(set) var activeFlightItem: NotificationItem? = nil
     public private(set) var flightPhase: FlyToInboxPhase = .idle
+    public var flightProgress: CGFloat = 0
     public var badgePulseTrigger: Int = 0
     public var isPresentingInboxSheet: Bool = false
+
+    /// Koordinat nyata target Inbox (GooeyActionDock / Inbox item) dalam ruang koordinat root aplikasi.
+    public var inboxTargetRect: CGRect = .zero
 
     private var flightTask: Task<Void, Never>? = nil
 
@@ -43,6 +50,7 @@ public final class ActivityInboxStore {
         self.itemsKey = "\(keyPrefix)_items"
         self.readIdsKey = "\(keyPrefix)_read_ids"
         self.dismissedIdsKey = "\(keyPrefix)_dismissed_ids"
+        self.flightDeliveredIdsKey = "\(keyPrefix)_flight_delivered_ids"
         loadPersistedState()
     }
 
@@ -54,9 +62,10 @@ public final class ActivityInboxStore {
         items.contains { !$0.isRead && $0.isUrgent }
     }
 
-    // MARK: - Sinkronisasi Data Akademik Nyata
+    // MARK: - Sinkronisasi Data Akademik Nyata (Idempoten)
 
     /// Menyinkronkan daftar aktivitas Inbox berdasarkan data akademik nyata dari Dashboard.
+    /// Sinkronisasi berulang dengan state yang sama tidak akan menambah duplikat atau mereset status baca.
     public func syncWithAcademicState(
         tasks: [TugasItem],
         exams: [UjianItem],
@@ -77,7 +86,7 @@ public final class ActivityInboxStore {
 
         // 1. Tugas aktif yang mendesak (<= 2 hari atau terlewat)
         for task in tasks where task.status != .selesai && task.deadline < twoDaysLaterEnd {
-            let itemId = "task-\(task.id)"
+            let itemId = NotificationItem.canonicalId(kind: "academic", entityType: "task", entityId: task.id)
             guard !dismissedIds.contains(itemId) else { continue }
             let isOverdue = task.deadline < todayStart
             let timeLabel = isOverdue
@@ -94,6 +103,7 @@ public final class ActivityInboxStore {
                     isUrgent: isOverdue || task.prioritas == .tinggi,
                     entityType: "task",
                     entityId: task.id,
+                    eventKind: "academic",
                     isRead: readIds.contains(itemId),
                     createdAt: task.deadline
                 )
@@ -102,7 +112,7 @@ public final class ActivityInboxStore {
 
         // 2. Ujian dalam 7 hari ke depan
         for exam in exams where exam.tanggal >= todayStart && exam.tanggal <= sevenDaysLaterEnd {
-            let itemId = "exam-\(exam.id)"
+            let itemId = NotificationItem.canonicalId(kind: "academic", entityType: "exam", entityId: exam.id)
             guard !dismissedIds.contains(itemId) else { continue }
             let timePart = exam.waktuMulai.map { " • \($0)" } ?? ""
             synced.append(
@@ -115,6 +125,7 @@ public final class ActivityInboxStore {
                     isUrgent: true,
                     entityType: "exam",
                     entityId: exam.id,
+                    eventKind: "academic",
                     isRead: readIds.contains(itemId),
                     createdAt: exam.tanggal
                 )
@@ -124,7 +135,7 @@ public final class ActivityInboxStore {
         // 3. Kelas Pengganti aktif dalam 2 hari ke depan
         for kp in replacementClasses where kp.status.caseInsensitiveCompare("Selesai") != .orderedSame {
             if kp.tanggal >= todayStart && kp.tanggal < twoDaysLaterEnd {
-                let itemId = "replacement-\(kp.id)"
+                let itemId = NotificationItem.canonicalId(kind: "academic", entityType: "replacementClass", entityId: kp.id)
                 guard !dismissedIds.contains(itemId) else { continue }
                 synced.append(
                     NotificationItem(
@@ -136,6 +147,7 @@ public final class ActivityInboxStore {
                         isUrgent: false,
                         entityType: "replacementClass",
                         entityId: kp.id,
+                        eventKind: "academic",
                         isRead: readIds.contains(itemId),
                         createdAt: kp.tanggal
                     )
@@ -143,19 +155,31 @@ public final class ActivityInboxStore {
             }
         }
 
-        // Gabungkan dengan event aktivitas yang sudah terekam (misal dari pengingat foreground atau aksi baru),
-        // tetapi hapus item tugas yang sudah selesai.
-        let completedTaskIds = Set(tasks.filter { $0.status == .selesai }.map { "task-\($0.id)" })
+        // Hapus item terkait tugas yang sudah selesai (baik `task-{id}` maupun `reminder-task-{id}`)
+        let completedTaskEntityIds = Set(tasks.filter { $0.status == .selesai }.map { $0.id })
         var mergedById: [String: NotificationItem] = [:]
 
-        for existing in items where !completedTaskIds.contains(existing.id) && !dismissedIds.contains(existing.id) {
+        for existing in items {
+            if let eid = existing.entityId, existing.entityType == "task", completedTaskEntityIds.contains(eid) {
+                continue
+            }
+            if completedTaskEntityIds.contains(where: { existing.id == "task-\($0)" || existing.id == "reminder-task-\($0)" || existing.id == "custom-reminder-task-\($0)" }) {
+                continue
+            }
+            guard !dismissedIds.contains(existing.id) else { continue }
             var copy = existing
             copy.isRead = readIds.contains(existing.id)
             mergedById[existing.id] = copy
         }
 
         for fresh in synced {
-            mergedById[fresh.id] = fresh
+            if let prev = mergedById[fresh.id] {
+                var updated = fresh
+                updated.isRead = readIds.contains(fresh.id) || prev.isRead
+                mergedById[fresh.id] = updated
+            } else {
+                mergedById[fresh.id] = fresh
+            }
         }
 
         self.items = mergedById.values.sorted { lhs, rhs in
@@ -165,67 +189,97 @@ public final class ActivityInboxStore {
             if lhs.isUrgent != rhs.isUrgent {
                 return lhs.isUrgent
             }
-            return lhs.createdAt > rhs.createdAt
+            if lhs.createdAt != rhs.createdAt {
+                return lhs.createdAt > rhs.createdAt
+            }
+            return lhs.id < rhs.id
         }
 
         savePersistedState()
     }
 
-    // MARK: - Enqueue Arrival & Fly-to-Inbox Choreography
+    // MARK: - Enqueue Arrival & True Anchored Fly-to-Inbox Choreography
 
-    /// Mencatat item aktivitas baru dan opsional memicu animasi Fly-to-Inbox.
+    /// Mencatat item aktivitas baru secara idempoten dan memicu animasi Fly-to-Inbox
+    /// hanya sekali untuk setiap ID event kanonik.
     public func enqueueArrival(
         _ item: NotificationItem,
         triggerFlight: Bool = true,
         reduceMotion: Bool = false
     ) {
-        dismissedIds.remove(item.id)
-        readIds.remove(item.id)
+        let canonicalId = item.id
 
-        var unreadItem = item
-        unreadItem.isRead = false
-
-        if let idx = items.firstIndex(where: { $0.id == unreadItem.id }) {
-            items[idx] = unreadItem
-        } else {
-            items.insert(unreadItem, at: 0)
-        }
-        savePersistedState()
-
-        guard triggerFlight else {
-            badgePulseTrigger &+= 1
+        // Jika item dengan ID kanonik ini sudah dihapus pengguna (dan bukan pengingat baru yang berbeda ID),
+        // hormati pilihan pengguna kecuali pengguna baru saja membuat item baru (`eventKind == "created"`).
+        if item.eventKind == "created" {
+            dismissedIds.remove(canonicalId)
+            readIds.remove(canonicalId)
+            flightDeliveredIds.remove(canonicalId)
+        } else if dismissedIds.contains(canonicalId) {
             return
         }
 
+        let wasAlreadyRead = readIds.contains(canonicalId)
+        let alreadyDeliveredFlight = flightDeliveredIds.contains(canonicalId)
+
+        var storedItem = item
+        storedItem.isRead = wasAlreadyRead
+
+        if let idx = items.firstIndex(where: { $0.id == canonicalId }) {
+            items[idx] = storedItem
+        } else {
+            items.insert(storedItem, at: 0)
+        }
+
+        // Pastikan penyimpanan persisten dilakukan SEBELUM animasi dimulai sehingga
+        // interupsi animasi, perpindahan tab, atau backgrounding tidak pernah menghilangkan data.
+        let shouldAnimateFlight = triggerFlight && !alreadyDeliveredFlight && !isPresentingInboxSheet
+        if shouldAnimateFlight {
+            flightDeliveredIds.insert(canonicalId)
+        }
+        savePersistedState()
+
+        guard shouldAnimateFlight else {
+            if !alreadyDeliveredFlight {
+                flightDeliveredIds.insert(canonicalId)
+                savePersistedState()
+                badgePulseTrigger &+= 1
+            }
+            return
+        }
+
+        // Batalkan animasi terbang sebelumnya dengan aman tanpa menghapus data
         flightTask?.cancel()
-        activeFlightItem = unreadItem
+        activeFlightItem = storedItem
+        flightProgress = 0
 
         withAnimation(AppTheme.Motion.resolve(AppTheme.Motion.inboxArrival, reduceMotion: reduceMotion)) {
             flightPhase = .entering
         }
 
         flightTask = Task { @MainActor in
-            // Fase 1: Muncul & dapat dibaca (1.8 detik)
-            try? await Task.sleep(nanoseconds: 150_000_000)
+            try? await Task.sleep(nanoseconds: 140_000_000)
             guard !Task.isCancelled else { return }
             flightPhase = .holding
 
-            try? await Task.sleep(nanoseconds: 1_650_000_000)
+            try? await Task.sleep(nanoseconds: 1_550_000_000)
             guard !Task.isCancelled else { return }
 
-            // Fase 2: Terbang menuju ikon Inbox
             if reduceMotion {
                 withAnimation(AppTheme.Motion.reducedMotionFallback) {
                     flightPhase = .landed
+                    flightProgress = 1.0
                     activeFlightItem = nil
                     badgePulseTrigger &+= 1
                 }
                 flightPhase = .idle
+                flightProgress = 0
             } else {
                 withAnimation(AppTheme.Motion.inboxFlight) {
                     flightPhase = .flyingToInbox
+                    flightProgress = 1.0
                 }
-                try? await Task.sleep(nanoseconds: 380_000_000)
+                try? await Task.sleep(nanoseconds: 400_000_000)
                 guard !Task.isCancelled else { return }
 
                 withAnimation(AppTheme.Motion.badgePulse) {
@@ -235,20 +289,23 @@ public final class ActivityInboxStore {
                 }
                 HapticsHelper.impact(.light)
 
-                try? await Task.sleep(nanoseconds: 250_000_000)
+                try? await Task.sleep(nanoseconds: 220_000_000)
                 guard !Task.isCancelled else { return }
                 flightPhase = .idle
+                flightProgress = 0
             }
         }
     }
 
-    /// Membatalkan animasi terbang yang sedang berlangsung (misal diketuk atau ditutup pengguna).
+    /// Menghentikan animasi terbang secara aman (saat pengguna mengetuk tutup, membuka Inbox,
+    /// berpindah ke background, atau view menghilang). Data tetap tersimpan utuh di Inbox.
     public func dismissActiveFlight(reduceMotion: Bool = false) {
         flightTask?.cancel()
         flightTask = nil
         withAnimation(AppTheme.Motion.resolve(AppTheme.Motion.panelDismiss, reduceMotion: reduceMotion)) {
             activeFlightItem = nil
             flightPhase = .idle
+            flightProgress = 0
         }
     }
 
@@ -287,14 +344,18 @@ public final class ActivityInboxStore {
 
     public func resetAllForTesting() {
         flightTask?.cancel()
+        flightTask = nil
         items.removeAll()
         readIds.removeAll()
         dismissedIds.removeAll()
+        flightDeliveredIds.removeAll()
         activeFlightItem = nil
         flightPhase = .idle
+        flightProgress = 0
         defaults.removeObject(forKey: itemsKey)
         defaults.removeObject(forKey: readIdsKey)
         defaults.removeObject(forKey: dismissedIdsKey)
+        defaults.removeObject(forKey: flightDeliveredIdsKey)
     }
 
     /// Menandai item sudah dibaca lalu melakukan navigasi ke rute detail terkait.
@@ -320,12 +381,21 @@ public final class ActivityInboxStore {
         if let dismissedArr = defaults.stringArray(forKey: dismissedIdsKey) {
             dismissedIds = Set(dismissedArr)
         }
+        if let deliveredArr = defaults.stringArray(forKey: flightDeliveredIdsKey) {
+            flightDeliveredIds = Set(deliveredArr)
+        }
         if let data = defaults.data(forKey: itemsKey),
            let decoded = try? JSONDecoder().decode([NotificationItem].self, from: data) {
-            items = decoded.filter { !dismissedIds.contains($0.id) }.map { item in
+            var uniqueById: [String: NotificationItem] = [:]
+            for item in decoded where !dismissedIds.contains(item.id) {
                 var copy = item
                 copy.isRead = readIds.contains(item.id) || item.isRead
-                return copy
+                uniqueById[copy.id] = copy
+            }
+            items = Array(uniqueById.values).sorted { lhs, rhs in
+                if lhs.isRead != rhs.isRead { return !lhs.isRead }
+                if lhs.isUrgent != rhs.isUrgent { return lhs.isUrgent }
+                return lhs.createdAt > rhs.createdAt
             }
         }
     }
@@ -333,6 +403,7 @@ public final class ActivityInboxStore {
     private func savePersistedState() {
         defaults.set(Array(readIds), forKey: readIdsKey)
         defaults.set(Array(dismissedIds), forKey: dismissedIdsKey)
+        defaults.set(Array(flightDeliveredIds), forKey: flightDeliveredIdsKey)
         if let data = try? JSONEncoder().encode(items) {
             defaults.set(data, forKey: itemsKey)
         }

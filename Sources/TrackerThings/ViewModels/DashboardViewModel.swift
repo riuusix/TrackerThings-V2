@@ -20,6 +20,39 @@ public final class DashboardViewModel {
     // MARK: - Editing State for Forms
     public var editingTask: TugasItem? = nil
     public var editingReplacement: KelasPenggantiItem? = nil
+    public var reminderEditingTask: TugasItem? = nil
+
+    // MARK: - Pinned vs Unpinned Active Tasks (Single-Representation Contract)
+    /// Tugas aktif yang disematkan pengguna, diurutkan berdasarkan tenggat terdekat lalu bobot prioritas.
+    public var pinnedTasks: [TugasItem] {
+        Self.sortActiveTasks(urgentTasks.filter { $0.isPinned })
+    }
+
+    /// Tugas aktif yang tidak disematkan, dijamin tidak pernah menduplikasi tugas di `pinnedTasks`.
+    public var unpinnedUrgentTasks: [TugasItem] {
+        let pinnedIds = Set(pinnedTasks.map { $0.id })
+        return Self.sortActiveTasks(urgentTasks.filter { !$0.isPinned && !pinnedIds.contains($0.id) })
+    }
+
+    public static func sortActiveTasks(_ tasks: [TugasItem]) -> [TugasItem] {
+        tasks.sorted { lhs, rhs in
+            if lhs.deadline != rhs.deadline {
+                return lhs.deadline < rhs.deadline
+            }
+            if lhs.prioritas.sortWeight != rhs.prioritas.sortWeight {
+                return lhs.prioritas.sortWeight < rhs.prioritas.sortWeight
+            }
+            return lhs.id < rhs.id
+        }
+    }
+
+    /// Validasi bersama rentang waktu mulai dan selesai (`HH:mm`) untuk Quick Composer dan Form Sheet.
+    public static func isValidTimeRange(start: String, end: String) -> Bool {
+        let s = start.trimmingCharacters(in: .whitespacesAndNewlines)
+        let e = end.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !s.isEmpty, !e.isEmpty else { return false }
+        return s < e
+    }
 
     // MARK: - Task Completion Undo State
     public var recentlyCompletedTask: TugasItem? = nil
@@ -149,7 +182,7 @@ public final class DashboardViewModel {
             guard loadId == self.currentLoadId else { return }
 
             courses = loadedCourses
-            urgentTasks = loadedTasks.filter { $0.status != .selesai }.sorted { $0.deadline < $1.deadline }
+            urgentTasks = Self.sortActiveTasks(loadedTasks.filter { $0.status != .selesai })
             completedTasks = loadedTasks.filter { $0.status == .selesai }.sorted { $0.deadline > $1.deadline }
             allExams = loadedExams.sorted { $0.tanggal < $1.tanggal }
             replacementClasses = loadedKP
@@ -263,6 +296,103 @@ public final class DashboardViewModel {
         showToast("Penyelesaian tugas \"\(task.namaTugas)\" diurungkan.", severity: .info)
     }
 
+    @discardableResult
+    public func toggleTaskPin(task: TugasItem) async -> Bool {
+        guard !isOffline else {
+            showToast("Tidak dapat menyematkan tugas saat offline.", severity: .warning)
+            return false
+        }
+
+        guard !inFlightTaskIds.contains(task.id) else { return false }
+        inFlightTaskIds.insert(task.id)
+        defer { inFlightTaskIds.remove(task.id) }
+
+        let targetPinState = !task.isPinned
+        let previousUrgent = urgentTasks
+
+        withAnimation(AppTheme.Motion.pinCommit) {
+            if let idx = urgentTasks.firstIndex(where: { $0.id == task.id }) {
+                urgentTasks[idx].isPinned = targetPinState
+            }
+            urgentTasks = Self.sortActiveTasks(urgentTasks)
+        }
+
+        do {
+            _ = try await dataService.updateTugasPin(id: task.id, isPinned: targetPinState)
+            showToast(
+                targetPinState
+                    ? "Tugas \"\(task.namaTugas)\" disematkan."
+                    : "Sematan tugas \"\(task.namaTugas)\" dilepas.",
+                severity: .info
+            )
+            return true
+        } catch {
+            withAnimation(AppTheme.Motion.pinCommit) {
+                urgentTasks = previousUrgent
+            }
+            errorMessage = error.localizedDescription
+            showToast(error.localizedDescription, severity: .error)
+            return false
+        }
+    }
+
+    @discardableResult
+    public func updateTaskCustomReminder(task: TugasItem, reminderAt: Date?) async -> Bool {
+        guard !isOffline else {
+            showToast("Tidak dapat menyimpan pengingat saat offline.", severity: .warning)
+            return false
+        }
+
+        if let reminderAt {
+            guard NotificationService.isValidCustomReminder(reminderAt: reminderAt, deadline: task.deadline) else {
+                showToast("Waktu pengingat harus di masa depan dan sebelum tenggat tugas.", severity: .warning)
+                return false
+            }
+        }
+
+        guard !inFlightTaskIds.contains(task.id) else { return false }
+        inFlightTaskIds.insert(task.id)
+        defer { inFlightTaskIds.remove(task.id) }
+
+        let previousUrgent = urgentTasks
+
+        withAnimation(AppTheme.Motion.reminderConfirm) {
+            if let idx = urgentTasks.firstIndex(where: { $0.id == task.id }) {
+                urgentTasks[idx].reminderAt = reminderAt
+            }
+        }
+
+        do {
+            _ = try await dataService.updateTugasReminder(id: task.id, reminderAt: reminderAt)
+            if let reminderAt {
+                let courseName = courses.first(where: { $0.id == task.idJadwal })?.namaMatkul ?? task.jadwal?.namaMatkul
+                _ = await NotificationService.shared.scheduleCustomReminderForTask(
+                    id: task.id,
+                    title: task.namaTugas,
+                    courseName: courseName,
+                    deadline: task.deadline,
+                    reminderAt: reminderAt
+                )
+                let df = DateFormatter()
+                df.locale = Locale(identifier: "id_ID")
+                df.dateStyle = .medium
+                df.timeStyle = .short
+                showToast("Pengingat diatur untuk \(df.string(from: reminderAt)).", severity: .success)
+            } else {
+                NotificationService.shared.cancelCustomReminderForTask(id: task.id)
+                showToast("Pengingat kustom tugas dihapus.", severity: .info)
+            }
+            return true
+        } catch {
+            withAnimation(AppTheme.Motion.reminderConfirm) {
+                urgentTasks = previousUrgent
+            }
+            errorMessage = error.localizedDescription
+            showToast(error.localizedDescription, severity: .error)
+            return false
+        }
+    }
+
     public func saveTask(
         id: Int? = nil,
         namaTugas: String,
@@ -286,12 +416,19 @@ public final class DashboardViewModel {
 
         do {
             if let existingId = targetId, existingId > 0 {
-                let currentProgress = progress ?? editingTask?.progress ?? 0
+                let existingItem = urgentTasks.first(where: { $0.id == existingId }) ?? completedTasks.first(where: { $0.id == existingId }) ?? editingTask
+                let currentProgress = progress ?? existingItem?.progress ?? 0
                 let resolvedStatus: TugasItem.StatusTugas = status ?? (
                     currentProgress >= 100
                         ? .selesai
                         : (currentProgress > 0 ? .sedangDikerjakan : .belumDikerjakan)
                 )
+                let existingPinned = existingItem?.isPinned ?? false
+                // Jika deadline berubah sehingga pengingat kustom lama melewati tenggat baru, bersihkan pengingat kustom tersebut
+                let validExistingReminder: Date? = {
+                    guard resolvedStatus != .selesai, let rem = existingItem?.reminderAt else { return nil }
+                    return NotificationService.isValidCustomReminder(reminderAt: rem, deadline: deadline) ? rem : nil
+                }()
                 let updatedTask = TugasItem(
                     id: existingId,
                     idJadwal: idJadwal,
@@ -300,9 +437,14 @@ public final class DashboardViewModel {
                     prioritas: prioritas,
                     jenis: jenis,
                     status: resolvedStatus,
-                    progress: currentProgress
+                    progress: currentProgress,
+                    isPinned: existingPinned,
+                    reminderAt: validExistingReminder
                 )
                 _ = try await dataService.updateTugas(updatedTask)
+                if validExistingReminder == nil && existingItem?.reminderAt != nil {
+                    NotificationService.shared.cancelCustomReminderForTask(id: existingId)
+                }
                 editingTask = nil
                 await loadDashboardData()
                 showToast("Tugas berhasil diperbarui!", severity: .success)
@@ -316,7 +458,9 @@ public final class DashboardViewModel {
                     prioritas: prioritas,
                     jenis: jenis,
                     status: .belumDikerjakan,
-                    progress: 0
+                    progress: 0,
+                    isPinned: false,
+                    reminderAt: nil
                 )
                 _ = try await dataService.createTugas(newTask)
                 editingTask = nil
@@ -328,14 +472,15 @@ public final class DashboardViewModel {
                 df.dateStyle = .medium
                 ActivityInboxStore.shared.enqueueArrival(
                     NotificationItem(
-                        id: createdId.map { "task-\($0)" } ?? "task-new-\(Int(Date().timeIntervalSince1970))",
+                        id: NotificationItem.canonicalId(kind: "created", entityType: "task", entityId: createdId, fallbackTitle: namaTugas),
                         judul: namaTugas,
                         namaMatkul: courseName,
                         waktu: "Tenggat \(df.string(from: deadline))",
                         tipe: .tugas,
                         isUrgent: prioritas == .tinggi,
                         entityType: "task",
-                        entityId: createdId
+                        entityId: createdId,
+                        eventKind: "created"
                     ),
                     triggerFlight: true
                 )
@@ -432,14 +577,15 @@ public final class DashboardViewModel {
                 df.dateStyle = .medium
                 ActivityInboxStore.shared.enqueueArrival(
                     NotificationItem(
-                        id: createdId.map { "replacement-\($0)" } ?? "replacement-new-\(Int(Date().timeIntervalSince1970))",
+                        id: NotificationItem.canonicalId(kind: "created", entityType: "replacementClass", entityId: createdId, fallbackTitle: courseName),
                         judul: "Kelas Pengganti \(courseName)",
                         namaMatkul: lokasi.flatMap { $0.isEmpty ? nil : "Ruang \($0)" } ?? courseName,
                         waktu: "\(df.string(from: tanggal)) • \(waktuMulai)",
                         tipe: .pengganti,
                         isUrgent: false,
                         entityType: "replacementClass",
-                        entityId: createdId
+                        entityId: createdId,
+                        eventKind: "created"
                     ),
                     triggerFlight: true
                 )

@@ -10,6 +10,8 @@ public protocol TrackerDataServiceProtocol: Sendable {
     func createTugas(_ item: TugasItem) async throws -> BaseResponse
     func updateTugas(_ item: TugasItem) async throws -> BaseResponse
     func updateTugasProgress(id: Int, progress: Int) async throws -> BaseResponse
+    func updateTugasPin(id: Int, isPinned: Bool) async throws -> BaseResponse
+    func updateTugasReminder(id: Int, reminderAt: Date?) async throws -> BaseResponse
     func deleteTugas(id: Int) async throws -> BaseResponse
 
     func getUjianList() async throws -> [UjianItem]
@@ -53,6 +55,14 @@ public extension TrackerDataServiceProtocol {
             rawText: nil,
             ocrWordsJson: nil
         )
+    }
+
+    func updateTugasPin(id: Int, isPinned: Bool) async throws -> BaseResponse {
+        BaseResponse(success: true, message: "Pin updated")
+    }
+
+    func updateTugasReminder(id: Int, reminderAt: Date?) async throws -> BaseResponse {
+        BaseResponse(success: true, message: "Reminder updated")
     }
 }
 
@@ -129,6 +139,38 @@ public actor TrackerDataService: TrackerDataServiceProtocol {
         let payload: [String: Any] = ["id": id, "progress": progress]
         let body = try JSONSerialization.data(withJSONObject: payload)
         return try await network.request(endpoint: "tugas", method: "PATCH", body: body)
+    }
+
+    public func updateTugasPin(id: Int, isPinned: Bool) async throws -> BaseResponse {
+        let payload: [String: Any] = ["id": id, "is_pinned": isPinned, "isPinned": isPinned]
+        let body = try JSONSerialization.data(withJSONObject: payload)
+        let response: BaseResponse = try await network.request(endpoint: "tugas", method: "PATCH", body: body)
+        if var cached: [TugasItem] = LocalCacheService.shared.load(forKey: LocalCacheService.keyTugas),
+           let idx = cached.firstIndex(where: { $0.id == id }) {
+            cached[idx].isPinned = isPinned
+            LocalCacheService.shared.save(cached, forKey: LocalCacheService.keyTugas)
+        }
+        return response
+    }
+
+    public func updateTugasReminder(id: Int, reminderAt: Date?) async throws -> BaseResponse {
+        let reminderValue: Any
+        if let reminderAt = reminderAt {
+            let iso = ISO8601DateFormatter()
+            iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            reminderValue = iso.string(from: reminderAt)
+        } else {
+            reminderValue = NSNull()
+        }
+        let payload: [String: Any] = ["id": id, "reminder_at": reminderValue, "reminderAt": reminderValue]
+        let body = try JSONSerialization.data(withJSONObject: payload)
+        let response: BaseResponse = try await network.request(endpoint: "tugas", method: "PATCH", body: body)
+        if var cached: [TugasItem] = LocalCacheService.shared.load(forKey: LocalCacheService.keyTugas),
+           let idx = cached.firstIndex(where: { $0.id == id }) {
+            cached[idx].reminderAt = reminderAt
+            LocalCacheService.shared.save(cached, forKey: LocalCacheService.keyTugas)
+        }
+        return response
     }
 
     public func deleteTugas(id: Int) async throws -> BaseResponse {

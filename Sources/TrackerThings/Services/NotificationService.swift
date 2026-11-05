@@ -81,6 +81,7 @@ private final class LocalNotificationPresentationDelegate: NSObject, UNUserNotif
         let payload = NotificationPayload.parse(from: userInfo)
         let entityType = payload?.entityType
         let entityId = payload?.entityId
+        let eventKind = payload?.kind ?? "reminder"
         let tipe: NotificationItem.TipeNotifikasi = {
             switch entityType {
             case "exam": return .ujian
@@ -89,15 +90,22 @@ private final class LocalNotificationPresentationDelegate: NSObject, UNUserNotif
             default: return .tugas
             }
         }()
+        let canonicalId = NotificationItem.canonicalId(
+            kind: eventKind,
+            entityType: entityType,
+            entityId: entityId,
+            fallbackTitle: content.title
+        )
         let item = NotificationItem(
-            id: "fg-\(notification.request.identifier)-\(Int(Date().timeIntervalSince1970))",
+            id: canonicalId,
             judul: content.body.isEmpty ? content.title : content.body,
             namaMatkul: content.title,
             waktu: "Baru saja",
             tipe: tipe,
             isUrgent: true,
             entityType: entityType,
-            entityId: entityId
+            entityId: entityId,
+            eventKind: eventKind
         )
         await MainActor.run {
             ActivityInboxStore.shared.enqueueArrival(item, triggerFlight: true)
@@ -217,6 +225,30 @@ public final class NotificationService: Sendable {
 
     // MARK: - Penjadwalan Tugas (Tasks)
 
+    public static func standardTaskReminderIdentifier(for taskId: Int) -> String {
+        "task-\(taskId)"
+    }
+
+    public static func customTaskReminderIdentifier(for taskId: Int) -> String {
+        "task-custom-reminder-\(taskId)"
+    }
+
+    /// Menghitung batas akhir efektif tugas. Jika tanggal memiliki jam 00:00, batas akhir efektif adalah pukul 23:59 hari tersebut.
+    public static func effectiveDeadline(for deadline: Date, calendar: Calendar = .current) -> Date {
+        let hour = calendar.component(.hour, from: deadline)
+        let minute = calendar.component(.minute, from: deadline)
+        if hour == 0 && minute == 0 {
+            return calendar.date(bySettingHour: 23, minute: 59, second: 0, of: deadline) ?? deadline
+        }
+        return deadline
+    }
+
+    /// Memvalidasi apakah waktu pengingat kustom berada di masa depan dan tidak melewati batas akhir tugas.
+    public static func isValidCustomReminder(reminderAt: Date, deadline: Date, now: Date = Date(), calendar: Calendar = .current) -> Bool {
+        let effective = effectiveDeadline(for: deadline, calendar: calendar)
+        return reminderAt > now && reminderAt <= effective
+    }
+
     public func scheduleReminderForTask(
         id: Int,
         title: String,
@@ -226,7 +258,9 @@ public final class NotificationService: Sendable {
         let prefs = getPreferences()
         guard prefs.isTaskReminderEnabled else {
             logger.info("Task reminder disabled by preferences for task-\(id, privacy: .public)")
-            cancelReminderForTask(id: id)
+            UNUserNotificationCenter.current().removePendingNotificationRequests(
+                withIdentifiers: [Self.standardTaskReminderIdentifier(for: id)]
+            )
             return
         }
 
@@ -238,17 +272,7 @@ public final class NotificationService: Sendable {
 
         let now = Date()
         let calendar = Calendar.current
-        let hour = calendar.component(.hour, from: deadline)
-        let minute = calendar.component(.minute, from: deadline)
-
-        // Jika waktu deadline adalah tanggal kalender (jam 00:00:00),
-        // batas akhir tugas adalah akhir hari (23:59:00) pada zona waktu lokal perangkat.
-        let effectiveDeadline: Date
-        if hour == 0 && minute == 0 {
-            effectiveDeadline = calendar.date(bySettingHour: 23, minute: 59, second: 0, of: deadline) ?? deadline
-        } else {
-            effectiveDeadline = deadline
-        }
+        let effectiveDeadline = Self.effectiveDeadline(for: deadline, calendar: calendar)
 
         // Jika deadline sudah lewat dari waktu saat ini, batalkan pengingat dan jangan jadwalkan apa pun
         guard effectiveDeadline > now else {
@@ -287,7 +311,7 @@ public final class NotificationService: Sendable {
         content.body = body
         content.sound = .default
         content.badge = 1
-        content.userInfo = NotificationPayload(entityType: "task", entityId: id).userInfo
+        content.userInfo = NotificationPayload(entityType: "task", entityId: id, kind: "reminder").userInfo
 
         let components = calendar.dateComponents(
             [.year, .month, .day, .hour, .minute, .second],
@@ -296,7 +320,7 @@ public final class NotificationService: Sendable {
         let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
 
         let request = UNNotificationRequest(
-            identifier: "task-\(id)",
+            identifier: Self.standardTaskReminderIdentifier(for: id),
             content: content,
             trigger: trigger
         )
@@ -309,8 +333,77 @@ public final class NotificationService: Sendable {
         }
     }
 
+    /// Menjadwalkan pengingat kustom (`task-custom-reminder-{id}`) tanpa menimpa pengingat otomatis standar (`task-{id}`).
+    @discardableResult
+    public func scheduleCustomReminderForTask(
+        id: Int,
+        title: String,
+        courseName: String?,
+        deadline: Date,
+        reminderAt: Date
+    ) async -> Bool {
+        let now = Date()
+        let calendar = Calendar.current
+        guard Self.isValidCustomReminder(reminderAt: reminderAt, deadline: deadline, now: now, calendar: calendar) else {
+            logger.info("Custom reminder for task-\(id, privacy: .public) is invalid or expired. Cancelling custom reminder.")
+            cancelCustomReminderForTask(id: id)
+            return false
+        }
+
+        let status = await checkAuthorizationStatus()
+        guard status == .authorized || status == .ephemeral || status == .provisional else {
+            logger.warning("Notification permission not granted for custom reminder task-\(id, privacy: .public)")
+            return false
+        }
+
+        let coursePrefix = courseName.map { "[\($0)] " } ?? ""
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "id_ID")
+        df.dateStyle = .medium
+        df.timeStyle = .short
+
+        let content = UNMutableNotificationContent()
+        content.title = "Pengingat Kustom Tugas"
+        content.body = "\(coursePrefix)Saatnya mengerjakan \"\(title)\" (Tenggat: \(df.string(from: deadline)))."
+        content.sound = .default
+        content.badge = 1
+        content.userInfo = NotificationPayload(entityType: "task", entityId: id, kind: "customReminder").userInfo
+
+        let components = calendar.dateComponents(
+            [.year, .month, .day, .hour, .minute, .second],
+            from: reminderAt
+        )
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+
+        let request = UNNotificationRequest(
+            identifier: Self.customTaskReminderIdentifier(for: id),
+            content: content,
+            trigger: trigger
+        )
+
+        do {
+            try await UNUserNotificationCenter.current().add(request)
+            logger.info("Scheduled custom task reminder for task-\(id, privacy: .public) at \(reminderAt.description, privacy: .public)")
+            return true
+        } catch {
+            logger.error("Failed to schedule custom task reminder for task-\(id, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
+
+    public func cancelCustomReminderForTask(id: Int) {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(
+            withIdentifiers: [Self.customTaskReminderIdentifier(for: id)]
+        )
+    }
+
     public func cancelReminderForTask(id: Int) {
-        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["task-\(id)"])
+        UNUserNotificationCenter.current().removePendingNotificationRequests(
+            withIdentifiers: [
+                Self.standardTaskReminderIdentifier(for: id),
+                Self.customTaskReminderIdentifier(for: id)
+            ]
+        )
     }
 
     // MARK: - Penjadwalan Kuliah (Courses)
@@ -631,12 +724,35 @@ public final class NotificationService: Sendable {
             center.removePendingNotificationRequests(withIdentifiers: allCourseNotifs)
         }
 
-        // 2. Deadline Tugas
+        // 2. Deadline Tugas & Pengingat Kustom Tugas
         let activeTasks = tasks.filter { $0.status != .selesai }
-        let validTaskIds = Set(activeTasks.map { "task-\($0.id)" })
-        let staleTaskIds = pendingRequests
-            .filter { $0.identifier.hasPrefix("task-") && !validTaskIds.contains($0.identifier) }
+        let validStandardTaskIds = Set(activeTasks.map { Self.standardTaskReminderIdentifier(for: $0.id) })
+        let validCustomTaskIds = Set(
+            activeTasks.compactMap { task -> String? in
+                guard let customDate = task.reminderAt,
+                      Self.isValidCustomReminder(reminderAt: customDate, deadline: task.deadline) else {
+                    return nil
+                }
+                return Self.customTaskReminderIdentifier(for: task.id)
+            }
+        )
+
+        let staleStandardTaskIds = pendingRequests
+            .filter {
+                $0.identifier.hasPrefix("task-")
+                && !$0.identifier.hasPrefix("task-custom-reminder-")
+                && !validStandardTaskIds.contains($0.identifier)
+            }
             .map { $0.identifier }
+
+        let staleCustomTaskIds = pendingRequests
+            .filter {
+                $0.identifier.hasPrefix("task-custom-reminder-")
+                && !validCustomTaskIds.contains($0.identifier)
+            }
+            .map { $0.identifier }
+
+        let staleTaskIds = staleStandardTaskIds + staleCustomTaskIds
         if !staleTaskIds.isEmpty {
             center.removePendingNotificationRequests(withIdentifiers: staleTaskIds)
             logger.info("Cleaned up \(staleTaskIds.count, privacy: .public) stale task reminders")
@@ -652,8 +768,22 @@ public final class NotificationService: Sendable {
                 )
             }
         } else {
-            let allTaskNotifs = pendingRequests.filter { $0.identifier.hasPrefix("task-") }.map { $0.identifier }
-            center.removePendingNotificationRequests(withIdentifiers: allTaskNotifs)
+            let allStandardTaskNotifs = pendingRequests
+                .filter { $0.identifier.hasPrefix("task-") && !$0.identifier.hasPrefix("task-custom-reminder-") }
+                .map { $0.identifier }
+            center.removePendingNotificationRequests(withIdentifiers: allStandardTaskNotifs)
+        }
+
+        for t in activeTasks {
+            if let customDate = t.reminderAt {
+                _ = await scheduleCustomReminderForTask(
+                    id: t.id,
+                    title: t.namaTugas,
+                    courseName: t.jadwal?.namaMatkul,
+                    deadline: t.deadline,
+                    reminderAt: customDate
+                )
+            }
         }
 
         // 3. Ujian

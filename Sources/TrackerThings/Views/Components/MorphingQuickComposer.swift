@@ -775,7 +775,7 @@ public struct MorphingQuickComposer: View {
             }
             let startStr = timeFormatter.string(from: repStartTime)
             let endStr = timeFormatter.string(from: repEndTime)
-            guard startStr < endStr else {
+            guard DashboardViewModel.isValidTimeRange(start: startStr, end: endStr) else {
                 validationMessage = "Waktu selesai harus setelah waktu mulai."
                 HapticsHelper.notificationWarning()
                 return
@@ -806,7 +806,7 @@ public struct MorphingQuickComposer: View {
             }
             let startStr = timeFormatter.string(from: courseStartTime)
             let endStr = timeFormatter.string(from: courseEndTime)
-            guard startStr < endStr else {
+            guard DashboardViewModel.isValidTimeRange(start: startStr, end: endStr) else {
                 validationMessage = "Waktu selesai kuliah harus setelah waktu mulai."
                 HapticsHelper.notificationWarning()
                 return
@@ -842,7 +842,7 @@ public struct MorphingQuickComposer: View {
             }
             let startStr = timeFormatter.string(from: examStartTime)
             let endStr = timeFormatter.string(from: examEndTime)
-            guard startStr < endStr else {
+            guard DashboardViewModel.isValidTimeRange(start: startStr, end: endStr) else {
                 validationMessage = "Waktu selesai ujian harus setelah waktu mulai."
                 HapticsHelper.notificationWarning()
                 return

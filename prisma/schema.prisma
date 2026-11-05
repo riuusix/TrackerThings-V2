@@ -51,18 +51,20 @@ model Jadwal {
 }
 
 model Tugas {
-  id         Int      @id @default(autoincrement())
-  userId     Int      @map("user_id")
-  idJadwal   Int      @map("id_jadwal")
-  namaTugas  String   @map("nama_tugas")
-  deadline   DateTime @db.Date
+  id         Int       @id @default(autoincrement())
+  userId     Int       @map("user_id")
+  idJadwal   Int       @map("id_jadwal")
+  namaTugas  String    @map("nama_tugas")
+  deadline   DateTime  @db.Date
   prioritas  String
   jenis      String
-  status     String   @default("Belum Dikerjakan")
-  progress   Int      @default(0)
+  status     String    @default("Belum Dikerjakan")
+  progress   Int       @default(0)
+  isPinned   Boolean   @default(false) @map("is_pinned")
+  reminderAt DateTime? @map("reminder_at")
 
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  jadwal     Jadwal   @relation(fields: [idJadwal], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jadwal     Jadwal    @relation(fields: [idJadwal], references: [id], onDelete: Cascade)
 
   @@map("tugas")
 }

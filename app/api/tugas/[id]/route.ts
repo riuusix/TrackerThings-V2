@@ -77,6 +77,24 @@ export async function PUT(
       updateData.status = body.status;
     }
 
+    if (body.is_pinned !== undefined || body.isPinned !== undefined) {
+      const rawPinned = body.is_pinned !== undefined ? body.is_pinned : body.isPinned;
+      updateData.isPinned = Boolean(rawPinned);
+    }
+
+    if (body.reminder_at !== undefined || body.reminderAt !== undefined) {
+      const rawReminder = body.reminder_at !== undefined ? body.reminder_at : body.reminderAt;
+      if (rawReminder === null || rawReminder === "") {
+        updateData.reminderAt = null;
+      } else {
+        const parsedReminder = new Date(rawReminder);
+        if (isNaN(parsedReminder.getTime())) {
+          return apiError("Format waktu pengingat (reminder_at) tidak valid.", 400);
+        }
+        updateData.reminderAt = parsedReminder;
+      }
+    }
+
     await prisma.tugas.update({
       where: { id: taskId },
       data: updateData,

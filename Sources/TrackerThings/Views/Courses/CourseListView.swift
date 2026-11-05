@@ -164,34 +164,13 @@ public struct CourseListView: View {
                 }
 
                 ToolbarItem(placement: .topBarTrailing) {
-                    HStack(spacing: 8) {
-                        InboxPillButton()
-
-                        Menu {
-                            Button {
-                                viewModel.editingCourse = nil
-                                viewModel.isPresentingSheet = true
-                            } label: {
-                                Label("Tambah Manual", systemImage: "plus")
-                            }
-
-                            Button {
-                                isShowingImportSchedule = true
-                            } label: {
-                                Label("Impor Jadwal (Foto/PDF)", systemImage: "doc.viewfinder")
-                            }
-                        } label: {
-                            Image(systemName: "plus")
-                                .font(.system(size: 16, weight: .semibold))
-                                .frame(
-                                    width: AppTheme.Metrics.minTouchTarget,
-                                    height: AppTheme.Metrics.minTouchTarget,
-                                    alignment: .trailing
-                                )
-                                .contentShape(Rectangle())
-                        }
-                        .accessibilityLabel("Opsi Tambah atau Impor Mata Kuliah")
+                    Button {
+                        isShowingImportSchedule = true
+                    } label: {
+                        Label("Impor Jadwal", systemImage: "doc.viewfinder")
+                            .font(.subheadline.weight(.semibold))
                     }
+                    .accessibilityLabel("Impor Jadwal dari Foto atau PDF")
                 }
             }
             .sheet(isPresented: $isShowingAccountSummary) {

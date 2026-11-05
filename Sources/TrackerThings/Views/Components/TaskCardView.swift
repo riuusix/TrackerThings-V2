@@ -10,6 +10,7 @@ public struct TaskCardView: View {
     public var onProgressChanged: ((Int) -> Void)?
     public var onEdit: (() -> Void)?
     public var onMarkCompleted: (() -> Void)?
+    public var onConfigureReminder: (() -> Void)?
 
     @State private var localProgress: Double
     @State private var isMarkingComplete: Bool = false
@@ -22,13 +23,15 @@ public struct TaskCardView: View {
         isOffline: Bool = false,
         onProgressChanged: ((Int) -> Void)? = nil,
         onEdit: (() -> Void)? = nil,
-        onMarkCompleted: (() -> Void)? = nil
+        onMarkCompleted: (() -> Void)? = nil,
+        onConfigureReminder: (() -> Void)? = nil
     ) {
         self.task = task
         self.isOffline = isOffline
         self.onProgressChanged = onProgressChanged
         self.onEdit = onEdit
         self.onMarkCompleted = onMarkCompleted
+        self.onConfigureReminder = onConfigureReminder
         _localProgress = State(initialValue: Double(task.progress))
     }
 
@@ -108,6 +111,20 @@ public struct TaskCardView: View {
                 VStack(alignment: .leading, spacing: 7) {
                     // Header Metadata & Expand/Edit Controls
                     HStack(spacing: 6) {
+                        if task.isPinned {
+                            HStack(spacing: 3) {
+                                Image(systemName: "pin.fill")
+                                    .font(.system(size: 9, weight: .bold))
+                                Text("Semat")
+                                    .font(AppTheme.Typography.badge)
+                            }
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2.5)
+                            .background(AppTheme.Colors.primaryMuted)
+                            .foregroundStyle(AppTheme.Colors.primary)
+                            .clipShape(Capsule())
+                        }
+
                         HStack(spacing: 4) {
                             Circle()
                                 .fill(priorityColor)
@@ -200,6 +217,26 @@ public struct TaskCardView: View {
                             } else if daysDifference <= 3 {
                                 urgencyChip("\(daysDifference) hari lagi", color: courseAccent)
                             }
+                        }
+
+                        if let reminderDate = task.reminderAt, task.status != .selesai {
+                            Button {
+                                onConfigureReminder?()
+                            } label: {
+                                HStack(spacing: 3) {
+                                    Image(systemName: "bell.fill")
+                                        .font(.system(size: 9, weight: .bold))
+                                    Text(reminderDate.formatted(date: .omitted, time: .shortened))
+                                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                                        .monospacedDigit()
+                                }
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(AppTheme.Colors.warningMuted)
+                                .foregroundStyle(AppTheme.Colors.warning)
+                                .clipShape(Capsule())
+                            }
+                            .buttonStyle(.plain)
                         }
 
                         Spacer()
@@ -329,7 +366,9 @@ public struct TaskCardView: View {
             }
         }
         .cardSurface(
-            strokeColor: isExpanded ? courseAccent.opacity(0.38) : AppTheme.Colors.borderSubtle,
+            strokeColor: isExpanded
+                ? courseAccent.opacity(0.38)
+                : (task.isPinned ? AppTheme.Colors.primary.opacity(0.32) : AppTheme.Colors.borderSubtle),
             strokeWidth: 1
         )
         .onChange(of: task.progress) { _, newProgress in

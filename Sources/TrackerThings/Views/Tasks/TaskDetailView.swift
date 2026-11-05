@@ -115,6 +115,16 @@ public struct TaskDetailView: View {
                     // 1. Header Ringkasan Tugas
                     VStack(alignment: .leading, spacing: AppTheme.Metrics.spacingMedium) {
                         HStack(spacing: AppTheme.Metrics.spacingXSmall) {
+                            if task.isPinned {
+                                Label("Disematkan", systemImage: "pin.fill")
+                                    .font(AppTheme.Typography.badge)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(AppTheme.Colors.primaryMuted)
+                                    .foregroundStyle(AppTheme.Colors.primary)
+                                    .clipShape(Capsule())
+                            }
+
                             Text(task.prioritas.rawValue)
                                 .font(AppTheme.Typography.badge)
                                 .padding(.horizontal, 8)
@@ -307,8 +317,58 @@ public struct TaskDetailView: View {
                     .cardSurface()
                     .padding(.horizontal)
 
-                    // 3. Tindakan Pengelolaan (Edit & Hapus)
+                    // 3. Tindakan Pengelolaan (Sematkan, Pengingat Kustom, Edit & Hapus)
                     VStack(spacing: AppTheme.Metrics.spacingSmall) {
+                        if task.status != .selesai {
+                            Button {
+                                Task {
+                                    await viewModel.toggleTaskPin(task: task)
+                                }
+                            } label: {
+                                HStack {
+                                    Image(systemName: task.isPinned ? "pin.slash.fill" : "pin.fill")
+                                        .foregroundStyle(AppTheme.Colors.primary)
+                                    Text(task.isPinned ? "Lepas Sematan dari Dashboard" : "Sematkan di Atas Dashboard")
+                                        .fontWeight(.medium)
+                                    Spacer()
+                                }
+                                .padding()
+                                .background(AppTheme.Colors.cardBackground)
+                                .foregroundStyle(AppTheme.Colors.textPrimary)
+                                .clipShape(RoundedRectangle(cornerRadius: AppTheme.Metrics.cornerRadiusMedium, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(viewModel.isOffline || isInFlight)
+
+                            Button {
+                                viewModel.reminderEditingTask = task
+                            } label: {
+                                HStack {
+                                    Image(systemName: task.reminderAt != nil ? "bell.badge.fill" : "bell.fill")
+                                        .foregroundStyle(AppTheme.Colors.warning)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(task.reminderAt != nil ? "Ubah Pengingat Kustom" : "Atur Pengingat Kustom")
+                                            .fontWeight(.medium)
+                                        if let rem = task.reminderAt {
+                                            Text("Terjadwal: \(rem.formatted(date: .abbreviated, time: .shortened))")
+                                                .font(.caption)
+                                                .foregroundStyle(AppTheme.Colors.textSecondary)
+                                        }
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption)
+                                        .foregroundStyle(AppTheme.Colors.textTertiary)
+                                }
+                                .padding()
+                                .background(AppTheme.Colors.cardBackground)
+                                .foregroundStyle(AppTheme.Colors.textPrimary)
+                                .clipShape(RoundedRectangle(cornerRadius: AppTheme.Metrics.cornerRadiusMedium, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(viewModel.isOffline || isInFlight)
+                        }
+
                         Button {
                             viewModel.editingTask = task
                             isPresentingEditSheet = true
@@ -391,6 +451,9 @@ public struct TaskDetailView: View {
             TaskFormSheet(viewModel: viewModel)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $viewModel.reminderEditingTask) { reminderTask in
+            TaskReminderSheet(task: reminderTask, viewModel: viewModel)
         }
         .confirmationDialog(
             "Hapus Tugas Ini?",

@@ -124,14 +124,15 @@ public final class CourseViewModel {
                 let createdId = courses.first(where: { $0.namaMatkul == namaMatkul && $0.hari == hari })?.id
                 ActivityInboxStore.shared.enqueueArrival(
                     NotificationItem(
-                        id: createdId.map { "course-\($0)" } ?? "course-new-\(Int(Date().timeIntervalSince1970))",
+                        id: NotificationItem.canonicalId(kind: "created", entityType: "course", entityId: createdId, fallbackTitle: namaMatkul),
                         judul: namaMatkul,
                         namaMatkul: "\(hari) • \(waktuMulai)–\(waktuSelesai)",
                         waktu: lokasi.flatMap { $0.isEmpty ? nil : "Ruang \($0)" } ?? "Jadwal Kuliah Baru",
                         tipe: .kuliah,
                         isUrgent: false,
                         entityType: "course",
-                        entityId: createdId
+                        entityId: createdId,
+                        eventKind: "created"
                     ),
                     triggerFlight: true
                 )

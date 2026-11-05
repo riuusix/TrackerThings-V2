@@ -22,6 +22,8 @@ public struct TugasItem: Codable, Sendable, Identifiable, Hashable {
     public var jenis: JenisTugas
     public var status: StatusTugas
     public var progress: Int
+    public var isPinned: Bool
+    public var reminderAt: Date?
     public var createdAt: Date?
     public var jadwal: CourseInfo?
 
@@ -29,6 +31,14 @@ public struct TugasItem: Codable, Sendable, Identifiable, Hashable {
         case tinggi = "Tinggi"
         case sedang = "Sedang"
         case rendah = "Rendah"
+
+        public var sortWeight: Int {
+            switch self {
+            case .tinggi: return 0
+            case .sedang: return 1
+            case .rendah: return 2
+            }
+        }
     }
 
     public enum JenisTugas: String, Codable, Sendable, CaseIterable {
@@ -52,6 +62,10 @@ public struct TugasItem: Codable, Sendable, Identifiable, Hashable {
         case jenis
         case status
         case progress
+        case isPinned = "is_pinned"
+        case isPinnedCamel = "isPinned"
+        case reminderAt = "reminder_at"
+        case reminderAtCamel = "reminderAt"
         case createdAt = "created_at"
         case jadwal
     }
@@ -66,6 +80,8 @@ public struct TugasItem: Codable, Sendable, Identifiable, Hashable {
         jenis: JenisTugas = .individu,
         status: StatusTugas = .belumDikerjakan,
         progress: Int = 0,
+        isPinned: Bool = false,
+        reminderAt: Date? = nil,
         createdAt: Date? = nil,
         jadwal: CourseInfo? = nil
     ) {
@@ -78,6 +94,8 @@ public struct TugasItem: Codable, Sendable, Identifiable, Hashable {
         self.jenis = jenis
         self.status = status
         self.progress = progress
+        self.isPinned = isPinned
+        self.reminderAt = reminderAt
         self.createdAt = createdAt
         self.jadwal = jadwal
     }
@@ -102,7 +120,17 @@ public struct TugasItem: Codable, Sendable, Identifiable, Hashable {
         self.jenis = try container.decode(JenisTugas.self, forKey: .jenis)
         self.status = try container.decode(StatusTugas.self, forKey: .status)
         self.progress = try container.decode(Int.self, forKey: .progress)
-        self.createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt)
+
+        if let pinned = try? container.decodeIfPresent(Bool.self, forKey: .isPinned) {
+            self.isPinned = pinned
+        } else if let pinnedCamel = try? container.decodeIfPresent(Bool.self, forKey: .isPinnedCamel) {
+            self.isPinned = pinnedCamel
+        } else {
+            self.isPinned = false
+        }
+
+        self.reminderAt = Self.decodeInstant(from: container, primaryKey: .reminderAt, secondaryKey: .reminderAtCamel)
+        self.createdAt = try? container.decodeIfPresent(Date.self, forKey: .createdAt)
         self.jadwal = try container.decodeIfPresent(CourseInfo.self, forKey: .jadwal)
     }
 
@@ -121,7 +149,37 @@ public struct TugasItem: Codable, Sendable, Identifiable, Hashable {
         try container.encode(jenis, forKey: .jenis)
         try container.encode(status, forKey: .status)
         try container.encode(progress, forKey: .progress)
+        try container.encode(isPinned, forKey: .isPinned)
+        if let reminderAt = reminderAt {
+            let iso = ISO8601DateFormatter()
+            iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            try container.encode(iso.string(from: reminderAt), forKey: .reminderAt)
+        }
         try container.encodeIfPresent(createdAt, forKey: .createdAt)
         try container.encodeIfPresent(jadwal, forKey: .jadwal)
+    }
+
+    private static func decodeInstant(
+        from container: KeyedDecodingContainer<CodingKeys>,
+        primaryKey: CodingKeys,
+        secondaryKey: CodingKeys
+    ) -> Date? {
+        for key in [primaryKey, secondaryKey] {
+            if let str = try? container.decodeIfPresent(String.self, forKey: key), !str.isEmpty {
+                let isoFractional = ISO8601DateFormatter()
+                isoFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                if let parsed = isoFractional.date(from: str) {
+                    return parsed
+                }
+                let isoBasic = ISO8601DateFormatter()
+                if let parsed = isoBasic.date(from: str) {
+                    return parsed
+                }
+            }
+            if let date = try? container.decodeIfPresent(Date.self, forKey: key) {
+                return date
+            }
+        }
+        return nil
     }
 }

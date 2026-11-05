@@ -119,14 +119,15 @@ public final class ExamViewModel {
                 df.dateStyle = .medium
                 ActivityInboxStore.shared.enqueueArrival(
                     NotificationItem(
-                        id: createdId.map { "exam-\($0)" } ?? "exam-new-\(Int(Date().timeIntervalSince1970))",
+                        id: NotificationItem.canonicalId(kind: "created", entityType: "exam", entityId: createdId, fallbackTitle: "\(jenisUjian)-\(courseName)"),
                         judul: "\(jenisUjian): \(courseName)",
                         namaMatkul: courseName,
                         waktu: df.string(from: tanggal),
                         tipe: .ujian,
                         isUrgent: true,
                         entityType: "exam",
-                        entityId: createdId
+                        entityId: createdId,
+                        eventKind: "created"
                     ),
                     triggerFlight: true
                 )

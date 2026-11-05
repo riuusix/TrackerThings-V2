@@ -7,6 +7,7 @@ public struct DashboardView: View {
     var dockController: QuickActionDockController?
     @State private var isPresentingAddTask = false
     @State private var isPresentingAddReplacement = false
+    @State private var swipeCoordinator = TaskSwipeCoordinator()
     @Namespace private var dayNamespace
 
     public init(
@@ -62,13 +63,11 @@ public struct DashboardView: View {
                             HStack(spacing: 8) {
                                 Text("2026/2027")
                                     .font(AppTheme.Typography.badge)
-                                    .padding(.horizontal, 8)
+                                    .padding(.horizontal, 10)
                                     .padding(.vertical, 5)
                                     .background(AppTheme.Colors.infoBackground)
                                     .foregroundStyle(AppTheme.Colors.info)
                                     .clipShape(Capsule())
-
-                                InboxPillButton()
                             }
                         }
                     }
@@ -366,14 +365,37 @@ public struct DashboardView: View {
                         }
                     }
 
-                    // 5. Tugas & Deadline (Semua Tugas Aktif)
+                    // 5. Tugas Disematkan (Jika Ada — Tidak Pernah Terduplikasi di Daftar Tugas Aktif)
+                    if !viewModel.pinnedTasks.isEmpty {
+                        VStack(alignment: .leading, spacing: AppTheme.Metrics.spacingSmall) {
+                            HStack {
+                                Label("Disematkan", systemImage: "pin.fill")
+                                    .font(AppTheme.Typography.sectionHeader)
+                                    .foregroundStyle(AppTheme.Colors.primary)
+                                Spacer()
+                                Text("\(viewModel.pinnedTasks.count) Tugas")
+                                    .font(AppTheme.Typography.caption)
+                                    .foregroundStyle(AppTheme.Colors.textSecondary)
+                            }
+                            .padding(.horizontal)
+
+                            LazyVStack(spacing: AppTheme.Metrics.spacingSmall) {
+                                ForEach(viewModel.pinnedTasks) { task in
+                                    swipeableTaskRow(for: task)
+                                }
+                            }
+                            .padding(.horizontal)
+                        }
+                    }
+
+                    // 6. Tugas & Deadline (Tugas Aktif yang Tidak Disematkan)
                     VStack(alignment: .leading, spacing: AppTheme.Metrics.spacingSmall) {
                         HStack {
                             Label("Daftar Tugas Aktif", systemImage: "checklist")
                                 .font(AppTheme.Typography.sectionHeader)
                                 .foregroundStyle(AppTheme.Colors.textPrimary)
                             Spacer()
-                            Text("\(viewModel.urgentTasks.count) Tugas")
+                            Text("\(viewModel.unpinnedUrgentTasks.count) Tugas")
                                 .font(AppTheme.Typography.caption)
                                 .foregroundStyle(AppTheme.Colors.textSecondary)
                         }
@@ -400,36 +422,20 @@ public struct DashboardView: View {
                                 description: Text("Bagus sekali! Tidak ada tugas yang tertunda.")
                             )
                             .padding(.vertical, AppTheme.Metrics.spacingSmall)
+                        } else if viewModel.unpinnedUrgentTasks.isEmpty {
+                            HStack(spacing: AppTheme.Metrics.spacingSmall) {
+                                Image(systemName: "pin.circle.fill")
+                                    .foregroundStyle(AppTheme.Colors.primary)
+                                Text("Seluruh tugas aktif saat ini berada pada bagian Disematkan di atas.")
+                                    .font(AppTheme.Typography.caption)
+                                    .foregroundStyle(AppTheme.Colors.textSecondary)
+                            }
+                            .cardSurface()
+                            .padding(.horizontal)
                         } else {
                             LazyVStack(spacing: AppTheme.Metrics.spacingSmall) {
-                                ForEach(viewModel.urgentTasks) { task in
-                                    NavigationLink {
-                                        TaskDetailView(
-                                            taskId: task.id,
-                                            initialTask: task,
-                                            viewModel: viewModel
-                                        )
-                                    } label: {
-                                        TaskCardView(
-                                            task: task,
-                                            isOffline: viewModel.isOffline,
-                                            onProgressChanged: { newProg in
-                                                Task {
-                                                    await viewModel.updateTaskProgress(task: task, progress: newProg)
-                                                }
-                                            },
-                                            onEdit: {
-                                                viewModel.editingTask = task
-                                                isPresentingAddTask = true
-                                            },
-                                            onMarkCompleted: {
-                                                Task {
-                                                    await viewModel.updateTaskProgress(task: task, progress: 100)
-                                                }
-                                            }
-                                        )
-                                    }
-                                    .buttonStyle(.plain)
+                                ForEach(viewModel.unpinnedUrgentTasks) { task in
+                                    swipeableTaskRow(for: task)
                                 }
                             }
                             .padding(.horizontal)
@@ -507,51 +513,6 @@ public struct DashboardView: View {
             }
             .navigationTitle("Home")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Button {
-                            if let dockController {
-                                dockController.selectAction(.task)
-                            } else {
-                                viewModel.editingTask = nil
-                                isPresentingAddTask = true
-                            }
-                        } label: {
-                            Label("Tambah Tugas Cepat", systemImage: "checklist.checked")
-                        }
-
-                        Button {
-                            if let dockController {
-                                dockController.selectAction(.replacement)
-                            } else {
-                                viewModel.editingReplacement = nil
-                                isPresentingAddReplacement = true
-                            }
-                        } label: {
-                            Label("Kelas Pengganti", systemImage: "arrow.triangle.2.circlepath")
-                        }
-
-                        if let dockController {
-                            Button {
-                                dockController.selectAction(.course)
-                            } label: {
-                                Label("Mata Kuliah Baru", systemImage: "book.closed")
-                            }
-
-                            Button {
-                                dockController.selectAction(.exam)
-                            } label: {
-                                Label("Jadwal Ujian", systemImage: "doc.text.magnifyingglass")
-                            }
-                        }
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.headline)
-                            .frame(minWidth: AppTheme.Metrics.minTouchTarget, minHeight: AppTheme.Metrics.minTouchTarget)
-                    }
-                }
-            }
             .refreshable {
                 await viewModel.loadDashboardData()
             }
@@ -564,7 +525,52 @@ public struct DashboardView: View {
             .sheet(isPresented: $isPresentingAddReplacement) {
                 KelasPenggantiFormSheet(viewModel: viewModel)
             }
+            .sheet(item: $viewModel.reminderEditingTask) { reminderTask in
+                TaskReminderSheet(task: reminderTask, viewModel: viewModel)
+            }
             .feedbackToast(toast: $viewModel.toast)
+    }
+
+    @ViewBuilder
+    private func swipeableTaskRow(for task: TugasItem) -> some View {
+        SwipeableTaskRow(
+            task: task,
+            isOffline: viewModel.isOffline,
+            coordinator: swipeCoordinator,
+            onTapRow: {
+                AppNavigationCoordinator.shared.navigate(to: .taskDetail(id: task.id))
+            },
+            onTogglePin: {
+                Task {
+                    await viewModel.toggleTaskPin(task: task)
+                }
+            },
+            onOpenReminder: {
+                viewModel.reminderEditingTask = task
+            }
+        ) {
+            TaskCardView(
+                task: task,
+                isOffline: viewModel.isOffline,
+                onProgressChanged: { newProg in
+                    Task {
+                        await viewModel.updateTaskProgress(task: task, progress: newProg)
+                    }
+                },
+                onEdit: {
+                    viewModel.editingTask = task
+                    isPresentingAddTask = true
+                },
+                onMarkCompleted: {
+                    Task {
+                        await viewModel.updateTaskProgress(task: task, progress: 100)
+                    }
+                },
+                onConfigureReminder: {
+                    viewModel.reminderEditingTask = task
+                }
+            )
+        }
     }
 }
 
