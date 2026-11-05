@@ -318,23 +318,24 @@ public final class DashboardViewModel {
                     status: .belumDikerjakan,
                     progress: 0
                 )
-                let created = try await dataService.createTugas(newTask)
+                _ = try await dataService.createTugas(newTask)
                 editingTask = nil
                 await loadDashboardData()
+                let createdId = urgentTasks.first(where: { $0.namaTugas == namaTugas && $0.idJadwal == idJadwal })?.id
                 let courseName = courses.first(where: { $0.id == idJadwal })?.namaMatkul ?? "Tugas Akademik"
                 let df = DateFormatter()
                 df.locale = Locale(identifier: "id_ID")
                 df.dateStyle = .medium
                 ActivityInboxStore.shared.enqueueArrival(
                     NotificationItem(
-                        id: "task-\(created.id)",
-                        judul: created.namaTugas,
+                        id: createdId.map { "task-\($0)" } ?? "task-new-\(Int(Date().timeIntervalSince1970))",
+                        judul: namaTugas,
                         namaMatkul: courseName,
                         waktu: "Tenggat \(df.string(from: deadline))",
                         tipe: .tugas,
                         isUrgent: prioritas == .tinggi,
                         entityType: "task",
-                        entityId: created.id
+                        entityId: createdId
                     ),
                     triggerFlight: true
                 )
@@ -421,23 +422,24 @@ public final class DashboardViewModel {
                     catatan: catatan,
                     status: "Belum Selesai"
                 )
-                let created = try await dataService.createKelasPengganti(newKP)
+                _ = try await dataService.createKelasPengganti(newKP)
                 editingReplacement = nil
                 await loadDashboardData()
+                let createdId = replacementClasses.first(where: { $0.idJadwal == idJadwal && $0.waktuMulai == waktuMulai })?.id
                 let courseName = courses.first(where: { $0.id == idJadwal })?.namaMatkul ?? "Kelas Pengganti"
                 let df = DateFormatter()
                 df.locale = Locale(identifier: "id_ID")
                 df.dateStyle = .medium
                 ActivityInboxStore.shared.enqueueArrival(
                     NotificationItem(
-                        id: "replacement-\(created.id)",
+                        id: createdId.map { "replacement-\($0)" } ?? "replacement-new-\(Int(Date().timeIntervalSince1970))",
                         judul: "Kelas Pengganti \(courseName)",
                         namaMatkul: lokasi.flatMap { $0.isEmpty ? nil : "Ruang \($0)" } ?? courseName,
                         waktu: "\(df.string(from: tanggal)) • \(waktuMulai)",
                         tipe: .pengganti,
                         isUrgent: false,
                         entityType: "replacementClass",
-                        entityId: created.id
+                        entityId: createdId
                     ),
                     triggerFlight: true
                 )

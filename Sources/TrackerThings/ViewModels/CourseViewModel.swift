@@ -112,26 +112,30 @@ public final class CourseViewModel {
         )
 
         do {
-            if editingCourse != nil {
+            let isCreatingNew = editingCourse == nil
+            if !isCreatingNew {
                 _ = try await dataService.updateJadwal(newItem)
                 showToast("Mata kuliah berhasil diperbarui!", severity: .success)
             } else {
-                let created = try await dataService.createJadwal(newItem)
+                _ = try await dataService.createJadwal(newItem)
+            }
+            await fetchCourses()
+            if isCreatingNew {
+                let createdId = courses.first(where: { $0.namaMatkul == namaMatkul && $0.hari == hari })?.id
                 ActivityInboxStore.shared.enqueueArrival(
                     NotificationItem(
-                        id: "course-\(created.id)",
-                        judul: created.namaMatkul,
-                        namaMatkul: "\(created.hari) • \(created.waktuMulai)–\(created.waktuSelesai)",
-                        waktu: created.lokasi.flatMap { $0.isEmpty ? nil : "Ruang \($0)" } ?? "Jadwal Kuliah Baru",
+                        id: createdId.map { "course-\($0)" } ?? "course-new-\(Int(Date().timeIntervalSince1970))",
+                        judul: namaMatkul,
+                        namaMatkul: "\(hari) • \(waktuMulai)–\(waktuSelesai)",
+                        waktu: lokasi.flatMap { $0.isEmpty ? nil : "Ruang \($0)" } ?? "Jadwal Kuliah Baru",
                         tipe: .kuliah,
                         isUrgent: false,
                         entityType: "course",
-                        entityId: created.id
+                        entityId: createdId
                     ),
                     triggerFlight: true
                 )
             }
-            await fetchCourses()
             await NotificationService.shared.syncRemindersFromCache()
             isPresentingSheet = false
             editingCourse = nil

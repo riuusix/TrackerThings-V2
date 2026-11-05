@@ -168,3 +168,4 @@ final class InteractiveRedesignTests: XCTestCase {
         XCTAssertNotNil(reducedAnim)
     }
 }
+

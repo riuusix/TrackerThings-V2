@@ -103,30 +103,34 @@ public final class ExamViewModel {
         )
 
         do {
-            if editingExam != nil {
+            let isCreatingNew = editingExam == nil
+            if !isCreatingNew {
                 _ = try await dataService.updateUjian(item)
                 showToast("Jadwal ujian berhasil diperbarui!", severity: .success)
             } else {
-                let created = try await dataService.createUjian(item)
+                _ = try await dataService.createUjian(item)
+            }
+            await fetchExams()
+            if isCreatingNew {
+                let createdId = exams.first(where: { $0.idJadwal == idJadwal && $0.jenisUjian == jenisUjian })?.id
                 let courseName = courses.first(where: { $0.id == idJadwal })?.namaMatkul ?? "Ujian Akademik"
                 let df = DateFormatter()
                 df.locale = Locale(identifier: "id_ID")
                 df.dateStyle = .medium
                 ActivityInboxStore.shared.enqueueArrival(
                     NotificationItem(
-                        id: "exam-\(created.id)",
+                        id: createdId.map { "exam-\($0)" } ?? "exam-new-\(Int(Date().timeIntervalSince1970))",
                         judul: "\(jenisUjian): \(courseName)",
                         namaMatkul: courseName,
                         waktu: df.string(from: tanggal),
                         tipe: .ujian,
                         isUrgent: true,
                         entityType: "exam",
-                        entityId: created.id
+                        entityId: createdId
                     ),
                     triggerFlight: true
                 )
             }
-            await fetchExams()
             await NotificationService.shared.syncRemindersFromCache()
             isPresentingSheet = false
             editingExam = nil

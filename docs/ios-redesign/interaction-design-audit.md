@@ -151,3 +151,4 @@ Applying the four-question gate from `find-animation-opportunities` (*Frequency*
    - Editorial workspace header with live **Inbox Pill Button** (anchor for Fly-to-Inbox), interactive **Academic Briefing Ribbon**, **Focus Today Timeline** (with inline expandable schedule items), and **Living Task List** (with inline expandable progress drawer and completion undo banner).
 5. **Refined — `TaskCardView.swift`, `ScheduleCardView.swift`, `CourseCardView.swift`, `CourseListView.swift`, `ExamListView.swift`:**
    - Upgraded into living academic components with inline expansion, category-coded editorial accents, numeric countdown transitions, and clutter-free default states.
+
