@@ -142,7 +142,7 @@ public struct RootTabView: View {
         case .entityNotFound(let entityType, let id, let message):
             EntityNotFoundView(
                 entityType: entityType,
-                id: id,
+                entityId: id,
                 message: message
             )
         }

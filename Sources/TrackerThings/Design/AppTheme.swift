@@ -180,6 +180,7 @@ public extension View {
 }
 
 // MARK: - Haptic Feedback Helper
+@MainActor
 public enum HapticsHelper {
     public static func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle = .light) {
         #if canImport(UIKit)
@@ -222,7 +223,9 @@ public struct PressableScaleButtonStyle: ButtonStyle {
             .animation(AppTheme.Motion.interactiveSpring, value: configuration.isPressed)
             .onChange(of: configuration.isPressed) { _, isPressed in
                 if isPressed, let style = hapticStyle {
-                    HapticsHelper.impact(style)
+                    Task { @MainActor in
+                        HapticsHelper.impact(style)
+                    }
                 }
             }
     }
