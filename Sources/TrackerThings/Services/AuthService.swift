@@ -11,6 +11,12 @@ public struct BaseResponse: Codable, Sendable {
     public let success: Bool
     public let message: String?
     public let error: String?
+
+    public init(success: Bool, message: String? = nil, error: String? = nil) {
+        self.success = success
+        self.message = message
+        self.error = error
+    }
 }
 
 public struct ServerHealthResponse: Codable, Sendable {

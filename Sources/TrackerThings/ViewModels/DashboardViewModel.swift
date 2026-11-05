@@ -34,7 +34,7 @@ public final class DashboardViewModel {
         return Self.sortActiveTasks(urgentTasks.filter { !$0.isPinned && !pinnedIds.contains($0.id) })
     }
 
-    public static func sortActiveTasks(_ tasks: [TugasItem]) -> [TugasItem] {
+    public nonisolated static func sortActiveTasks(_ tasks: [TugasItem]) -> [TugasItem] {
         tasks.sorted { lhs, rhs in
             if lhs.deadline != rhs.deadline {
                 return lhs.deadline < rhs.deadline
@@ -47,7 +47,7 @@ public final class DashboardViewModel {
     }
 
     /// Validasi bersama rentang waktu mulai dan selesai (`HH:mm`) untuk Quick Composer dan Form Sheet.
-    public static func isValidTimeRange(start: String, end: String) -> Bool {
+    public nonisolated static func isValidTimeRange(start: String, end: String) -> Bool {
         let s = start.trimmingCharacters(in: .whitespacesAndNewlines)
         let e = end.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !s.isEmpty, !e.isEmpty else { return false }

@@ -348,6 +348,12 @@ public struct ScheduleImportConfirmResponse: Codable, Sendable {
     public let items: [JadwalItem]?
     public let learnedMappingsTotal: Int?
 
+    public init(count: Int, items: [JadwalItem]? = nil, learnedMappingsTotal: Int? = nil) {
+        self.count = count
+        self.items = items
+        self.learnedMappingsTotal = learnedMappingsTotal
+    }
+
     enum CodingKeys: String, CodingKey {
         case count
         case items

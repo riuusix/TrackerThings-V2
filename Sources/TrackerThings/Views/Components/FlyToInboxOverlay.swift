@@ -37,7 +37,7 @@ public struct AnchoredFlightModifier: ViewModifier, Animatable {
     }
 
     /// Menghitung posisi $(x, y)$ sepanjang lintasan lengkung Bézier kuadratik untuk nilai $t \in [0, 1]$.
-    public static func pointOnQuadraticBezier(
+    public nonisolated static func pointOnQuadraticBezier(
         t: CGFloat,
         deltaX: CGFloat,
         deltaY: CGFloat

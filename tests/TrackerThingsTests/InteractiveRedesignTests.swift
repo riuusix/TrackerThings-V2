@@ -104,7 +104,7 @@ final class InteractiveRedesignTests: XCTestCase {
             jenis: .individu,
             status: .sedangDikerjakan,
             progress: 50,
-            jadwal: JadwalRingkas(namaMatkul: "Jaringan Komputer", dosen: "Dr. Budi")
+            jadwal: CourseInfo(namaMatkul: "Jaringan Komputer")
         )
 
         let upcomingExam = UjianItem(
@@ -116,7 +116,7 @@ final class InteractiveRedesignTests: XCTestCase {
             waktuSelesai: "11:00",
             ruangan: "R.301",
             catatan: nil,
-            jadwal: JadwalRingkas(namaMatkul: "Jaringan Komputer")
+            jadwal: CourseInfo(namaMatkul: "Jaringan Komputer")
         )
 
         store.syncWithAcademicState(

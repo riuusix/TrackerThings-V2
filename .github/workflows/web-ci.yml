@@ -143,8 +143,14 @@ jobs:
 
       - name: Compile Swift Package (iOS Simulator Target)
         run: |
+          set -o pipefail
           SDK_PATH=$(xcrun --sdk iphonesimulator --show-sdk-path)
-          swift build -v --triple arm64-apple-ios18.0-simulator --sdk "$SDK_PATH"
+          if ! swift build --triple arm64-apple-ios18.0-simulator --sdk "$SDK_PATH" 2>&1 | tee swift-build.log; then
+            grep -E "error:" swift-build.log | head -n 10 | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+            exit 1
+          fi
 
       - name: Execute Swift Unit Tests
         run: |

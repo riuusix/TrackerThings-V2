@@ -66,7 +66,29 @@ private final class MockInteractionDataService: TrackerDataServiceProtocol, @unc
     func selesaiKelasPengganti(id: Int) async throws -> BaseResponse { BaseResponse(success: true, message: "OK") }
     func deleteKelasPengganti(id: Int) async throws -> BaseResponse { BaseResponse(success: true, message: "OK") }
 
-    func getAcademicInsights(referenceDate: String?, timezone: String?, upcomingWindowDays: Int?) async throws -> AcademicIntelligenceSummary {
+    func previewScheduleImport(
+        fileData: Data,
+        fileName: String,
+        mimeType: String,
+        rawText: String?,
+        ocrWordsJson: String?
+    ) async throws -> ScheduleImportPreviewResponse {
+        ScheduleImportPreviewResponse()
+    }
+
+    func visionScheduleImport(fileData: Data, fileName: String, mimeType: String, localItemsJson: String?) async throws -> ScheduleImportPreviewResponse {
+        ScheduleImportPreviewResponse()
+    }
+
+    func confirmScheduleImport(items: [ImportScheduleItem], learnCorrections: Bool) async throws -> ScheduleImportConfirmResponse {
+        ScheduleImportConfirmResponse(count: 0, items: nil, learnedMappingsTotal: nil)
+    }
+
+    func syncPendingScheduleDrafts() async throws -> [ScheduleImportConfirmResponse] {
+        []
+    }
+
+    func getAcademicInsights(referenceDate: String, timezone: String, upcomingWindowDays: Int) async throws -> AcademicIntelligenceSummary {
         throw NSError(domain: "MockError", code: 404)
     }
 }
@@ -391,3 +413,4 @@ final class InteractionQualityTests: XCTestCase {
         XCTAssertEqual(reloaded.items.first?.id, "exam-88")
     }
 }
+

@@ -129,3 +129,4 @@ We introduce `NotificationItem.canonicalId(kind:entityType:entityId:fallback:)`:
 | **In-App Activity Inbox & Fly-to-Inbox Flight** | `ActivityInboxStore.shared` (with `inboxTargetRect: CGRect`) | `FlyToInboxOverlay`, `GooeyActionDock`, `ActivityInboxSheet` |
 | **Task Swipe Row Coordination (Single Open Row)** | `TaskSwipeCoordinator` (`@State` in `DashboardView`) | `SwipeableTaskRow` / `TaskCardView` |
 | **Task Pin & Custom Reminder Persistence** | `DashboardViewModel` + `TrackerDataService` + `NotificationService` | `DashboardView`, `TaskCardView`, `TaskReminderSheet`, `TaskDetailView` |
+

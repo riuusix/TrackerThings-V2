@@ -27,23 +27,23 @@ public enum TaskSwipeReleaseOutcome: Equatable, Sendable {
 public final class TaskSwipeCoordinator {
     public var activeOpenTaskId: Int? = nil
 
-    public static let directionLockMinimumDistance: CGFloat = 12
-    public static let directionLockHorizontalRatio: CGFloat = 1.35
-    public static let leftEdgeProtectionWidth: CGFloat = 24
-    public static let actionRevealWidth: CGFloat = 88
-    public static let revealSnapThreshold: CGFloat = 52
-    public static let fullCommitThreshold: CGFloat = 148
+    public nonisolated static let directionLockMinimumDistance: CGFloat = 12
+    public nonisolated static let directionLockHorizontalRatio: CGFloat = 1.35
+    public nonisolated static let leftEdgeProtectionWidth: CGFloat = 24
+    public nonisolated static let actionRevealWidth: CGFloat = 88
+    public nonisolated static let revealSnapThreshold: CGFloat = 52
+    public nonisolated static let fullCommitThreshold: CGFloat = 148
 
     public init() {}
 
     /// Menentukan apakah gesture harus diabaikan karena dimulai dari area tepi kiri layar (proteksi back-swipe).
-    public static func isLeftEdgeBackGesture(startX: CGFloat) -> Bool {
+    public nonisolated static func isLeftEdgeBackGesture(startX: CGFloat) -> Bool {
         startX < leftEdgeProtectionWidth
     }
 
     /// Menentukan apakah pergeseran jari memenuhi syarat dikunci sebagai gesture geser horizontal
     /// dan bukan pengguliran vertikal `ScrollView`.
-    public static func shouldLockHorizontal(deltaX: CGFloat, deltaY: CGFloat) -> Bool {
+    public nonisolated static func shouldLockHorizontal(deltaX: CGFloat, deltaY: CGFloat) -> Bool {
         let absX = abs(deltaX)
         let absY = abs(deltaY)
         guard absX >= directionLockMinimumDistance else { return false }
@@ -52,7 +52,7 @@ public final class TaskSwipeCoordinator {
 
     /// Menghitung offset horizontal baris dengan hambatan elastis (rubber-band resistance)
     /// ketika melampaui lebar area tombol aksi.
-    public static func rubberBandedOffset(for rawTranslation: CGFloat) -> CGFloat {
+    public nonisolated static func rubberBandedOffset(for rawTranslation: CGFloat) -> CGFloat {
         let sign: CGFloat = rawTranslation >= 0 ? 1 : -1
         let magnitude = abs(rawTranslation)
         if magnitude <= actionRevealWidth {
@@ -64,7 +64,7 @@ public final class TaskSwipeCoordinator {
     }
 
     /// Mengevaluasi state tampilan selama jari pengguna bergerak.
-    public static func stateDuringDrag(for offset: CGFloat) -> TaskSwipeState {
+    public nonisolated static func stateDuringDrag(for offset: CGFloat) -> TaskSwipeState {
         if offset > 4 {
             return .revealingPin
         } else if offset < -4 {
@@ -74,7 +74,7 @@ public final class TaskSwipeCoordinator {
     }
 
     /// Mengevaluasi keputusan pelepasan jari berdasarkan offset saat ini dan proyeksi kecepatan akhir.
-    public static func evaluateRelease(
+    public nonisolated static func evaluateRelease(
         offset: CGFloat,
         predictedEndOffset: CGFloat,
         isOffline: Bool = false
@@ -132,7 +132,7 @@ public struct SwipeableTaskRow<Content: View>: View {
     public var onTapRow: () -> Void
     public var onTogglePin: () -> Void
     public var onOpenReminder: () -> Void
-    @ViewBuilder public var content: () -> Content
+    public let content: () -> Content
 
     @State private var swipeState: TaskSwipeState = .closed
     @State private var offsetX: CGFloat = 0
@@ -389,3 +389,4 @@ public struct SwipeableTaskRow<Content: View>: View {
         coordinator.closeRowIfMatching(taskId: task.id)
     }
 }
+
