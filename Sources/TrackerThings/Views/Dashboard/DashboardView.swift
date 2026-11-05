@@ -4,6 +4,7 @@ public struct DashboardView: View {
     @Bindable var viewModel: DashboardViewModel
     @State private var courseViewModel: CourseViewModel
     @State private var examViewModel: ExamViewModel
+    var dockController: QuickActionDockController?
     @State private var isPresentingAddTask = false
     @State private var isPresentingAddReplacement = false
     @Namespace private var dayNamespace
@@ -11,11 +12,13 @@ public struct DashboardView: View {
     public init(
         viewModel: DashboardViewModel,
         courseViewModel: CourseViewModel = CourseViewModel(),
-        examViewModel: ExamViewModel = ExamViewModel()
+        examViewModel: ExamViewModel = ExamViewModel(),
+        dockController: QuickActionDockController? = nil
     ) {
         self.viewModel = viewModel
         _courseViewModel = State(initialValue: courseViewModel)
         _examViewModel = State(initialValue: examViewModel)
+        self.dockController = dockController
     }
 
     private var indonesianTodayText: String {
@@ -56,16 +59,68 @@ public struct DashboardView: View {
 
                             Spacer()
 
-                            Text("2026/2027")
-                                .font(AppTheme.Typography.badge)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(AppTheme.Colors.infoBackground)
-                                .foregroundStyle(AppTheme.Colors.info)
-                                .clipShape(Capsule())
+                            HStack(spacing: 8) {
+                                Text("2026/2027")
+                                    .font(AppTheme.Typography.badge)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 5)
+                                    .background(AppTheme.Colors.infoBackground)
+                                    .foregroundStyle(AppTheme.Colors.info)
+                                    .clipShape(Capsule())
+
+                                InboxPillButton()
+                            }
                         }
                     }
                     .padding(.horizontal)
+
+                    // Inline Task Completion Undo Banner
+                    if let completedTask = viewModel.recentlyCompletedTask {
+                        HStack(spacing: 10) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundStyle(AppTheme.Colors.success)
+
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text("Tugas diselesaikan")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(AppTheme.Colors.textPrimary)
+                                Text(completedTask.namaTugas)
+                                    .font(.caption2)
+                                    .foregroundStyle(AppTheme.Colors.textSecondary)
+                                    .lineLimit(1)
+                            }
+
+                            Spacer()
+
+                            Button {
+                                Task {
+                                    await viewModel.undoRecentTaskCompletion()
+                                }
+                            } label: {
+                                Text("Urungkan")
+                                    .font(.caption.weight(.bold))
+                                    .foregroundStyle(AppTheme.Colors.primary)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(AppTheme.Colors.primaryMuted)
+                                    .clipShape(Capsule())
+                            }
+                            .buttonStyle(PressableScaleButtonStyle())
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(AppTheme.Colors.secondarySurface)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .strokeBorder(AppTheme.Colors.success.opacity(0.35), lineWidth: 1)
+                        )
+                        .padding(.horizontal)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    }
 
                     // Offline Status Banner
                     if viewModel.isOffline {
@@ -447,7 +502,8 @@ public struct DashboardView: View {
                         }
                     }
                 }
-                .padding(.vertical, AppTheme.Metrics.spacingMedium)
+                .padding(.top, AppTheme.Metrics.spacingMedium)
+                .padding(.bottom, 88)
             }
             .navigationTitle("Home")
             .navigationBarTitleDisplayMode(.inline)
@@ -455,17 +511,39 @@ public struct DashboardView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Button {
-                            viewModel.editingTask = nil
-                            isPresentingAddTask = true
+                            if let dockController {
+                                dockController.selectAction(.task)
+                            } else {
+                                viewModel.editingTask = nil
+                                isPresentingAddTask = true
+                            }
                         } label: {
-                            Label("Tambah Tugas", systemImage: "plus.circle")
+                            Label("Tambah Tugas Cepat", systemImage: "checklist.checked")
                         }
 
                         Button {
-                            viewModel.editingReplacement = nil
-                            isPresentingAddReplacement = true
+                            if let dockController {
+                                dockController.selectAction(.replacement)
+                            } else {
+                                viewModel.editingReplacement = nil
+                                isPresentingAddReplacement = true
+                            }
                         } label: {
-                            Label("Kelas Pengganti", systemImage: "sparkles")
+                            Label("Kelas Pengganti", systemImage: "arrow.triangle.2.circlepath")
+                        }
+
+                        if let dockController {
+                            Button {
+                                dockController.selectAction(.course)
+                            } label: {
+                                Label("Mata Kuliah Baru", systemImage: "book.closed")
+                            }
+
+                            Button {
+                                dockController.selectAction(.exam)
+                            } label: {
+                                Label("Jadwal Ujian", systemImage: "doc.text.magnifyingglass")
+                            }
                         }
                     } label: {
                         Image(systemName: "plus")

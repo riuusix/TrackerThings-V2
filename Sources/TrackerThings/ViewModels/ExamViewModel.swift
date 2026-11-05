@@ -107,8 +107,24 @@ public final class ExamViewModel {
                 _ = try await dataService.updateUjian(item)
                 showToast("Jadwal ujian berhasil diperbarui!", severity: .success)
             } else {
-                _ = try await dataService.createUjian(item)
-                showToast("Jadwal ujian baru berhasil ditambahkan!", severity: .success)
+                let created = try await dataService.createUjian(item)
+                let courseName = courses.first(where: { $0.id == idJadwal })?.namaMatkul ?? "Ujian Akademik"
+                let df = DateFormatter()
+                df.locale = Locale(identifier: "id_ID")
+                df.dateStyle = .medium
+                ActivityInboxStore.shared.enqueueArrival(
+                    NotificationItem(
+                        id: "exam-\(created.id)",
+                        judul: "\(jenisUjian): \(courseName)",
+                        namaMatkul: courseName,
+                        waktu: df.string(from: tanggal),
+                        tipe: .ujian,
+                        isUrgent: true,
+                        entityType: "exam",
+                        entityId: created.id
+                    ),
+                    triggerFlight: true
+                )
             }
             await fetchExams()
             await NotificationService.shared.syncRemindersFromCache()

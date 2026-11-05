@@ -116,8 +116,20 @@ public final class CourseViewModel {
                 _ = try await dataService.updateJadwal(newItem)
                 showToast("Mata kuliah berhasil diperbarui!", severity: .success)
             } else {
-                _ = try await dataService.createJadwal(newItem)
-                showToast("Mata kuliah baru berhasil ditambahkan!", severity: .success)
+                let created = try await dataService.createJadwal(newItem)
+                ActivityInboxStore.shared.enqueueArrival(
+                    NotificationItem(
+                        id: "course-\(created.id)",
+                        judul: created.namaMatkul,
+                        namaMatkul: "\(created.hari) • \(created.waktuMulai)–\(created.waktuSelesai)",
+                        waktu: created.lokasi.flatMap { $0.isEmpty ? nil : "Ruang \($0)" } ?? "Jadwal Kuliah Baru",
+                        tipe: .kuliah,
+                        isUrgent: false,
+                        entityType: "course",
+                        entityId: created.id
+                    ),
+                    triggerFlight: true
+                )
             }
             await fetchCourses()
             await NotificationService.shared.syncRemindersFromCache()

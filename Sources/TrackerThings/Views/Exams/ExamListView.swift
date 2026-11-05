@@ -98,14 +98,21 @@ public struct ExamListView: View {
                 }
             }
             .listStyle(.insetGrouped)
+            .safeAreaInset(edge: .bottom) {
+                Color.clear.frame(height: 76)
+            }
             .navigationTitle("Jadwal Ujian")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        viewModel.editingExam = nil
-                        viewModel.isPresentingSheet = true
-                    } label: {
-                        Image(systemName: "plus")
+                    HStack(spacing: 8) {
+                        InboxPillButton()
+
+                        Button {
+                            viewModel.editingExam = nil
+                            viewModel.isPresentingSheet = true
+                        } label: {
+                            Image(systemName: "plus")
+                        }
                     }
                 }
             }
@@ -169,7 +176,9 @@ public struct ExamListView: View {
                 .foregroundStyle(AppTheme.Colors.urgent)
         } else {
             Text("\(diff) hari")
-                .font(.system(size: 8, weight: .semibold))
+                .font(.system(size: 8, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .contentTransition(.numericText())
                 .foregroundStyle(diff <= 3 ? AppTheme.Colors.urgent : AppTheme.Colors.warning)
         }
     }

@@ -21,6 +21,11 @@ public final class DashboardViewModel {
     public var editingTask: TugasItem? = nil
     public var editingReplacement: KelasPenggantiItem? = nil
 
+    // MARK: - Task Completion Undo State
+    public var recentlyCompletedTask: TugasItem? = nil
+    public private(set) var previousCompletedTaskProgress: Int = 0
+    private var undoCompletionTimer: Task<Void, Never>? = nil
+
     // MARK: - In-Flight Request Guards & Race Condition Mitigation
     public private(set) var isSavingTask: Bool = false
     public private(set) var isSavingReplacement: Bool = false
@@ -206,16 +211,56 @@ public final class DashboardViewModel {
         defer { inFlightTaskIds.remove(task.id) }
 
         do {
+            let wasIncomplete = task.progress < 100 && task.status != .selesai
+            let previousProgress = task.progress
             _ = try await dataService.updateTugasProgress(id: task.id, progress: progress)
             if progress >= 100 {
                 NotificationService.shared.cancelReminderForTask(id: task.id)
-                showToast("Tugas \"\(task.namaTugas)\" selesai!", severity: .success)
+                if wasIncomplete {
+                    registerCompletionUndo(for: task, previousProgress: previousProgress)
+                } else {
+                    showToast("Tugas \"\(task.namaTugas)\" selesai!", severity: .success)
+                }
+            } else if recentlyCompletedTask?.id == task.id {
+                clearCompletionUndo()
             }
             await loadDashboardData()
         } catch {
             errorMessage = error.localizedDescription
             showToast(error.localizedDescription, severity: .error)
         }
+    }
+
+    private func registerCompletionUndo(for task: TugasItem, previousProgress: Int) {
+        undoCompletionTimer?.cancel()
+        withAnimation(AppTheme.Motion.taskCompletion) {
+            self.recentlyCompletedTask = task
+            self.previousCompletedTaskProgress = max(0, min(90, previousProgress))
+        }
+        undoCompletionTimer = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 6_500_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation(AppTheme.Motion.panelDismiss) {
+                self?.recentlyCompletedTask = nil
+            }
+        }
+    }
+
+    public func clearCompletionUndo() {
+        undoCompletionTimer?.cancel()
+        undoCompletionTimer = nil
+        withAnimation(AppTheme.Motion.panelDismiss) {
+            recentlyCompletedTask = nil
+        }
+    }
+
+    public func undoRecentTaskCompletion() async {
+        guard let task = recentlyCompletedTask else { return }
+        let targetProgress = previousCompletedTaskProgress
+        clearCompletionUndo()
+        HapticsHelper.impactLight()
+        await updateTaskProgress(task: task, progress: targetProgress)
+        showToast("Penyelesaian tugas \"\(task.namaTugas)\" diurungkan.", severity: .info)
     }
 
     public func saveTask(
@@ -273,10 +318,26 @@ public final class DashboardViewModel {
                     status: .belumDikerjakan,
                     progress: 0
                 )
-                _ = try await dataService.createTugas(newTask)
+                let created = try await dataService.createTugas(newTask)
                 editingTask = nil
                 await loadDashboardData()
-                showToast("Tugas baru berhasil ditambahkan!", severity: .success)
+                let courseName = courses.first(where: { $0.id == idJadwal })?.namaMatkul ?? "Tugas Akademik"
+                let df = DateFormatter()
+                df.locale = Locale(identifier: "id_ID")
+                df.dateStyle = .medium
+                ActivityInboxStore.shared.enqueueArrival(
+                    NotificationItem(
+                        id: "task-\(created.id)",
+                        judul: created.namaTugas,
+                        namaMatkul: courseName,
+                        waktu: "Tenggat \(df.string(from: deadline))",
+                        tipe: .tugas,
+                        isUrgent: prioritas == .tinggi,
+                        entityType: "task",
+                        entityId: created.id
+                    ),
+                    triggerFlight: true
+                )
                 return true
             }
         } catch {
@@ -360,10 +421,26 @@ public final class DashboardViewModel {
                     catatan: catatan,
                     status: "Belum Selesai"
                 )
-                _ = try await dataService.createKelasPengganti(newKP)
+                let created = try await dataService.createKelasPengganti(newKP)
                 editingReplacement = nil
                 await loadDashboardData()
-                showToast("Kelas pengganti berhasil ditambahkan!", severity: .success)
+                let courseName = courses.first(where: { $0.id == idJadwal })?.namaMatkul ?? "Kelas Pengganti"
+                let df = DateFormatter()
+                df.locale = Locale(identifier: "id_ID")
+                df.dateStyle = .medium
+                ActivityInboxStore.shared.enqueueArrival(
+                    NotificationItem(
+                        id: "replacement-\(created.id)",
+                        judul: "Kelas Pengganti \(courseName)",
+                        namaMatkul: lokasi.flatMap { $0.isEmpty ? nil : "Ruang \($0)" } ?? courseName,
+                        waktu: "\(df.string(from: tanggal)) • \(waktuMulai)",
+                        tipe: .pengganti,
+                        isUrgent: false,
+                        entityType: "replacementClass",
+                        entityId: created.id
+                    ),
+                    triggerFlight: true
+                )
                 return true
             }
         } catch {
@@ -425,31 +502,12 @@ public final class DashboardViewModel {
     }
 
     private func generateNotifications() {
-        var notifs: [NotificationItem] = []
-        let now = Date()
-        let calendar = Calendar.current
-        let todayStart = calendar.startOfDay(for: now)
-        let twoDaysLaterEnd = calendar.date(byAdding: .day, value: 3, to: todayStart) ?? now
-
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "id_ID")
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .none
-
-        for task in urgentTasks where task.deadline >= todayStart && task.deadline < twoDaysLaterEnd {
-            notifs.append(
-                NotificationItem(
-                    id: "task-\(task.id)",
-                    judul: task.namaTugas,
-                    namaMatkul: task.jadwal?.namaMatkul ?? "Tugas Akademik",
-                    waktu: formatter.string(from: task.deadline),
-                    tipe: .tugas,
-                    isUrgent: true
-                )
-            )
-        }
-
-        notifications = notifs
+        ActivityInboxStore.shared.syncWithAcademicState(
+            tasks: urgentTasks + completedTasks,
+            exams: allExams,
+            replacementClasses: replacementClasses
+        )
+        notifications = ActivityInboxStore.shared.items
     }
 
     private func currentDayName() -> String {

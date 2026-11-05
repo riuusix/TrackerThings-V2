@@ -94,13 +94,50 @@ public enum AppTheme {
         public static let infoBackground = Color(lightHex: "#E5ECF8", darkHex: "#303D55")
         public static let neutralBackground = Color(lightHex: "#E6E9EF", darkHex: "#2D323D")
 
-        // MARK: - Backward Compatibility Aliases
+        // MARK: - Backward Compatibility & Semantic Aliases
         public static let brandPrimary = accent
         public static let brandAccent = accent
+        public static let primary = accent
+        public static let primaryMuted = accentMuted
         public static let background = canvas
         public static let cardBackground = surface
+        public static let secondarySurface = surfaceElevated
+        public static let tertiarySurface = surface
         public static let elevatedBackground = surfaceElevated
         public static let separator = borderSubtle
+        public static let border = borderSubtle
+        public static let divider = borderSubtle
+        public static let danger = urgent
+        public static let dangerMuted = urgentBackground
+        public static let warningMuted = warningBackground
+        public static let successMuted = successBackground
+
+        // MARK: - Recognizable Academic Course Identity Palette (Restrained Editorial Tones)
+        private static let coursePalette: [Color] = [
+            Color(lightHex: "#5879B8", darkHex: "#91ADE5"), // Soft Blue (Canonical)
+            Color(lightHex: "#4F6D7A", darkHex: "#87A8B8"), // Slate Teal
+            Color(lightHex: "#6B639B", darkHex: "#A59ED4"), // Muted Indigo
+            Color(lightHex: "#3E7B67", darkHex: "#74B49E"), // Editorial Sage-Teal
+            Color(lightHex: "#9E6B43", darkHex: "#D4A27A"), // Warm Ochre
+            Color(lightHex: "#8C586C", darkHex: "#C791A6")  // Dusty Plum
+        ]
+
+        /// Menghasilkan warna aksen mata kuliah yang konsisten dan tenang berdasarkan nama atau kategori kuliah.
+        public static func courseAccent(for identifier: String?) -> Color {
+            guard let identifier = identifier else { return accent }
+            let trimmed = identifier.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard !trimmed.isEmpty else { return accent }
+            var hash: UInt64 = 5381
+            for byte in trimmed.utf8 {
+                hash = ((hash << 5) &+ hash) &+ UInt64(byte)
+            }
+            let index = Int(hash % UInt64(coursePalette.count))
+            return coursePalette[index]
+        }
+
+        public static func courseAccentMuted(for identifier: String?) -> Color {
+            courseAccent(for: identifier).opacity(0.14)
+        }
     }
 
     // MARK: - Metrics, Spacing & Radii
@@ -109,6 +146,7 @@ public enum AppTheme {
         public static let cornerRadiusMedium: CGFloat = 12
         public static let cornerRadiusCard: CGFloat = 14
         public static let cornerRadiusLarge: CGFloat = 18
+        public static let cornerRadiusPanel: CGFloat = 24
 
         public static let spacingXXSmall: CGFloat = 4
         public static let spacingXSmall: CGFloat = 6
@@ -138,6 +176,43 @@ public enum AppTheme {
         public static let snappy: Animation = .snappy(duration: 0.25, extraBounce: 0.05)
         /// Ease-out untuk kemunculan konten (entrances)
         public static let entranceEaseOut: Animation = .easeOut(duration: 0.22)
+
+        // MARK: - Signature Interaction Motion Tokens
+        /// Ekspansi Gooey Action Dock (cepat & taktil, selesai <280ms)
+        public static let dockExpand: Animation = .spring(response: 0.32, dampingFraction: 0.76, blendDuration: 0)
+        /// Penutupan simultan Gooey Action Dock tanpa reverse stagger
+        public static let dockCollapse: Animation = .spring(response: 0.24, dampingFraction: 0.88, blendDuration: 0)
+        /// Transformasi tombol aksi menjadi Morphing Quick Composer
+        public static let panelMorph: Animation = .spring(response: 0.38, dampingFraction: 0.82, blendDuration: 0)
+        /// Penutupan Morphing Quick Composer kembali ke asal
+        public static let panelDismiss: Animation = .spring(response: 0.26, dampingFraction: 0.88, blendDuration: 0)
+        /// Penyelesaian tugas & perpindahan ke koleksi selesai
+        public static let taskCompletion: Animation = .spring(response: 0.28, dampingFraction: 0.72, blendDuration: 0)
+        /// Kemunculan banner Fly-to-Inbox
+        public static let inboxArrival: Animation = .spring(response: 0.36, dampingFraction: 0.80, blendDuration: 0)
+        /// Lintasan terbang kartu menuju ikon Inbox
+        public static let inboxFlight: Animation = .spring(response: 0.42, dampingFraction: 0.82, blendDuration: 0)
+        /// Denyut lencana (badge) saat item mendarat di Inbox
+        public static let badgePulse: Animation = .spring(response: 0.28, dampingFraction: 0.68, blendDuration: 0)
+        /// Ekspansi detail kontekstual baris tugas/jadwal/kuliah
+        public static let inlineExpand: Animation = .spring(response: 0.30, dampingFraction: 0.84, blendDuration: 0)
+        /// Fallback halus ketika pengguna mengaktifkan Reduce Motion
+        public static let reducedMotionFallback: Animation = .easeOut(duration: 0.18)
+
+        /// Stagger non-uniform (0ms, 35ms, 65ms, 90ms) untuk item menu yang muncul dari Gooey Dock.
+        public static func menuItemEntrance(index: Int, reduceMotion: Bool = false) -> Animation {
+            if reduceMotion {
+                return reducedMotionFallback
+            }
+            let delays: [Double] = [0.0, 0.035, 0.065, 0.090]
+            let delay = index < delays.count ? delays[index] : 0.090
+            return .spring(response: 0.34, dampingFraction: 0.78, blendDuration: 0).delay(delay)
+        }
+
+        /// Menyesuaikan animasi secara otomatis dengan preferensi `accessibilityReduceMotion`.
+        public static func resolve(_ animation: Animation, reduceMotion: Bool) -> Animation {
+            reduceMotion ? reducedMotionFallback : animation
+        }
     }
 
     // MARK: - Typography Presets
@@ -173,9 +248,35 @@ public struct CardSurfaceModifier: ViewModifier {
     }
 }
 
+public struct ElevatedSurfaceModifier: ViewModifier {
+    public var cornerRadius: CGFloat = AppTheme.Metrics.cornerRadiusLarge
+    public var strokeColor: Color = AppTheme.Colors.borderSubtle
+    public var strokeWidth: CGFloat = 1
+
+    public func body(content: Content) -> some View {
+        content
+            .padding(AppTheme.Metrics.spacingLarge)
+            .background(AppTheme.Colors.surfaceElevated)
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(strokeColor, lineWidth: strokeWidth)
+            )
+            .shadow(color: Color.black.opacity(0.08), radius: 14, x: 0, y: 6)
+    }
+}
+
 public extension View {
     func cardSurface(strokeColor: Color = .clear, strokeWidth: CGFloat = 1) -> some View {
         modifier(CardSurfaceModifier(strokeColor: strokeColor, strokeWidth: strokeWidth))
+    }
+
+    func elevatedSurface(
+        cornerRadius: CGFloat = AppTheme.Metrics.cornerRadiusLarge,
+        strokeColor: Color = AppTheme.Colors.borderSubtle,
+        strokeWidth: CGFloat = 1
+    ) -> some View {
+        modifier(ElevatedSurfaceModifier(cornerRadius: cornerRadius, strokeColor: strokeColor, strokeWidth: strokeWidth))
     }
 }
 
@@ -205,10 +306,35 @@ public enum HapticsHelper {
         generator.selectionChanged()
         #endif
     }
+
+    public static func impactLight() {
+        impact(.light)
+    }
+
+    public static func impactMedium() {
+        impact(.medium)
+    }
+
+    public static func selectionChanged() {
+        selection()
+    }
+
+    public static func notificationSuccess() {
+        notification(.success)
+    }
+
+    public static func notificationWarning() {
+        notification(.warning)
+    }
+
+    public static func notificationError() {
+        notification(.error)
+    }
 }
 
 // MARK: - Pressable Micro-Interaction Button Style
 public struct PressableScaleButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     public var scale: CGFloat = 0.97
     public var hapticStyle: UIImpactFeedbackGenerator.FeedbackStyle? = .light
 
@@ -219,8 +345,12 @@ public struct PressableScaleButtonStyle: ButtonStyle {
 
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? scale : 1.0)
-            .animation(AppTheme.Motion.interactiveSpring, value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? scale : 1.0)
+            .opacity(configuration.isPressed && reduceMotion ? 0.85 : 1.0)
+            .animation(
+                AppTheme.Motion.resolve(AppTheme.Motion.interactiveSpring, reduceMotion: reduceMotion),
+                value: configuration.isPressed
+            )
             .onChange(of: configuration.isPressed) { _, isPressed in
                 if isPressed, let style = hapticStyle {
                     Task { @MainActor in

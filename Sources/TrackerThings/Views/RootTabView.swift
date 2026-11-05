@@ -7,67 +7,121 @@ public struct RootTabView: View {
     @State private var dashboardViewModel = DashboardViewModel()
     @State private var courseViewModel = CourseViewModel()
     @State private var examViewModel = ExamViewModel()
+    @State private var dockController = QuickActionDockController()
+    @State private var inboxStore = ActivityInboxStore.shared
+    @Namespace private var morphNamespace
     @State private var isShowingLogoutConfirmation: Bool = false
     @State private var isShowingServerSettings: Bool = false
 
     public init() {}
 
+    /// Menentukan apakah tab yang sedang aktif berada di root tumpukan navigasi sehingga Gooey Action Dock aman ditampilkan.
+    private var shouldShowFloatingDock: Bool {
+        switch coordinator.selectedTab {
+        case .home:
+            return coordinator.homePath.isEmpty
+        case .courses:
+            return coordinator.coursesPath.isEmpty
+        case .exams:
+            return coordinator.examsPath.isEmpty
+        case .settings:
+            return false
+        }
+    }
+
+    private var hasAnyCourse: Bool {
+        !dashboardViewModel.courses.isEmpty || !courseViewModel.courses.isEmpty
+    }
+
     public var body: some View {
-        TabView(selection: $coordinator.selectedTab) {
-            NavigationStack(path: $coordinator.homePath) {
-                DashboardView(
-                    viewModel: dashboardViewModel,
+        ZStack(alignment: .bottomTrailing) {
+            TabView(selection: $coordinator.selectedTab) {
+                NavigationStack(path: $coordinator.homePath) {
+                    DashboardView(
+                        viewModel: dashboardViewModel,
+                        courseViewModel: courseViewModel,
+                        examViewModel: examViewModel,
+                        dockController: dockController
+                    )
+                    .navigationDestination(for: AppRoute.self) { route in
+                        destinationView(for: route)
+                    }
+                }
+                .tabItem {
+                    Label("Home", systemImage: "house.fill")
+                }
+                .tag(AppTab.home)
+
+                NavigationStack(path: $coordinator.coursesPath) {
+                    CourseListView(
+                        viewModel: courseViewModel,
+                        dashboardViewModel: dashboardViewModel,
+                        examViewModel: examViewModel
+                    )
+                    .environment(authViewModel)
+                    .navigationDestination(for: AppRoute.self) { route in
+                        destinationView(for: route)
+                    }
+                }
+                .tabItem {
+                    Label("Mata Kuliah", systemImage: "book.fill")
+                }
+                .tag(AppTab.courses)
+
+                NavigationStack(path: $coordinator.examsPath) {
+                    ExamListView(viewModel: examViewModel)
+                    .navigationDestination(for: AppRoute.self) { route in
+                        destinationView(for: route)
+                    }
+                }
+                .tabItem {
+                    Label("Ujian", systemImage: "graduationcap.fill")
+                }
+                .tag(AppTab.exams)
+
+                NavigationStack(path: $coordinator.settingsPath) {
+                    SettingsView()
+                    .navigationDestination(for: AppRoute.self) { route in
+                        destinationView(for: route)
+                    }
+                }
+                .tabItem {
+                    Label("Pengaturan", systemImage: "gearshape.fill")
+                }
+                .tag(AppTab.settings)
+            }
+            .tint(AppTheme.Colors.brandPrimary)
+
+            // Signature Interaction 01 — Gooey Action Dock
+            if shouldShowFloatingDock && dockController.activeComposer == nil {
+                GooeyActionDock(
+                    controller: dockController,
+                    morphNamespace: morphNamespace,
+                    hasCourses: hasAnyCourse
+                )
+            }
+
+            // Signature Interaction 02 — Morphing Quick Composer Panel
+            if let activeComposer = dockController.activeComposer {
+                MorphingQuickComposer(
+                    controller: dockController,
+                    kind: activeComposer,
+                    morphNamespace: morphNamespace,
+                    dashboardViewModel: dashboardViewModel,
                     courseViewModel: courseViewModel,
                     examViewModel: examViewModel
                 )
-                .navigationDestination(for: AppRoute.self) { route in
-                    destinationView(for: route)
-                }
             }
-            .tabItem {
-                Label("Home", systemImage: "house.fill")
-            }
-            .tag(AppTab.home)
 
-            NavigationStack(path: $coordinator.coursesPath) {
-                CourseListView(
-                    viewModel: courseViewModel,
-                    dashboardViewModel: dashboardViewModel,
-                    examViewModel: examViewModel
-                )
-                .environment(authViewModel)
-                .navigationDestination(for: AppRoute.self) { route in
-                    destinationView(for: route)
-                }
-            }
-            .tabItem {
-                Label("Mata Kuliah", systemImage: "book.fill")
-            }
-            .tag(AppTab.courses)
-
-            NavigationStack(path: $coordinator.examsPath) {
-                ExamListView(viewModel: examViewModel)
-                .navigationDestination(for: AppRoute.self) { route in
-                    destinationView(for: route)
-                }
-            }
-            .tabItem {
-                Label("Ujian", systemImage: "graduationcap.fill")
-            }
-            .tag(AppTab.exams)
-
-            NavigationStack(path: $coordinator.settingsPath) {
-                SettingsView()
-                .navigationDestination(for: AppRoute.self) { route in
-                    destinationView(for: route)
-                }
-            }
-            .tabItem {
-                Label("Pengaturan", systemImage: "gearshape.fill")
-            }
-            .tag(AppTab.settings)
+            // Signature Interaction 03 — Fly-to-Inbox Arrival Overlay
+            FlyToInboxOverlay(store: inboxStore)
         }
-        .tint(AppTheme.Colors.brandPrimary)
+        .sheet(isPresented: $inboxStore.isPresentingInboxSheet) {
+            ActivityInboxSheet(store: inboxStore)
+        }
+        .onChange(of: coordinator.selectedTab) { _, _ in
+            dockController.resetStateImmediate()
+        }
         .onAppear {
             coordinator.markReadyForNavigation()
             if let pending = NotificationService.shared.consumePendingDestination() {

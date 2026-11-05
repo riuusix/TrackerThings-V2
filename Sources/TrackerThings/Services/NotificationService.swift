@@ -76,6 +76,32 @@ private final class LocalNotificationPresentationDelegate: NSObject, UNUserNotif
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
+        let content = notification.request.content
+        let userInfo = content.userInfo
+        let payload = NotificationPayload.parse(from: userInfo)
+        let entityType = payload?.entityType
+        let entityId = payload?.entityId
+        let tipe: NotificationItem.TipeNotifikasi = {
+            switch entityType {
+            case "exam": return .ujian
+            case "course": return .kuliah
+            case "replacementClass": return .pengganti
+            default: return .tugas
+            }
+        }()
+        let item = NotificationItem(
+            id: "fg-\(notification.request.identifier)-\(Int(Date().timeIntervalSince1970))",
+            judul: content.body.isEmpty ? content.title : content.body,
+            namaMatkul: content.title,
+            waktu: "Baru saja",
+            tipe: tipe,
+            isUrgent: true,
+            entityType: entityType,
+            entityId: entityId
+        )
+        await MainActor.run {
+            ActivityInboxStore.shared.enqueueArrival(item, triggerFlight: true)
+        }
         return [.banner, .badge, .sound, .list]
     }
 

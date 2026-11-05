@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Tampilan kartu representasi mata kuliah sesuai sistem desain AppTheme TrackerThings V2.
-/// Menampilkan hierarki visual terstruktur: hari, kategori, nama kuliah, jam, ruang, dosen, serta aksi edit & hapus.
+/// Signature Interaction 04 — Living Course Card Component.
+/// Menampilkan kartu mata kuliah dengan aksen identitas warna deterministik (`AppTheme.Colors.courseAccent`),
+/// rel waktu tabular, serta menu pengelolaan kontekstual.
 public struct CourseCardView: View {
     public let course: JadwalItem
     public var onEdit: (() -> Void)? = nil
@@ -17,25 +18,29 @@ public struct CourseCardView: View {
         self.onDelete = onDelete
     }
 
+    private var courseAccent: Color {
+        AppTheme.Colors.courseAccent(for: course.namaMatkul)
+    }
+
     public var body: some View {
         HStack(alignment: .top, spacing: AppTheme.Metrics.spacingMedium) {
-            // Left Time & SKS Rail
+            // Left Time Rail with Deterministic Course Accent
             VStack(alignment: .center, spacing: 3) {
                 Text(course.waktuMulai)
                     .font(AppTheme.Typography.captionBold)
-                    .foregroundStyle(AppTheme.Colors.brandPrimary)
+                    .foregroundStyle(courseAccent)
                     .monospacedDigit()
 
-                Rectangle()
-                    .fill(AppTheme.Colors.borderSubtle)
-                    .frame(width: 1.5, height: 16)
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(courseAccent.opacity(0.35))
+                    .frame(width: 2.5, height: 18)
 
                 Text(course.waktuSelesai)
                     .font(AppTheme.Typography.caption)
                     .foregroundStyle(AppTheme.Colors.textTertiary)
                     .monospacedDigit()
             }
-            .frame(width: 48)
+            .frame(width: 50)
             .padding(.vertical, 2)
 
             // Main Info Content
@@ -43,13 +48,18 @@ public struct CourseCardView: View {
                 // Header Baris 1: Hari, Kategori & Menu Aksi
                 HStack(spacing: AppTheme.Metrics.spacingXSmall) {
                     // Hari Badge
-                    Text(course.hari)
-                        .font(AppTheme.Typography.badge)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 3)
-                        .background(AppTheme.Colors.infoBackground)
-                        .foregroundStyle(AppTheme.Colors.brandPrimary)
-                        .clipShape(Capsule())
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(courseAccent)
+                            .frame(width: 5, height: 5)
+                        Text(course.hari)
+                            .font(AppTheme.Typography.badge)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(courseAccent.opacity(0.14))
+                    .foregroundStyle(courseAccent)
+                    .clipShape(Capsule())
 
                     // Kategori Badge
                     if let kategori = course.kategori, !kategori.isEmpty {
@@ -101,6 +111,7 @@ public struct CourseCardView: View {
                     .font(AppTheme.Typography.cardTitle)
                     .foregroundStyle(AppTheme.Colors.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
+                    .multilineTextAlignment(.leading)
 
                 // Grid Informasi: Ruang & Dosen
                 HStack(spacing: AppTheme.Metrics.spacingMedium) {
@@ -108,7 +119,7 @@ public struct CourseCardView: View {
                         HStack(spacing: AppTheme.Metrics.spacingXXSmall) {
                             Image(systemName: "mappin.and.ellipse")
                                 .font(.caption)
-                                .foregroundStyle(AppTheme.Colors.brandAccent)
+                                .foregroundStyle(courseAccent)
                             Text(lokasi)
                                 .font(AppTheme.Typography.caption)
                                 .foregroundStyle(AppTheme.Colors.textSecondary)
@@ -130,7 +141,6 @@ public struct CourseCardView: View {
                 }
             }
         }
-        .cardSurface(strokeColor: AppTheme.Colors.borderSubtle, strokeWidth: 1)
+        .cardSurface(strokeColor: courseAccent.opacity(0.24), strokeWidth: 1)
     }
 }
-

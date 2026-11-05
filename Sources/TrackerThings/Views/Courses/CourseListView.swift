@@ -140,6 +140,9 @@ public struct CourseListView: View {
                 }
             }
             .listStyle(.plain)
+            .safeAreaInset(edge: .bottom) {
+                Color.clear.frame(height: 76)
+            }
             .background(AppTheme.Colors.background)
             .navigationTitle("Mata Kuliah")
             .searchable(text: $viewModel.searchText, prompt: "Cari mata kuliah, dosen, atau hari...")
@@ -161,30 +164,34 @@ public struct CourseListView: View {
                 }
 
                 ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Button {
-                            viewModel.editingCourse = nil
-                            viewModel.isPresentingSheet = true
-                        } label: {
-                            Label("Tambah Manual", systemImage: "plus")
-                        }
+                    HStack(spacing: 8) {
+                        InboxPillButton()
 
-                        Button {
-                            isShowingImportSchedule = true
+                        Menu {
+                            Button {
+                                viewModel.editingCourse = nil
+                                viewModel.isPresentingSheet = true
+                            } label: {
+                                Label("Tambah Manual", systemImage: "plus")
+                            }
+
+                            Button {
+                                isShowingImportSchedule = true
+                            } label: {
+                                Label("Impor Jadwal (Foto/PDF)", systemImage: "doc.viewfinder")
+                            }
                         } label: {
-                            Label("Impor Jadwal (Foto/PDF)", systemImage: "doc.viewfinder")
+                            Image(systemName: "plus")
+                                .font(.system(size: 16, weight: .semibold))
+                                .frame(
+                                    width: AppTheme.Metrics.minTouchTarget,
+                                    height: AppTheme.Metrics.minTouchTarget,
+                                    alignment: .trailing
+                                )
+                                .contentShape(Rectangle())
                         }
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 16, weight: .semibold))
-                            .frame(
-                                width: AppTheme.Metrics.minTouchTarget,
-                                height: AppTheme.Metrics.minTouchTarget,
-                                alignment: .trailing
-                            )
-                            .contentShape(Rectangle())
+                        .accessibilityLabel("Opsi Tambah atau Impor Mata Kuliah")
                     }
-                    .accessibilityLabel("Opsi Tambah atau Impor Mata Kuliah")
                 }
             }
             .sheet(isPresented: $isShowingAccountSummary) {

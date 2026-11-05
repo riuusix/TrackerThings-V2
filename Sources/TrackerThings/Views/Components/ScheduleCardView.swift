@@ -1,5 +1,8 @@
 import SwiftUI
 
+/// Signature Interaction 04 — Living Schedule Timeline Card.
+/// Menampilkan jadwal kuliah reguler maupun kelas pengganti dengan identitas aksen warna deterministik per mata kuliah,
+/// rel waktu tabular, serta laci catatan kontekstual.
 public struct ScheduleCardView: View {
     public let item: JadwalGabunganItem
     public var isOffline: Bool = false
@@ -17,25 +20,32 @@ public struct ScheduleCardView: View {
         self.onMarkComplete = onMarkComplete
     }
 
+    private var courseAccent: Color {
+        if item.tipe == .pengganti {
+            return AppTheme.Colors.warning
+        }
+        return AppTheme.Colors.courseAccent(for: item.namaMatkul)
+    }
+
     public var body: some View {
         HStack(alignment: .top, spacing: AppTheme.Metrics.spacingMedium) {
-            // Left Time Rail (Monospaced & Tabular)
-            VStack(alignment: .center, spacing: 2) {
+            // Left Time Rail with Course Identity Accent
+            VStack(alignment: .center, spacing: 3) {
                 Text(item.waktuMulai)
                     .font(AppTheme.Typography.captionBold)
-                    .foregroundStyle(AppTheme.Colors.brandPrimary)
+                    .foregroundStyle(courseAccent)
                     .monospacedDigit()
 
-                Rectangle()
-                    .fill(AppTheme.Colors.borderSubtle)
-                    .frame(width: 1.5, height: 16)
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(courseAccent.opacity(0.35))
+                    .frame(width: 2.5, height: 20)
 
                 Text(item.waktuSelesai)
                     .font(AppTheme.Typography.caption)
                     .foregroundStyle(AppTheme.Colors.textTertiary)
                     .monospacedDigit()
             }
-            .frame(width: 48)
+            .frame(width: 50)
             .padding(.vertical, 2)
 
             // Main Content Area
@@ -43,21 +53,30 @@ public struct ScheduleCardView: View {
                 // Header Tags & Action
                 HStack(spacing: AppTheme.Metrics.spacingXSmall) {
                     if item.tipe == .pengganti {
-                        Text("Kelas Pengganti")
-                            .font(AppTheme.Typography.badge)
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 3)
-                            .background(AppTheme.Colors.warningBackground)
-                            .foregroundStyle(AppTheme.Colors.warning)
-                            .clipShape(Capsule())
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                                .font(.system(size: 9, weight: .bold))
+                            Text("Kelas Pengganti")
+                                .font(AppTheme.Typography.badge)
+                        }
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(AppTheme.Colors.warningBackground)
+                        .foregroundStyle(AppTheme.Colors.warning)
+                        .clipShape(Capsule())
                     } else {
-                        Text("Reguler")
-                            .font(AppTheme.Typography.badge)
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 3)
-                            .background(AppTheme.Colors.infoBackground)
-                            .foregroundStyle(AppTheme.Colors.info)
-                            .clipShape(Capsule())
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(courseAccent)
+                                .frame(width: 5, height: 5)
+                            Text("Tatap Muka")
+                                .font(AppTheme.Typography.badge)
+                        }
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(courseAccent.opacity(0.12))
+                        .foregroundStyle(courseAccent)
+                        .clipShape(Capsule())
                     }
 
                     if let kat = item.kategori, !kat.isEmpty {
@@ -75,6 +94,7 @@ public struct ScheduleCardView: View {
                     if item.tipe == .pengganti, let onMarkComplete = onMarkComplete {
                         Button {
                             guard !isProcessing, !isOffline else { return }
+                            HapticsHelper.notificationSuccess()
                             isProcessing = true
                             Task {
                                 defer { isProcessing = false }
@@ -115,11 +135,12 @@ public struct ScheduleCardView: View {
                     .font(AppTheme.Typography.cardTitle)
                     .foregroundStyle(AppTheme.Colors.textPrimary)
                     .lineLimit(2)
+                    .multilineTextAlignment(.leading)
 
                 // Location & Lecturer Info
                 HStack(spacing: AppTheme.Metrics.spacingMedium) {
                     if let lokasi = item.lokasi, !lokasi.isEmpty {
-                        Label(lokasi, systemImage: "mappin")
+                        Label(lokasi, systemImage: "mappin.and.ellipse")
                             .font(AppTheme.Typography.caption)
                             .foregroundStyle(AppTheme.Colors.textSecondary)
                             .lineLimit(1)
@@ -134,17 +155,21 @@ public struct ScheduleCardView: View {
                 }
 
                 if let catatan = item.catatan, !catatan.isEmpty {
-                    Text(catatan)
-                        .font(AppTheme.Typography.caption)
-                        .padding(8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(AppTheme.Colors.warningBackground)
-                        .foregroundStyle(AppTheme.Colors.textPrimary)
-                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Metrics.cornerRadiusSmall, style: .continuous))
+                    HStack(alignment: .top, spacing: 6) {
+                        Image(systemName: "quote.opening")
+                            .font(.caption2)
+                            .foregroundStyle(AppTheme.Colors.warning)
+                        Text(catatan)
+                            .font(AppTheme.Typography.caption)
+                            .foregroundStyle(AppTheme.Colors.textPrimary)
+                    }
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(AppTheme.Colors.warningBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.Metrics.cornerRadiusSmall, style: .continuous))
                 }
             }
         }
-        .cardSurface(strokeColor: AppTheme.Colors.borderSubtle, strokeWidth: 1)
+        .cardSurface(strokeColor: courseAccent.opacity(0.24), strokeWidth: 1)
     }
 }
-
