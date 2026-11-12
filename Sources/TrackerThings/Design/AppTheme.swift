@@ -96,11 +96,14 @@ public enum AppTheme {
 
         // MARK: - Backward Compatibility & Semantic Aliases
         public static let brandPrimary = accent
+        public static let brandSecondary = accentPressed
         public static let brandAccent = accent
         public static let primary = accent
         public static let primaryMuted = accentMuted
         public static let background = canvas
         public static let cardBackground = surface
+        public static let surfacePrimary = surface
+        public static let surfaceSecondary = surfaceElevated
         public static let secondarySurface = surfaceElevated
         public static let tertiarySurface = surface
         public static let elevatedBackground = surfaceElevated
@@ -158,6 +161,24 @@ public enum AppTheme {
 
         public static let cardPadding: CGFloat = 14
         public static let minTouchTarget: CGFloat = 44
+    }
+
+    public enum Spacing {
+        public static let xxs: CGFloat = Metrics.spacingXXSmall
+        public static let xs: CGFloat = Metrics.spacingXSmall
+        public static let sm: CGFloat = Metrics.spacingSmall
+        public static let md: CGFloat = Metrics.spacingMedium
+        public static let lg: CGFloat = Metrics.spacingLarge
+        public static let xl: CGFloat = Metrics.spacingXLarge
+        public static let section: CGFloat = Metrics.spacingSection
+    }
+
+    public enum Radius {
+        public static let sm: CGFloat = Metrics.cornerRadiusSmall
+        public static let md: CGFloat = Metrics.cornerRadiusMedium
+        public static let card: CGFloat = Metrics.cornerRadiusCard
+        public static let lg: CGFloat = Metrics.cornerRadiusLarge
+        public static let xl: CGFloat = Metrics.cornerRadiusPanel
     }
 
     // MARK: - Motion Design Tokens (Apple HIG & Emil Kowalski Principles)
@@ -227,6 +248,10 @@ public enum AppTheme {
 
         /// Menyesuaikan animasi secara otomatis dengan preferensi `accessibilityReduceMotion`.
         public static func resolve(_ animation: Animation, reduceMotion: Bool) -> Animation {
+            reduceMotion ? reducedMotionFallback : animation
+        }
+
+        public static func resolved(_ animation: Animation, reduceMotion: Bool) -> Animation? {
             reduceMotion ? reducedMotionFallback : animation
         }
     }
@@ -324,6 +349,10 @@ public enum HapticsHelper {
     }
 
     public static func impactLight() {
+        impact(.light)
+    }
+
+    public static func lightImpact() {
         impact(.light)
     }
 

@@ -30,8 +30,8 @@ public struct TaskListView: View {
         if !query.isEmpty {
             let titleMatch = task.namaTugas.lowercased().contains(query)
             let courseMatch = (task.jadwal?.namaMatkul.lowercased().contains(query) ?? false)
-            let descMatch = (task.deskripsi?.lowercased().contains(query) ?? false)
-            if !titleMatch && !courseMatch && !descMatch {
+            let typeMatch = task.jenis.rawValue.lowercased().contains(query)
+            if !titleMatch && !courseMatch && !typeMatch {
                 return false
             }
         }
