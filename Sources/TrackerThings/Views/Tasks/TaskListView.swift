@@ -50,15 +50,15 @@ public struct TaskListView: View {
     }
 
     private var filteredPinnedTasks: [TugasItem] {
-        sortedTasks(viewModel.pinnedTasks.filter(matchesFilters))
+        sortedTasks(viewModel.pinnedTasks.filter { matchesFilters($0) })
     }
 
     private var filteredActiveUnpinnedTasks: [TugasItem] {
-        sortedTasks(viewModel.unpinnedUrgentTasks.filter(matchesFilters))
+        sortedTasks(viewModel.unpinnedUrgentTasks.filter { matchesFilters($0) })
     }
 
     private var filteredCompletedTasks: [TugasItem] {
-        sortedTasks(viewModel.completedTasks.filter(matchesFilters))
+        sortedTasks(viewModel.completedTasks.filter { matchesFilters($0) })
     }
 
     public var body: some View {
