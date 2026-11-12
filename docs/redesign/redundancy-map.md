@@ -54,3 +54,4 @@
 - **Location**: `Sources/TrackerThings/Views/RootTabView.swift`.
 - **Symptom**: Stock `UITabBar` spans edge-to-edge at the bottom while `GooeyActionDock` floats above it, creating two different visual languages (flat system bar vs. floating tactile bubble).
 - **Resolution**: Hide the stock tab barchrome and replace it with the floating **`FrostedGlideTabBar`** capsule housing all 5 canonical tabs (`Beranda`, `Jadwal`, `Tugas`, `Ujian`, `Profil`), coordinated in safe-area space with `GooeyActionDock`.
+

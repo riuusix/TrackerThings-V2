@@ -105,3 +105,4 @@ Redesign menyeluruh pada **TrackerThings V2** telah diimplementasikan secara koh
 3. **Kejujuran Batasan Verifikasi Perangkat Fisik**:
    - Pengujian unit, state machine koreografi `GooeyDockPhase`, matematika `InvisibleDeckPagerMath`, perutean `AppNavigationCoordinator` 5-tab, dan kompilasi `.ipa` diverifikasi secara otomatis melalui CI.
    - Pengukuran frame-time layar sentuh fisik 120Hz ProMotion dan rasa haptik `UIImpactFeedbackGenerator` hanya dapat dirasakan langsung pada perangkat iPhone fisik ketika `.ipa` diinstal.
+

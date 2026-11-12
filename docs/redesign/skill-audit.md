@@ -75,3 +75,4 @@ All skill directories in `.agents/skills/`, `.gemini/antigravity/builtin/skills/
   - Add composite PostgreSQL indexes on `tugas`, `jadwal`, `ujian`, `kelas_pengganti`, and `announcements`.
   - Add server-side cursor/offset pagination and filtering to `GET /api/tugas` while keeping full backward compatibility.
   - Implement `lib/requestCache.ts` (Web) and `RequestCacheCoordinator` in `NetworkService` / `TrackerDataService` / `LocalCacheService` (iOS) with in-flight request coalescing, user-scoped TTL + SWR caching, targeted single-task mutation patching, and complete purge on logout.
+

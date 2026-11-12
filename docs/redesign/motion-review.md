@@ -72,3 +72,4 @@ We introduce a deterministic `GooeyDockPhase` state machine in `QuickActionDockC
 - **Transition Physics**:
   - Direction-aware horizontal slide + opacity transition (`offset(x: direction * 18pt)` + `opacity`, `cubic-bezier(0.22, 1, 0.36, 1)` on Web / `AppTheme.Motion.deckPageSpring` on iOS).
   - Under `prefers-reduced-motion` / `accessibilityReduceMotion`, transitions fall back to a pure opacity crossfade.
+

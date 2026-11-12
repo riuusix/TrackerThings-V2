@@ -30,3 +30,4 @@ CREATE INDEX IF NOT EXISTS "idx_kelas_pengganti_id_jadwal"
 
 CREATE INDEX IF NOT EXISTS "idx_announcements_active_created"
   ON "announcements" ("is_active", "created_at" DESC);
+

@@ -208,3 +208,4 @@ public struct FrostedGlideTabBar: View {
         return tab.title
     }
 }
+

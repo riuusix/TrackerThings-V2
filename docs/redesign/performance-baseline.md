@@ -75,3 +75,4 @@ Inspection of `prisma/schema.prisma` (lines 10–132) and `prisma/migrations/` c
   - Actor-isolated in-flight GET request coalescing in `NetworkService` (`inFlightGETTasks: [String: Task<(Data, URLResponse), Error>]`).
   - User-scoped memory + disk cache in `TrackerDataService` & `LocalCacheService` (`user_<userId>_<resource>`), preventing cross-account data leaks and eliminating redundant network calls on tab switches.
   - Single-task mutation patching in `DashboardViewModel` and `TrackerDataService` (eliminating the 5-endpoint `loadDashboardData()` storm after progress updates).
+
