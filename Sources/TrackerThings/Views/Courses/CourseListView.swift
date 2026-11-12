@@ -141,7 +141,7 @@ public struct CourseListView: View {
             }
             .listStyle(.plain)
             .safeAreaInset(edge: .bottom) {
-                Color.clear.frame(height: 76)
+                Color.clear.frame(height: 116)
             }
             .background(AppTheme.Colors.background)
             .navigationTitle("Mata Kuliah")

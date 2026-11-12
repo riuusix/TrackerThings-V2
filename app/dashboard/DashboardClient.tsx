@@ -216,6 +216,7 @@ export function DashboardClient({
               urgentTasks={urgentTasks}
               completedTasks={completedTasks}
               onEditTask={handleOpenEditTask}
+              userScope={userEmail || username}
             />
           </div>
         </div>

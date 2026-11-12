@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 import { apiSuccess, apiError } from "@/lib/apiResponse";
 import { parseDateOnly } from "@/lib/utils";
+import { getOrComputeUserCache, invalidateUserServerCache } from "@/lib/serverCache";
 
 function formatTaskResponse(t: any) {
   if (!t) return null;
@@ -45,18 +46,177 @@ export async function GET(req: NextRequest) {
       return apiError("Sesi login telah berakhir. Silakan masuk kembali.", 401);
     }
 
-    const tasks = await prisma.tugas.findMany({
-      where: { userId: session.userId },
-      include: {
-        jadwal: {
-          select: { namaMatkul: true },
-        },
-      },
-      orderBy: { deadline: "asc" },
-    });
+    const { searchParams } = new URL(req.url);
+    const statusParam = searchParams.get("status")?.trim() || null;
+    const pinnedParam = searchParams.get("pinned")?.trim() || null;
+    const prioritasParam = searchParams.get("prioritas")?.trim() || null;
+    const idJadwalParam = searchParams.get("idJadwal") || searchParams.get("id_jadwal");
+    const searchQuery = searchParams.get("q")?.trim() || searchParams.get("search")?.trim() || null;
+    const sortParam = searchParams.get("sort")?.trim() || "deadline_asc";
+    const pageParam = searchParams.get("page");
+    const limitParam = searchParams.get("limit");
+    const cursorParam = searchParams.get("cursor");
 
-    const formattedTasks = tasks.map(formatTaskResponse);
-    return apiSuccess("Daftar tugas berhasil dimuat.", formattedTasks, 200, { tasks: formattedTasks });
+    const hasFilterOrPagination = Boolean(
+      statusParam ||
+        pinnedParam ||
+        prioritasParam ||
+        idJadwalParam ||
+        searchQuery ||
+        pageParam ||
+        limitParam ||
+        cursorParam ||
+        sortParam !== "deadline_asc"
+    );
+
+    const cacheSubKey = searchParams.toString() || "all";
+
+    const { data: resultPayload, cacheStatus } = await getOrComputeUserCache(
+      session.userId,
+      "tugas",
+      cacheSubKey,
+      async () => {
+        const where: Record<string, any> = {
+          userId: session.userId,
+        };
+
+        if (statusParam) {
+          const normalized = statusParam.toLowerCase();
+          if (normalized === "active" || normalized === "aktif") {
+            where.status = { not: "Selesai" };
+          } else if (normalized === "completed" || normalized === "selesai" || normalized === "history") {
+            where.status = "Selesai";
+          } else {
+            where.status = statusParam;
+          }
+        }
+
+        if (pinnedParam === "true" || pinnedParam === "1") {
+          where.isPinned = true;
+        } else if (pinnedParam === "false" || pinnedParam === "0") {
+          where.isPinned = false;
+        }
+
+        if (prioritasParam && prioritasParam.toLowerCase() !== "all" && prioritasParam.toLowerCase() !== "semua") {
+          where.prioritas = prioritasParam;
+        }
+
+        if (idJadwalParam) {
+          const parsedCourseId = parseInt(idJadwalParam, 10);
+          if (!isNaN(parsedCourseId) && parsedCourseId > 0) {
+            where.idJadwal = parsedCourseId;
+          }
+        }
+
+        if (searchQuery) {
+          where.OR = [
+            { namaTugas: { contains: searchQuery, mode: "insensitive" } },
+            { jadwal: { namaMatkul: { contains: searchQuery, mode: "insensitive" } } },
+          ];
+        }
+
+        let orderBy: any = { deadline: "asc" };
+        switch (sortParam) {
+          case "deadline_desc":
+            orderBy = [{ deadline: "desc" }, { id: "desc" }];
+            break;
+          case "progress_desc":
+            orderBy = [{ progress: "desc" }, { deadline: "asc" }];
+            break;
+          case "pinned_first":
+            orderBy = [{ isPinned: "desc" }, { deadline: "asc" }, { id: "asc" }];
+            break;
+          default:
+            orderBy = [{ deadline: "asc" }, { id: "asc" }];
+            break;
+        }
+
+        const parsedLimit = limitParam ? Math.min(100, Math.max(1, parseInt(limitParam, 10) || 0)) : 0;
+        const parsedPage = pageParam ? Math.max(1, parseInt(pageParam, 10) || 1) : 1;
+        const parsedCursor = cursorParam ? parseInt(cursorParam, 10) : NaN;
+
+        if (parsedLimit > 0) {
+          const findOptions: Record<string, any> = {
+            where,
+            include: {
+              jadwal: {
+                select: { namaMatkul: true },
+              },
+            },
+            orderBy,
+            take: parsedLimit + 1,
+          };
+
+          if (!isNaN(parsedCursor) && parsedCursor > 0) {
+            findOptions.cursor = { id: parsedCursor };
+            findOptions.skip = 1;
+          } else if (parsedPage > 1) {
+            findOptions.skip = (parsedPage - 1) * parsedLimit;
+          }
+
+          const [rawRows, totalCount] = await Promise.all([
+            prisma.tugas.findMany(findOptions as any),
+            prisma.tugas.count({ where }),
+          ]);
+
+          const hasMore = rawRows.length > parsedLimit;
+          const sliced = hasMore ? rawRows.slice(0, parsedLimit) : rawRows;
+          const formattedTasks = sliced.map(formatTaskResponse);
+          const nextCursor = hasMore && sliced.length > 0 ? sliced[sliced.length - 1].id : null;
+          const totalPages = Math.max(1, Math.ceil(totalCount / parsedLimit));
+
+          return {
+            formattedTasks,
+            pagination: {
+              page: parsedPage,
+              limit: parsedLimit,
+              totalCount,
+              totalPages,
+              hasMore,
+              nextCursor,
+            },
+          };
+        }
+
+        const tasks = await prisma.tugas.findMany({
+          where,
+          include: {
+            jadwal: {
+              select: { namaMatkul: true },
+            },
+          },
+          orderBy: hasFilterOrPagination ? orderBy : { deadline: "asc" },
+        });
+
+        const formattedTasks = tasks.map(formatTaskResponse);
+        return {
+          formattedTasks,
+          pagination: {
+            page: 1,
+            limit: formattedTasks.length || 1,
+            totalCount: formattedTasks.length,
+            totalPages: 1,
+            hasMore: false,
+            nextCursor: null,
+          },
+        };
+      }
+    );
+
+    return apiSuccess(
+      "Daftar tugas berhasil dimuat.",
+      resultPayload.formattedTasks,
+      200,
+      {
+        tasks: resultPayload.formattedTasks,
+        pagination: resultPayload.pagination,
+      },
+      {
+        "X-Cache-Status": cacheStatus,
+        "X-Total-Count": String(resultPayload.pagination.totalCount),
+        "X-Has-More": String(resultPayload.pagination.hasMore),
+      }
+    );
   } catch (error: any) {
     console.error("GET /api/tugas exception:", error);
     return apiError("Terjadi kesalahan internal pada server.", 500);
@@ -137,6 +297,8 @@ export async function POST(req: NextRequest) {
         },
       },
     });
+
+    invalidateUserServerCache(session.userId, ["tugas", "intelligence"]);
 
     const formatted = formatTaskResponse(newTask);
     return apiSuccess("Tugas berhasil dibuat!", formatted, 201, { task: formatted });
@@ -227,6 +389,8 @@ export async function PATCH(req: NextRequest) {
         },
       },
     });
+
+    invalidateUserServerCache(session.userId, ["tugas", "intelligence"]);
 
     const formatted = formatTaskResponse(updated);
     return apiSuccess("Progress tugas berhasil diperbarui!", formatted, 200, { task: formatted });

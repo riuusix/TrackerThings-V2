@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 import { apiSuccess, apiError } from "@/lib/apiResponse";
 import { formatTimeFromDate, getCalendarDayName } from "@/lib/utils";
+import { getOrComputeUserCache } from "@/lib/serverCache";
 import {
   evaluateAcademicInsights,
   type AcademicItem,
@@ -51,105 +52,117 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Parallel fetch: Ambil tugas, ujian, jadwal kuliah reguler, dan kelas pengganti milik pengguna secara read-only
-    const [tasks, exams, regularSchedules, replacementClasses] = await Promise.all([
-      prisma.tugas.findMany({
-        where: { userId: session.userId },
-        include: {
-          jadwal: {
-            select: { namaMatkul: true },
-          },
-        },
-        orderBy: { deadline: "asc" },
-      }),
-      prisma.ujian.findMany({
-        where: { userId: session.userId },
-        include: {
-          jadwal: {
-            select: { namaMatkul: true },
-          },
-        },
-        orderBy: [
-          { tanggal: "asc" },
-          { waktuMulai: "asc" },
-        ],
-      }),
-      prisma.jadwal.findMany({
-        where: { userId: session.userId },
-        orderBy: { waktuMulai: "asc" },
-      }),
-      prisma.kelasPengganti.findMany({
-        where: {
-          userId: session.userId,
-          status: { not: "Selesai" },
-        },
-        include: {
-          jadwal: {
-            select: { namaMatkul: true },
-          },
-        },
-        orderBy: { waktuMulai: "asc" },
-      }),
-    ]);
+    const cacheSubKey = `${refValidation.date}:${tzValidation.timezone}:${upcomingWindowDays}`;
+    const { data: summary, cacheStatus } = await getOrComputeUserCache(
+      session.userId,
+      "intelligence",
+      cacheSubKey,
+      async () => {
+        // Parallel fetch: Ambil tugas, ujian, jadwal kuliah reguler, dan kelas pengganti milik pengguna secara read-only
+        const [tasks, exams, regularSchedules, replacementClasses] = await Promise.all([
+          prisma.tugas.findMany({
+            where: { userId: session.userId },
+            include: {
+              jadwal: {
+                select: { namaMatkul: true },
+              },
+            },
+            orderBy: { deadline: "asc" },
+          }),
+          prisma.ujian.findMany({
+            where: { userId: session.userId },
+            include: {
+              jadwal: {
+                select: { namaMatkul: true },
+              },
+            },
+            orderBy: [
+              { tanggal: "asc" },
+              { waktuMulai: "asc" },
+            ],
+          }),
+          prisma.jadwal.findMany({
+            where: { userId: session.userId },
+            orderBy: { waktuMulai: "asc" },
+          }),
+          prisma.kelasPengganti.findMany({
+            where: {
+              userId: session.userId,
+              status: { not: "Selesai" },
+            },
+            include: {
+              jadwal: {
+                select: { namaMatkul: true },
+              },
+            },
+            orderBy: { waktuMulai: "asc" },
+          }),
+        ]);
 
-    // Map Prisma models to pure AcademicItem representations
-    const items: AcademicItem[] = [
-      ...tasks.map((t) => ({
-        id: t.id,
-        type: "tugas" as const,
-        title: t.namaTugas,
-        courseName: t.jadwal?.namaMatkul ?? null,
-        date: t.deadline,
-        status: t.status,
-        priority: t.prioritas,
-      })),
-      ...exams.map((e) => ({
-        id: e.id,
-        type: "ujian" as const,
-        title: e.jenisUjian,
-        courseName: e.jadwal?.namaMatkul ?? null,
-        date: e.tanggal,
-        time: e.waktuMulai ? formatTimeFromDate(e.waktuMulai) : null,
-        priority: "Tinggi",
-      })),
-    ];
+        // Map Prisma models to pure AcademicItem representations
+        const items: AcademicItem[] = [
+          ...tasks.map((t) => ({
+            id: t.id,
+            type: "tugas" as const,
+            title: t.namaTugas,
+            courseName: t.jadwal?.namaMatkul ?? null,
+            date: t.deadline,
+            status: t.status,
+            priority: t.prioritas,
+          })),
+          ...exams.map((e) => ({
+            id: e.id,
+            type: "ujian" as const,
+            title: e.jenisUjian,
+            courseName: e.jadwal?.namaMatkul ?? null,
+            date: e.tanggal,
+            time: e.waktuMulai ? formatTimeFromDate(e.waktuMulai) : null,
+            priority: "Tinggi",
+          })),
+        ];
 
-    // Map regular & replacement schedules to AcademicClassItem representations
-    const classes: AcademicClassItem[] = [
-      ...regularSchedules.map((j) => ({
-        id: j.id,
-        courseName: j.namaMatkul,
-        day: j.hari,
-        startTime: formatTimeFromDate(j.waktuMulai),
-        endTime: formatTimeFromDate(j.waktuSelesai),
-        sks: j.sks,
-        type: "reguler" as const,
-      })),
-      ...replacementClasses.map((kp) => ({
-        id: kp.id,
-        courseName: kp.jadwal?.namaMatkul || "Kelas Pengganti",
-        day: getCalendarDayName(kp.tanggal),
-        startTime: formatTimeFromDate(kp.waktuMulai),
-        endTime: formatTimeFromDate(kp.waktuSelesai),
-        type: "pengganti" as const,
-        date: extractCalendarDate(kp.tanggal, tzValidation.timezone),
-      })),
-    ];
+        // Map regular & replacement schedules to AcademicClassItem representations
+        const classes: AcademicClassItem[] = [
+          ...regularSchedules.map((j) => ({
+            id: j.id,
+            courseName: j.namaMatkul,
+            day: j.hari,
+            startTime: formatTimeFromDate(j.waktuMulai),
+            endTime: formatTimeFromDate(j.waktuSelesai),
+            sks: j.sks,
+            type: "reguler" as const,
+          })),
+          ...replacementClasses.map((kp) => ({
+            id: kp.id,
+            courseName: kp.jadwal?.namaMatkul || "Kelas Pengganti",
+            day: getCalendarDayName(kp.tanggal),
+            startTime: formatTimeFromDate(kp.waktuMulai),
+            endTime: formatTimeFromDate(kp.waktuSelesai),
+            type: "pengganti" as const,
+            date: extractCalendarDate(kp.tanggal, tzValidation.timezone),
+          })),
+        ];
 
-    // Evaluate deterministically with classes context
-    const summary = evaluateAcademicInsights(
-      items,
-      {
-        referenceDate: refValidation.date,
-        timezone: tzValidation.timezone,
-        upcomingWindowDays,
-      },
-      { classes }
+        // Evaluate deterministically with classes context
+        return evaluateAcademicInsights(
+          items,
+          {
+            referenceDate: refValidation.date,
+            timezone: tzValidation.timezone,
+            upcomingWindowDays,
+          },
+          { classes }
+        );
+      }
     );
 
-    return apiSuccess("Insight akademik berhasil dimuat.", summary, 200, {
+    return apiSuccess(
+      "Insight akademik berhasil dimuat.",
       summary,
-    });
+      200,
+      { summary },
+      { "X-Cache-Status": cacheStatus }
+    );
   } catch (error: any) {
     console.error("GET /api/intelligence/academic exception:", error);
     return apiError("Terjadi kesalahan internal pada server saat mengevaluasi insight akademik.", 500);

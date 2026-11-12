@@ -28,15 +28,50 @@ public enum AppRoute: Hashable, Sendable {
 public enum AppTab: Int, Hashable, CaseIterable, Sendable {
     case home = 0
     case courses = 1
-    case exams = 2
-    case settings = 3
+    case tasks = 2
+    case exams = 3
+    case settings = 4
 
     public var title: String {
         switch self {
-        case .home: return "Home"
+        case .home: return "Beranda"
         case .courses: return "Mata Kuliah"
+        case .tasks: return "Tugas"
         case .exams: return "Ujian"
-        case .settings: return "Pengaturan"
+        case .settings: return "Profil"
+        }
+    }
+
+    /// Label ringkas untuk Frosted Glide Tab Bar (1 kata, tidak terpotong di iPhone kompak)
+    public var shortLabel: String {
+        switch self {
+        case .home: return "Beranda"
+        case .courses: return "Jadwal"
+        case .tasks: return "Tugas"
+        case .exams: return "Ujian"
+        case .settings: return "Profil"
+        }
+    }
+
+    /// Ikon SF Symbols kanonis untuk masing-masing tab
+    public var iconName: String {
+        switch self {
+        case .home: return "house.fill"
+        case .courses: return "book.fill"
+        case .tasks: return "checklist"
+        case .exams: return "graduationcap.fill"
+        case .settings: return "person.crop.circle.fill"
+        }
+    }
+
+    /// Identifier aksesibilitas deterministik untuk UI testing & VoiceOver
+    public var accessibilityIdentifier: String {
+        switch self {
+        case .home: return "FrostedGlideTab.home"
+        case .courses: return "FrostedGlideTab.courses"
+        case .tasks: return "FrostedGlideTab.tasks"
+        case .exams: return "FrostedGlideTab.exams"
+        case .settings: return "FrostedGlideTab.settings"
         }
     }
 }

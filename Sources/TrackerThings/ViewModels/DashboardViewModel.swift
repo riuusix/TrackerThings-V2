@@ -22,6 +22,19 @@ public final class DashboardViewModel {
     public var editingReplacement: KelasPenggantiItem? = nil
     public var reminderEditingTask: TugasItem? = nil
 
+    // MARK: - Persistent Invisible Pagination & Filter State (Preserved across TaskDetailView push/pop)
+    public var dashboardPinnedPage: Int = 0
+    public var dashboardActivePage: Int = 0
+    public var dashboardCompletedPage: Int = 0
+
+    public var taskListPinnedPage: Int = 0
+    public var taskListActivePage: Int = 0
+    public var taskListHistoryPage: Int = 0
+    public var taskListSearchText: String = ""
+    public var taskListSelectedPriority: String = "Semua"
+    public var taskListSelectedSegment: Int = 0 // 0 = Tugas Aktif, 1 = Riwayat Selesai
+    public var taskListSortNewestFirst: Bool = true
+
     // MARK: - Pinned vs Unpinned Active Tasks (Single-Representation Contract)
     /// Tugas aktif yang disematkan pengguna, diurutkan berdasarkan tenggat terdekat lalu bobot prioritas.
     public var pinnedTasks: [TugasItem] {
@@ -244,10 +257,36 @@ public final class DashboardViewModel {
         defer { inFlightTaskIds.remove(task.id) }
 
         do {
+            let clamped = min(100, max(0, progress))
             let wasIncomplete = task.progress < 100 && task.status != .selesai
             let previousProgress = task.progress
-            _ = try await dataService.updateTugasProgress(id: task.id, progress: progress)
-            if progress >= 100 {
+            _ = try await dataService.updateTugasProgress(id: task.id, progress: clamped)
+
+            var patched = task
+            patched.progress = clamped
+            patched.status = clamped >= 100 ? .selesai : (clamped > 0 ? .sedangDikerjakan : .belumDikerjakan)
+
+            withAnimation(AppTheme.Motion.taskCompletion) {
+                if clamped >= 100 {
+                    urgentTasks.removeAll { $0.id == task.id }
+                    if let cIdx = completedTasks.firstIndex(where: { $0.id == task.id }) {
+                        completedTasks[cIdx] = patched
+                    } else {
+                        completedTasks.insert(patched, at: 0)
+                    }
+                    completedTasks.sort { $0.deadline > $1.deadline }
+                } else {
+                    completedTasks.removeAll { $0.id == task.id }
+                    if let uIdx = urgentTasks.firstIndex(where: { $0.id == task.id }) {
+                        urgentTasks[uIdx] = patched
+                    } else {
+                        urgentTasks.append(patched)
+                    }
+                    urgentTasks = Self.sortActiveTasks(urgentTasks)
+                }
+            }
+
+            if clamped >= 100 {
                 NotificationService.shared.cancelReminderForTask(id: task.id)
                 if wasIncomplete {
                     registerCompletionUndo(for: task, previousProgress: previousProgress)
@@ -257,7 +296,8 @@ public final class DashboardViewModel {
             } else if recentlyCompletedTask?.id == task.id {
                 clearCompletionUndo()
             }
-            await loadDashboardData()
+
+            generateNotifications()
         } catch {
             errorMessage = error.localizedDescription
             showToast(error.localizedDescription, severity: .error)
@@ -507,8 +547,15 @@ public final class DashboardViewModel {
         do {
             _ = try await dataService.deleteTugas(id: id)
             NotificationService.shared.cancelReminderForTask(id: id)
+            withAnimation(AppTheme.Motion.panelDismiss) {
+                urgentTasks.removeAll { $0.id == id }
+                completedTasks.removeAll { $0.id == id }
+                if recentlyCompletedTask?.id == id {
+                    recentlyCompletedTask = nil
+                }
+            }
+            generateNotifications()
             showToast("Tugas berhasil dihapus.", severity: .success)
-            await loadDashboardData()
             return true
         } catch {
             errorMessage = error.localizedDescription

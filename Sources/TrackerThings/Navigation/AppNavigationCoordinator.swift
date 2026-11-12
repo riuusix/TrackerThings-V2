@@ -18,6 +18,7 @@ public final class AppNavigationCoordinator {
     // MARK: - Independent Tab Navigation Paths
     public var homePath = NavigationPath()
     public var coursesPath = NavigationPath()
+    public var tasksPath = NavigationPath()
     public var examsPath = NavigationPath()
     public var settingsPath = NavigationPath()
 
@@ -46,10 +47,27 @@ public final class AppNavigationCoordinator {
     public func resetAllPaths() {
         homePath = NavigationPath()
         coursesPath = NavigationPath()
+        tasksPath = NavigationPath()
         examsPath = NavigationPath()
         settingsPath = NavigationPath()
         pendingRoute = nil
         selectedTab = .home
+    }
+
+    /// Mengembalikan tumpukan navigasi tab tertentu ke tampilan root.
+    public func popToRoot(for tab: AppTab) {
+        switch tab {
+        case .home:
+            if !homePath.isEmpty { homePath = NavigationPath() }
+        case .courses:
+            if !coursesPath.isEmpty { coursesPath = NavigationPath() }
+        case .tasks:
+            if !tasksPath.isEmpty { tasksPath = NavigationPath() }
+        case .exams:
+            if !examsPath.isEmpty { examsPath = NavigationPath() }
+        case .settings:
+            if !settingsPath.isEmpty { settingsPath = NavigationPath() }
+        }
     }
 
     /// Melakukan navigasi terarah ke rute tujuan spesifik.
@@ -63,8 +81,12 @@ public final class AppNavigationCoordinator {
         withAnimation(.snappy(duration: 0.28)) {
             switch route {
             case .taskDetail:
-                selectedTab = .home
-                homePath.append(route)
+                if selectedTab == .tasks {
+                    tasksPath.append(route)
+                } else {
+                    selectedTab = .home
+                    homePath.append(route)
+                }
 
             case .replacementClassDetail:
                 selectedTab = .home
@@ -83,6 +105,7 @@ public final class AppNavigationCoordinator {
                 switch selectedTab {
                 case .home: homePath.append(route)
                 case .courses: coursesPath.append(route)
+                case .tasks: tasksPath.append(route)
                 case .exams: examsPath.append(route)
                 case .settings: settingsPath.append(route)
                 }

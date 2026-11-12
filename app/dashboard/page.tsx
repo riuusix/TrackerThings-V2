@@ -167,6 +167,7 @@ export default async function DashboardPage() {
   const completedTasks: TugasItem[] = [];
 
   for (const t of allTasks) {
+    const isPinned = Boolean(t.isPinned);
     const item: TugasItem = {
       id: t.id,
       userId: t.userId,
@@ -177,6 +178,10 @@ export default async function DashboardPage() {
       jenis: t.jenis,
       status: t.status,
       progress: t.progress,
+      isPinned,
+      is_pinned: isPinned,
+      reminderAt: t.reminderAt ? new Date(t.reminderAt) : null,
+      reminder_at: t.reminderAt ? new Date(t.reminderAt) : null,
       createdAt: new Date(),
       jadwal: t.jadwal ? { namaMatkul: t.jadwal.namaMatkul } : undefined,
     };

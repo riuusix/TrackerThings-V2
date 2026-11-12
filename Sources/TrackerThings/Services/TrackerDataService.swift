@@ -79,6 +79,10 @@ public actor TrackerDataService: TrackerDataServiceProtocol {
 
     // MARK: - Jadwal
     public func getJadwalList() async throws -> [JadwalItem] {
+        if LocalCacheService.shared.isFresh(forKey: LocalCacheService.keyJadwal, ttlSeconds: LocalCacheService.scheduleFreshTTL),
+           let cached: [JadwalItem] = LocalCacheService.shared.load(forKey: LocalCacheService.keyJadwal) {
+            return cached
+        }
         do {
             let items: [JadwalItem] = try await network.request(endpoint: "jadwal", method: "GET")
             LocalCacheService.shared.save(items, forKey: LocalCacheService.keyJadwal)
@@ -94,16 +98,27 @@ public actor TrackerDataService: TrackerDataServiceProtocol {
 
     public func createJadwal(_ item: JadwalItem) async throws -> BaseResponse {
         let body = try encoder.encode(item)
-        return try await network.request(endpoint: "jadwal", method: "POST", body: body)
+        let response: BaseResponse = try await network.request(endpoint: "jadwal", method: "POST", body: body)
+        LocalCacheService.shared.invalidateFreshness(forKey: LocalCacheService.keyJadwal)
+        LocalCacheService.shared.invalidateFreshness(forKey: LocalCacheService.keyAcademicIntelligence)
+        return response
     }
 
     public func updateJadwal(_ item: JadwalItem) async throws -> BaseResponse {
         let body = try encoder.encode(item)
-        return try await network.request(endpoint: "jadwal/\(item.id)", method: "PUT", body: body)
+        let response: BaseResponse = try await network.request(endpoint: "jadwal/\(item.id)", method: "PUT", body: body)
+        LocalCacheService.shared.invalidateFreshness(forKey: LocalCacheService.keyJadwal)
+        LocalCacheService.shared.invalidateFreshness(forKey: LocalCacheService.keyAcademicIntelligence)
+        return response
     }
 
     public func deleteJadwal(id: Int) async throws -> BaseResponse {
-        return try await network.request(endpoint: "jadwal/\(id)", method: "DELETE")
+        let response: BaseResponse = try await network.request(endpoint: "jadwal/\(id)", method: "DELETE")
+        LocalCacheService.shared.invalidateFreshness(forKey: LocalCacheService.keyJadwal)
+        LocalCacheService.shared.invalidateFreshness(forKey: LocalCacheService.keyTugas)
+        LocalCacheService.shared.invalidateFreshness(forKey: LocalCacheService.keyUjian)
+        LocalCacheService.shared.invalidateFreshness(forKey: LocalCacheService.keyAcademicIntelligence)
+        return response
     }
 
     // MARK: - Tugas
@@ -112,6 +127,10 @@ public actor TrackerDataService: TrackerDataServiceProtocol {
     }
 
     public func getTugasList() async throws -> [TugasItem] {
+        if LocalCacheService.shared.isFresh(forKey: LocalCacheService.keyTugas, ttlSeconds: LocalCacheService.defaultFreshTTL),
+           let cached: [TugasItem] = LocalCacheService.shared.load(forKey: LocalCacheService.keyTugas) {
+            return cached
+        }
         do {
             let items: [TugasItem] = try await network.request(endpoint: "tugas", method: "GET")
             LocalCacheService.shared.save(items, forKey: LocalCacheService.keyTugas)
@@ -127,18 +146,39 @@ public actor TrackerDataService: TrackerDataServiceProtocol {
 
     public func createTugas(_ item: TugasItem) async throws -> BaseResponse {
         let body = try encoder.encode(item)
-        return try await network.request(endpoint: "tugas", method: "POST", body: body)
+        let response: BaseResponse = try await network.request(endpoint: "tugas", method: "POST", body: body)
+        LocalCacheService.shared.invalidateFreshness(forKey: LocalCacheService.keyTugas)
+        LocalCacheService.shared.invalidateFreshness(forKey: LocalCacheService.keyAcademicIntelligence)
+        return response
     }
 
     public func updateTugas(_ item: TugasItem) async throws -> BaseResponse {
         let body = try encoder.encode(item)
-        return try await network.request(endpoint: "tugas/\(item.id)", method: "PUT", body: body)
+        let response: BaseResponse = try await network.request(endpoint: "tugas/\(item.id)", method: "PUT", body: body)
+        if var cached: [TugasItem] = LocalCacheService.shared.load(forKey: LocalCacheService.keyTugas),
+           let idx = cached.firstIndex(where: { $0.id == item.id }) {
+            cached[idx] = item
+            LocalCacheService.shared.save(cached, forKey: LocalCacheService.keyTugas)
+        } else {
+            LocalCacheService.shared.invalidateFreshness(forKey: LocalCacheService.keyTugas)
+        }
+        LocalCacheService.shared.invalidateFreshness(forKey: LocalCacheService.keyAcademicIntelligence)
+        return response
     }
 
     public func updateTugasProgress(id: Int, progress: Int) async throws -> BaseResponse {
         let payload: [String: Any] = ["id": id, "progress": progress]
         let body = try JSONSerialization.data(withJSONObject: payload)
-        return try await network.request(endpoint: "tugas", method: "PATCH", body: body)
+        let response: BaseResponse = try await network.request(endpoint: "tugas", method: "PATCH", body: body)
+        let clamped = min(100, max(0, progress))
+        if var cached: [TugasItem] = LocalCacheService.shared.load(forKey: LocalCacheService.keyTugas),
+           let idx = cached.firstIndex(where: { $0.id == id }) {
+            cached[idx].progress = clamped
+            cached[idx].status = clamped >= 100 ? .selesai : (clamped > 0 ? .sedangDikerjakan : .belumDikerjakan)
+            LocalCacheService.shared.save(cached, forKey: LocalCacheService.keyTugas)
+        }
+        LocalCacheService.shared.invalidateFreshness(forKey: LocalCacheService.keyAcademicIntelligence)
+        return response
     }
 
     public func updateTugasPin(id: Int, isPinned: Bool) async throws -> BaseResponse {
@@ -174,11 +214,21 @@ public actor TrackerDataService: TrackerDataServiceProtocol {
     }
 
     public func deleteTugas(id: Int) async throws -> BaseResponse {
-        return try await network.request(endpoint: "tugas/\(id)", method: "DELETE")
+        let response: BaseResponse = try await network.request(endpoint: "tugas/\(id)", method: "DELETE")
+        if var cached: [TugasItem] = LocalCacheService.shared.load(forKey: LocalCacheService.keyTugas) {
+            cached.removeAll { $0.id == id }
+            LocalCacheService.shared.save(cached, forKey: LocalCacheService.keyTugas)
+        }
+        LocalCacheService.shared.invalidateFreshness(forKey: LocalCacheService.keyAcademicIntelligence)
+        return response
     }
 
     // MARK: - Ujian
     public func getUjianList() async throws -> [UjianItem] {
+        if LocalCacheService.shared.isFresh(forKey: LocalCacheService.keyUjian, ttlSeconds: LocalCacheService.scheduleFreshTTL),
+           let cached: [UjianItem] = LocalCacheService.shared.load(forKey: LocalCacheService.keyUjian) {
+            return cached
+        }
         do {
             let items: [UjianItem] = try await network.request(endpoint: "ujian", method: "GET")
             LocalCacheService.shared.save(items, forKey: LocalCacheService.keyUjian)
@@ -194,20 +244,33 @@ public actor TrackerDataService: TrackerDataServiceProtocol {
 
     public func createUjian(_ item: UjianItem) async throws -> BaseResponse {
         let body = try encoder.encode(item)
-        return try await network.request(endpoint: "ujian", method: "POST", body: body)
+        let response: BaseResponse = try await network.request(endpoint: "ujian", method: "POST", body: body)
+        LocalCacheService.shared.invalidateFreshness(forKey: LocalCacheService.keyUjian)
+        LocalCacheService.shared.invalidateFreshness(forKey: LocalCacheService.keyAcademicIntelligence)
+        return response
     }
 
     public func updateUjian(_ item: UjianItem) async throws -> BaseResponse {
         let body = try encoder.encode(item)
-        return try await network.request(endpoint: "ujian/\(item.id)", method: "PUT", body: body)
+        let response: BaseResponse = try await network.request(endpoint: "ujian/\(item.id)", method: "PUT", body: body)
+        LocalCacheService.shared.invalidateFreshness(forKey: LocalCacheService.keyUjian)
+        LocalCacheService.shared.invalidateFreshness(forKey: LocalCacheService.keyAcademicIntelligence)
+        return response
     }
 
     public func deleteUjian(id: Int) async throws -> BaseResponse {
-        return try await network.request(endpoint: "ujian/\(id)", method: "DELETE")
+        let response: BaseResponse = try await network.request(endpoint: "ujian/\(id)", method: "DELETE")
+        LocalCacheService.shared.invalidateFreshness(forKey: LocalCacheService.keyUjian)
+        LocalCacheService.shared.invalidateFreshness(forKey: LocalCacheService.keyAcademicIntelligence)
+        return response
     }
 
     // MARK: - Kelas Pengganti
     public func getKelasPenggantiList() async throws -> [KelasPenggantiItem] {
+        if LocalCacheService.shared.isFresh(forKey: LocalCacheService.keyKelasPengganti, ttlSeconds: LocalCacheService.defaultFreshTTL),
+           let cached: [KelasPenggantiItem] = LocalCacheService.shared.load(forKey: LocalCacheService.keyKelasPengganti) {
+            return cached
+        }
         do {
             let items: [KelasPenggantiItem] = try await network.request(endpoint: "kelas-pengganti", method: "GET")
             LocalCacheService.shared.save(items, forKey: LocalCacheService.keyKelasPengganti)
@@ -223,20 +286,32 @@ public actor TrackerDataService: TrackerDataServiceProtocol {
 
     public func createKelasPengganti(_ item: KelasPenggantiItem) async throws -> BaseResponse {
         let body = try encoder.encode(item)
-        return try await network.request(endpoint: "kelas-pengganti", method: "POST", body: body)
+        let response: BaseResponse = try await network.request(endpoint: "kelas-pengganti", method: "POST", body: body)
+        LocalCacheService.shared.invalidateFreshness(forKey: LocalCacheService.keyKelasPengganti)
+        LocalCacheService.shared.invalidateFreshness(forKey: LocalCacheService.keyAcademicIntelligence)
+        return response
     }
 
     public func updateKelasPengganti(_ item: KelasPenggantiItem) async throws -> BaseResponse {
         let body = try encoder.encode(item)
-        return try await network.request(endpoint: "kelas-pengganti/\(item.id)", method: "PUT", body: body)
+        let response: BaseResponse = try await network.request(endpoint: "kelas-pengganti/\(item.id)", method: "PUT", body: body)
+        LocalCacheService.shared.invalidateFreshness(forKey: LocalCacheService.keyKelasPengganti)
+        LocalCacheService.shared.invalidateFreshness(forKey: LocalCacheService.keyAcademicIntelligence)
+        return response
     }
 
     public func selesaiKelasPengganti(id: Int) async throws -> BaseResponse {
-        return try await network.request(endpoint: "kelas-pengganti/\(id)/selesai", method: "POST")
+        let response: BaseResponse = try await network.request(endpoint: "kelas-pengganti/\(id)/selesai", method: "POST")
+        LocalCacheService.shared.invalidateFreshness(forKey: LocalCacheService.keyKelasPengganti)
+        LocalCacheService.shared.invalidateFreshness(forKey: LocalCacheService.keyAcademicIntelligence)
+        return response
     }
 
     public func deleteKelasPengganti(id: Int) async throws -> BaseResponse {
-        return try await network.request(endpoint: "kelas-pengganti/\(id)", method: "DELETE")
+        let response: BaseResponse = try await network.request(endpoint: "kelas-pengganti/\(id)", method: "DELETE")
+        LocalCacheService.shared.invalidateFreshness(forKey: LocalCacheService.keyKelasPengganti)
+        LocalCacheService.shared.invalidateFreshness(forKey: LocalCacheService.keyAcademicIntelligence)
+        return response
     }
 
     // MARK: - Schedule Import (OCR & AI Vision)
@@ -351,6 +426,10 @@ public actor TrackerDataService: TrackerDataServiceProtocol {
 
     // MARK: - Academic Intelligence
     public func getAcademicInsights(referenceDate: String, timezone: String, upcomingWindowDays: Int = 7) async throws -> AcademicIntelligenceSummary {
+        if LocalCacheService.shared.isFresh(forKey: LocalCacheService.keyAcademicIntelligence, ttlSeconds: LocalCacheService.intelligenceFreshTTL),
+           let cached: AcademicIntelligenceSummary = LocalCacheService.shared.load(forKey: LocalCacheService.keyAcademicIntelligence) {
+            return cached
+        }
         let encodedTz = timezone.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? timezone
         let endpoint = "intelligence/academic?referenceDate=\(referenceDate)&timezone=\(encodedTz)&upcomingWindowDays=\(upcomingWindowDays)"
         do {

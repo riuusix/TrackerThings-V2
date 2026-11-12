@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getAuthSession } from "@/lib/auth";
 import { apiSuccess, apiError } from "@/lib/apiResponse";
 import { parseDateOnly } from "@/lib/utils";
+import { invalidateUserServerCache } from "@/lib/serverCache";
 
 export async function PUT(
   req: NextRequest,
@@ -100,6 +101,8 @@ export async function PUT(
       data: updateData,
     });
 
+    invalidateUserServerCache(session.userId, ["tugas", "intelligence"]);
+
     return apiSuccess("Tugas berhasil diperbarui!", null, 200);
   } catch (error) {
     console.error("PUT /api/tugas/[id] exception:", error);
@@ -138,6 +141,8 @@ export async function DELETE(
     await prisma.tugas.delete({
       where: { id: taskId },
     });
+
+    invalidateUserServerCache(session.userId, ["tugas", "intelligence"]);
 
     return apiSuccess("Tugas berhasil dihapus!", null, 200);
   } catch (error) {

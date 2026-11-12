@@ -15,18 +15,26 @@ public struct RootTabView: View {
 
     public init() {}
 
-    /// Menentukan apakah tab yang sedang aktif berada di root tumpukan navigasi sehingga Gooey Action Dock aman ditampilkan.
-    private var shouldShowFloatingDock: Bool {
+    /// Menentukan apakah tab yang sedang aktif berada di root tumpukan navigasi.
+    private var isActiveTabAtRoot: Bool {
         switch coordinator.selectedTab {
         case .home:
             return coordinator.homePath.isEmpty
         case .courses:
             return coordinator.coursesPath.isEmpty
+        case .tasks:
+            return coordinator.tasksPath.isEmpty
         case .exams:
             return coordinator.examsPath.isEmpty
         case .settings:
-            return false
+            return coordinator.settingsPath.isEmpty
         }
+    }
+
+    /// Menentukan apakah Gooey Action Dock aman ditampilkan di atas tab aktif.
+    private var shouldShowFloatingDock: Bool {
+        guard coordinator.selectedTab != .settings else { return false }
+        return isActiveTabAtRoot
     }
 
     private var hasAnyCourse: Bool {
@@ -34,7 +42,7 @@ public struct RootTabView: View {
     }
 
     public var body: some View {
-        ZStack(alignment: .bottomTrailing) {
+        ZStack(alignment: .bottom) {
             TabView(selection: $coordinator.selectedTab) {
                 NavigationStack(path: $coordinator.homePath) {
                     DashboardView(
@@ -47,9 +55,7 @@ public struct RootTabView: View {
                         destinationView(for: route)
                     }
                 }
-                .tabItem {
-                    Label("Home", systemImage: "house.fill")
-                }
+                .toolbar(.hidden, for: .tabBar)
                 .tag(AppTab.home)
 
                 NavigationStack(path: $coordinator.coursesPath) {
@@ -63,43 +69,64 @@ public struct RootTabView: View {
                         destinationView(for: route)
                     }
                 }
-                .tabItem {
-                    Label("Mata Kuliah", systemImage: "book.fill")
-                }
+                .toolbar(.hidden, for: .tabBar)
                 .tag(AppTab.courses)
+
+                NavigationStack(path: $coordinator.tasksPath) {
+                    TaskListView(viewModel: dashboardViewModel)
+                        .navigationDestination(for: AppRoute.self) { route in
+                            destinationView(for: route)
+                        }
+                }
+                .toolbar(.hidden, for: .tabBar)
+                .tag(AppTab.tasks)
 
                 NavigationStack(path: $coordinator.examsPath) {
                     ExamListView(viewModel: examViewModel)
-                    .navigationDestination(for: AppRoute.self) { route in
-                        destinationView(for: route)
-                    }
+                        .navigationDestination(for: AppRoute.self) { route in
+                            destinationView(for: route)
+                        }
                 }
-                .tabItem {
-                    Label("Ujian", systemImage: "graduationcap.fill")
-                }
+                .toolbar(.hidden, for: .tabBar)
                 .tag(AppTab.exams)
 
                 NavigationStack(path: $coordinator.settingsPath) {
                     SettingsView()
-                    .navigationDestination(for: AppRoute.self) { route in
-                        destinationView(for: route)
-                    }
+                        .navigationDestination(for: AppRoute.self) { route in
+                            destinationView(for: route)
+                        }
                 }
-                .tabItem {
-                    Label("Pengaturan", systemImage: "gearshape.fill")
-                }
+                .toolbar(.hidden, for: .tabBar)
                 .tag(AppTab.settings)
             }
             .tint(AppTheme.Colors.brandPrimary)
 
+            // Signature Navigation — Frosted Glide Floating Bottom Capsule
+            if isActiveTabAtRoot && dockController.activeComposer == nil {
+                FrostedGlideTabBar(
+                    selectedTab: $coordinator.selectedTab,
+                    activeTaskBadgeCount: dashboardViewModel.urgentTasks.count,
+                    onReselectActiveTab: { tab in
+                        coordinator.popToRoot(for: tab)
+                    }
+                )
+                .padding(.bottom, 6)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .zIndex(10)
+            }
+
             // Signature Interaction 01 — Gooey Action Dock
             if shouldShowFloatingDock && dockController.activeComposer == nil {
-                GooeyActionDock(
-                    controller: dockController,
-                    inboxStore: inboxStore,
-                    morphNamespace: morphNamespace,
-                    hasCourses: hasAnyCourse
-                )
+                HStack {
+                    Spacer()
+                    GooeyActionDock(
+                        controller: dockController,
+                        inboxStore: inboxStore,
+                        morphNamespace: morphNamespace,
+                        hasCourses: hasAnyCourse
+                    )
+                }
+                .zIndex(20)
             }
 
             // Signature Interaction 02 — Morphing Quick Composer Panel
@@ -112,10 +139,12 @@ public struct RootTabView: View {
                     courseViewModel: courseViewModel,
                     examViewModel: examViewModel
                 )
+                .zIndex(30)
             }
 
             // Signature Interaction 03 — Fly-to-Inbox Arrival Overlay
             FlyToInboxOverlay(store: inboxStore)
+                .zIndex(40)
         }
         .coordinateSpace(name: "RootInteractiveSpace")
         .sheet(isPresented: $inboxStore.isPresentingInboxSheet) {
@@ -206,7 +235,7 @@ public struct RootTabView: View {
 
     private func refreshActiveTabSafely() async {
         switch coordinator.selectedTab {
-        case .home:
+        case .home, .tasks:
             if !dashboardViewModel.isLoading {
                 await dashboardViewModel.loadDashboardData()
             }
@@ -227,8 +256,8 @@ public struct RootTabView: View {
         switch destination.lowercased() {
         case "home", "dashboard", "jadwal":
             coordinator.selectedTab = .home
-        case "tasks", "task":
-            coordinator.selectedTab = .home
+        case "tasks", "task", "tugas":
+            coordinator.selectedTab = .tasks
         case "courses", "course", "matkul":
             coordinator.selectedTab = .courses
         case "exams", "exam", "ujian":

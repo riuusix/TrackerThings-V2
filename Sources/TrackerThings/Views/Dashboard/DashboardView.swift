@@ -379,16 +379,19 @@ public struct DashboardView: View {
                             }
                             .padding(.horizontal)
 
-                            LazyVStack(spacing: AppTheme.Metrics.spacingSmall) {
-                                ForEach(viewModel.pinnedTasks) { task in
-                                    swipeableTaskRow(for: task)
-                                }
+                            InvisibleTaskPager(
+                                items: viewModel.pinnedTasks,
+                                currentPage: $viewModel.dashboardPinnedPage,
+                                pageSize: 3,
+                                sectionAccessibilityId: "Dashboard.pinnedTasksPager"
+                            ) { task in
+                                swipeableTaskRow(for: task)
                             }
                             .padding(.horizontal)
                         }
                     }
 
-                    // 6. Tugas & Deadline (Tugas Aktif yang Tidak Disematkan)
+                    // 6. Tugas & Deadline (Tugas Aktif yang Tidak Disematkan — Maksimal 3 per Halaman)
                     VStack(alignment: .leading, spacing: AppTheme.Metrics.spacingSmall) {
                         HStack {
                             Label("Daftar Tugas Aktif", systemImage: "checklist")
@@ -433,10 +436,49 @@ public struct DashboardView: View {
                             .cardSurface()
                             .padding(.horizontal)
                         } else {
-                            LazyVStack(spacing: AppTheme.Metrics.spacingSmall) {
-                                ForEach(viewModel.unpinnedUrgentTasks) { task in
-                                    swipeableTaskRow(for: task)
+                            InvisibleTaskPager(
+                                items: viewModel.unpinnedUrgentTasks,
+                                currentPage: $viewModel.dashboardActivePage,
+                                pageSize: 3,
+                                sectionAccessibilityId: "Dashboard.activeTasksPager"
+                            ) { task in
+                                swipeableTaskRow(for: task)
+                            }
+                            .padding(.horizontal)
+                        }
+                    }
+
+                    // 6b. Riwayat Tugas Selesai Ringkas (Invisible Pagination — Maksimal 3 per Halaman)
+                    if !viewModel.completedTasks.isEmpty {
+                        VStack(alignment: .leading, spacing: AppTheme.Metrics.spacingSmall) {
+                            HStack {
+                                Label("Riwayat Selesai", systemImage: "checkmark.seal.fill")
+                                    .font(AppTheme.Typography.sectionHeader)
+                                    .foregroundStyle(AppTheme.Colors.textPrimary)
+                                Spacer()
+                                Button {
+                                    HapticsHelper.selectionChanged()
+                                    viewModel.taskListSelectedSegment = 1
+                                    AppNavigationCoordinator.shared.selectedTab = .tasks
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Text("Semua (\(viewModel.completedTasks.count))")
+                                        Image(systemName: "arrow.up.right")
+                                    }
+                                    .font(AppTheme.Typography.captionBold)
+                                    .foregroundStyle(AppTheme.Colors.brandPrimary)
                                 }
+                                .buttonStyle(.plain)
+                            }
+                            .padding(.horizontal)
+
+                            InvisibleTaskPager(
+                                items: viewModel.completedTasks,
+                                currentPage: $viewModel.dashboardCompletedPage,
+                                pageSize: 3,
+                                sectionAccessibilityId: "Dashboard.completedTasksPager"
+                            ) { task in
+                                swipeableTaskRow(for: task)
                             }
                             .padding(.horizontal)
                         }
@@ -509,9 +551,9 @@ public struct DashboardView: View {
                     }
                 }
                 .padding(.top, AppTheme.Metrics.spacingMedium)
-                .padding(.bottom, 88)
+                .padding(.bottom, 120)
             }
-            .navigationTitle("Home")
+            .navigationTitle("Beranda")
             .navigationBarTitleDisplayMode(.inline)
             .refreshable {
                 await viewModel.loadDashboardData()

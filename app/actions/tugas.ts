@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { parseDateOnly } from "@/lib/utils";
+import { invalidateUserServerCache } from "@/lib/serverCache";
 
 export async function createTugasAction(formData: FormData) {
   const session = await getSession();
@@ -43,6 +44,7 @@ export async function createTugasAction(formData: FormData) {
       },
     });
 
+    invalidateUserServerCache(session.userId, ["tugas", "intelligence"]);
     revalidatePath("/dashboard");
     return { success: true, message: "Tugas berhasil ditambahkan!" };
   } catch (error) {
@@ -96,6 +98,7 @@ export async function updateTugasAction(formData: FormData) {
       },
     });
 
+    invalidateUserServerCache(session.userId, ["tugas", "intelligence"]);
     revalidatePath("/dashboard");
     return { success: true, message: "Tugas berhasil diperbarui!" };
   } catch (error) {
@@ -134,6 +137,7 @@ export async function updateTugasProgressAction(idTugas: number, progressVal: nu
       },
     });
 
+    invalidateUserServerCache(session.userId, ["tugas", "intelligence"]);
     revalidatePath("/dashboard");
     return { success: true, status, progress: clampedProgress };
   } catch (error) {
@@ -160,10 +164,39 @@ export async function deleteTugasAction(idTugas: number) {
       where: { id: idTugas },
     });
 
+    invalidateUserServerCache(session.userId, ["tugas", "intelligence"]);
     revalidatePath("/dashboard");
     return { success: true, message: "Tugas berhasil dihapus." };
   } catch (error) {
     console.error("Delete tugas error:", error);
     return { success: false, error: "Gagal menghapus tugas." };
+  }
+}
+
+export async function toggleTugasPinAction(idTugas: number, isPinned: boolean) {
+  const session = await getSession();
+  if (!session) return { success: false, error: "Unauthorized" };
+
+  try {
+    const existing = await prisma.tugas.findUnique({
+      where: { id: idTugas },
+      select: { id: true, userId: true },
+    });
+
+    if (!existing || existing.userId !== session.userId) {
+      return { success: false, error: "Tugas tidak ditemukan atau bukan milik Anda." };
+    }
+
+    await prisma.tugas.update({
+      where: { id: idTugas },
+      data: { isPinned: Boolean(isPinned) },
+    });
+
+    invalidateUserServerCache(session.userId, ["tugas", "intelligence"]);
+    revalidatePath("/dashboard");
+    return { success: true, isPinned: Boolean(isPinned) };
+  } catch (error) {
+    console.error("Toggle pin tugas error:", error);
+    return { success: false, error: "Gagal memperbarui status sematan tugas." };
   }
 }

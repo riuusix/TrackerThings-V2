@@ -412,5 +412,161 @@ final class InteractionQualityTests: XCTestCase {
         XCTAssertEqual(reloaded.items.count, 1)
         XCTAssertEqual(reloaded.items.first?.id, "exam-88")
     }
+
+    // MARK: - 7. Invisible Pagination Math & Direction-Locked Deck Swipe (Max 3 Per Page)
+
+    func testInvisibleDeckPagerMathMaxThreeItemsAndDirectionLockedSwipe() {
+        let emptyPages = InvisibleDeckPagerMath.chunkPages([Int](), pageSize: 3)
+        XCTAssertTrue(emptyPages.isEmpty)
+        XCTAssertEqual(InvisibleDeckPagerMath.totalPages(itemCount: 0, pageSize: 3), 1)
+        XCTAssertEqual(InvisibleDeckPagerMath.rangeSummaryText(pageIndex: 0, itemCount: 0, pageSize: 3), "0 tugas")
+
+        let eightItems = Array(1...8)
+        let pages = InvisibleDeckPagerMath.chunkPages(eightItems, pageSize: 3)
+        XCTAssertEqual(pages.count, 3)
+        XCTAssertEqual(pages[0], [1, 2, 3])
+        XCTAssertEqual(pages[1], [4, 5, 6])
+        XCTAssertEqual(pages[2], [7, 8])
+        for page in pages {
+            XCTAssertLessThanOrEqual(page.count, 3, "Every page in InvisibleTaskPager must contain at most 3 tasks")
+        }
+
+        XCTAssertEqual(InvisibleDeckPagerMath.rangeSummaryText(pageIndex: 0, itemCount: 8, pageSize: 3), "1–3 dari 8")
+        XCTAssertEqual(InvisibleDeckPagerMath.rangeSummaryText(pageIndex: 1, itemCount: 8, pageSize: 3), "4–6 dari 8")
+        XCTAssertEqual(InvisibleDeckPagerMath.rangeSummaryText(pageIndex: 2, itemCount: 8, pageSize: 3), "7–8 dari 8")
+        XCTAssertEqual(InvisibleDeckPagerMath.clampPageIndex(99, itemCount: 8, pageSize: 3), 2)
+        XCTAssertEqual(InvisibleDeckPagerMath.clampPageIndex(-3, itemCount: 8, pageSize: 3), 0)
+
+        // Gestur dominan vertikal tidak boleh memicu perpindahan halaman horizontal
+        XCTAssertEqual(
+            InvisibleDeckPagerMath.evaluateDeckSwipeDirection(
+                translationWidth: -50,
+                translationHeight: 65,
+                predictedEndWidth: -70,
+                currentPage: 0,
+                totalPages: 3
+            ),
+            0
+        )
+
+        // Geser kiri dominan horizontal berpindah ke halaman berikutnya (+1)
+        XCTAssertEqual(
+            InvisibleDeckPagerMath.evaluateDeckSwipeDirection(
+                translationWidth: -64,
+                translationHeight: 8,
+                predictedEndWidth: -90,
+                currentPage: 0,
+                totalPages: 3
+            ),
+            1
+        )
+
+        // Geser kanan dominan horizontal kembali ke halaman sebelumnya (-1)
+        XCTAssertEqual(
+            InvisibleDeckPagerMath.evaluateDeckSwipeDirection(
+                translationWidth: 64,
+                translationHeight: 8,
+                predictedEndWidth: 90,
+                currentPage: 2,
+                totalPages: 3
+            ),
+            -1
+        )
+    }
+
+    // MARK: - 8. Gooey Action Dock Choreography & Zero Residual Closed Surface
+
+    @MainActor
+    func testGooeyActionDockMultiStageChoreographyAndZeroResidualClosedSurface() {
+        let controller = QuickActionDockController()
+
+        // State awal tertutup: tidak ada panel transparan sisa & bridgeProgress == 0
+        XCTAssertFalse(controller.isExpanded)
+        XCTAssertEqual(controller.phase, .closed)
+        XCTAssertFalse(controller.isPanelSurfaceRendered)
+        XCTAssertFalse(controller.areMenuItemsRevealed)
+        XCTAssertEqual(controller.bridgeProgress, 0.0, accuracy: 0.001)
+        XCTAssertEqual(controller.triggerCompressionScale, 1.0, accuracy: 0.001)
+
+        // Saat reduceMotion == false, openDock memulai fase .pressing (scale 0.95)
+        controller.openDock(reduceMotion: false)
+        XCTAssertTrue(controller.isExpanded)
+        XCTAssertEqual(controller.phase, .pressing)
+        XCTAssertEqual(controller.triggerCompressionScale, 0.95, accuracy: 0.001)
+
+        // Saat closeDock dipanggil dengan reduceMotion == false, item menghilang lebih dulu (.collapsingItems)
+        controller.closeDock(reduceMotion: false)
+        XCTAssertFalse(controller.isExpanded)
+        XCTAssertEqual(controller.phase, .collapsingItems)
+        XCTAssertFalse(controller.areMenuItemsRevealed, "Menu items and text must disappear first before panel shrinks")
+        XCTAssertTrue(controller.isPanelSurfaceRendered, "Panel surface stays visible briefly during collapsingItems before shrinking into bubble")
+
+        // Reset langsung mengembalikan ke .closed bersih tanpa residu
+        controller.resetStateImmediate()
+        XCTAssertFalse(controller.isExpanded)
+        XCTAssertEqual(controller.phase, .closed)
+        XCTAssertFalse(controller.isPanelSurfaceRendered)
+        XCTAssertEqual(controller.bridgeProgress, 0.0, accuracy: 0.001)
+    }
+
+    // MARK: - 9. Frosted Glide 5-Tab Navigation & TaskListView State Preservation
+
+    @MainActor
+    func testFrostedGlideFiveTabNavigationAndTasksPathPreservation() {
+        let allTabs = AppTab.allCases
+        XCTAssertEqual(allTabs.count, 5)
+        XCTAssertEqual(allTabs.map { $0.shortLabel }, ["Beranda", "Jadwal", "Tugas", "Ujian", "Profil"])
+
+        let coordinator = AppNavigationCoordinator()
+        coordinator.resetAllPaths()
+        coordinator.markReadyForNavigation()
+
+        // Beralih ke tab Tugas (.tasks) lalu buka detail tugas -> harus masuk ke tasksPath dan tetap di tab .tasks
+        coordinator.selectedTab = .tasks
+        coordinator.navigate(to: .taskDetail(id: 501))
+        XCTAssertEqual(coordinator.selectedTab, .tasks)
+        XCTAssertEqual(coordinator.tasksPath.count, 1)
+        XCTAssertEqual(coordinator.homePath.count, 0)
+
+        // Ketuk ulang tab aktif (popToRoot) mengosongkan tasksPath tanpa merusak tab lain
+        coordinator.popToRoot(for: .tasks)
+        XCTAssertEqual(coordinator.tasksPath.count, 0)
+        XCTAssertEqual(coordinator.selectedTab, .tasks)
+
+        // Verifikasi pelestarian state halaman & filter pada DashboardViewModel
+        let vm = DashboardViewModel(dataService: MockInteractionDataService())
+        vm.taskListSelectedSegment = 1
+        vm.taskListHistoryPage = 2
+        vm.taskListSelectedPriority = "Tinggi"
+        vm.taskListSearchText = "Algoritma"
+        XCTAssertEqual(vm.taskListSelectedSegment, 1)
+        XCTAssertEqual(vm.taskListHistoryPage, 2)
+        XCTAssertEqual(vm.taskListSelectedPriority, "Tinggi")
+        XCTAssertEqual(vm.taskListSearchText, "Algoritma")
+    }
+
+    // MARK: - 10. LocalCacheService User-Scoped Isolation & TTL Freshness
+
+    func testLocalCacheServiceUserScopedIsolationAndTTLFreshness() {
+        let cache = LocalCacheService.shared
+        defer { cache.clearAllCache() }
+
+        // Simpan data pada scope User 101
+        cache.setUserScope(userId: 101)
+        cache.save(["Tugas User 101"], forKey: "unit_test_tasks")
+        XCTAssertTrue(cache.isFresh(forKey: "unit_test_tasks", ttlSeconds: 60))
+        XCTAssertEqual(cache.load([String].self, forKey: "unit_test_tasks"), ["Tugas User 101"])
+
+        // Beralih ke User 202 -> tidak boleh membaca cache milik User 101
+        cache.setUserScope(userId: 202)
+        XCTAssertNil(cache.load([String].self, forKey: "unit_test_tasks"))
+        XCTAssertFalse(cache.isFresh(forKey: "unit_test_tasks", ttlSeconds: 60))
+
+        // Invalidate freshness bekerja deterministik
+        cache.save(["Tugas User 202"], forKey: "unit_test_tasks")
+        XCTAssertTrue(cache.isFresh(forKey: "unit_test_tasks", ttlSeconds: 60))
+        cache.invalidateFreshness(forKey: "unit_test_tasks")
+        XCTAssertFalse(cache.isFresh(forKey: "unit_test_tasks", ttlSeconds: 60))
+    }
 }
 

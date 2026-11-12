@@ -538,7 +538,10 @@ public struct SettingsView: View {
                     }
                 }
             }
-            .navigationTitle("Pengaturan")
+            .safeAreaInset(edge: .bottom) {
+                Color.clear.frame(height: 84)
+            }
+            .navigationTitle("Profil & Pengaturan")
             .onAppear {
                 viewModel.loadUserData(from: authViewModel.currentUser)
                 Task {

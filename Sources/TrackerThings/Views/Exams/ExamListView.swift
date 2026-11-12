@@ -99,7 +99,7 @@ public struct ExamListView: View {
             }
             .listStyle(.insetGrouped)
             .safeAreaInset(edge: .bottom) {
-                Color.clear.frame(height: 76)
+                Color.clear.frame(height: 116)
             }
             .navigationTitle("Jadwal Ujian")
             .sheet(isPresented: $viewModel.isPresentingSheet) {

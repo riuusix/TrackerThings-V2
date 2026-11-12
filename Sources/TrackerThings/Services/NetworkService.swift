@@ -81,6 +81,11 @@ public actor NetworkService: NetworkServiceProtocol {
     private let jsonEncoder: JSONEncoder
     private var authToken: String?
 
+    /// In-flight GET request coalescing table:
+    /// menggabungkan request GET identik yang sedang berjalan secara bersamaan untuk pengguna yang sama.
+    private var inFlightGETTasks: [String: Task<(Data, URLResponse), Error>] = [:]
+    private var coalescedRequestCount: Int = 0
+
     public init(
         baseURL: URL? = nil,
         urlSession: URLSession? = nil
@@ -167,7 +172,23 @@ public actor NetworkService: NetworkServiceProtocol {
     }
 
     public func setAuthToken(_ token: String?) {
+        if self.authToken != token {
+            // Batalkan semua request GET in-flight saat token berubah atau logout
+            for (_, task) in inFlightGETTasks {
+                task.cancel()
+            }
+            inFlightGETTasks.removeAll()
+        }
         self.authToken = token
+        if let token = token, let payload = JWTTokenHelper.decode(token: token), let uid = payload.userId {
+            LocalCacheService.shared.setUserScope(userId: uid)
+        } else if token == nil {
+            LocalCacheService.shared.setUserScope(userId: nil)
+        }
+    }
+
+    public func getCoalescedRequestCount() -> Int {
+        return coalescedRequestCount
     }
 
     private func buildURL(for endpoint: String) -> URL? {
@@ -261,7 +282,33 @@ public actor NetworkService: NetworkServiceProtocol {
         }
 
         let isIdempotent = (method == "GET" || method == "HEAD")
-        let (data, response) = try await executeDataTask(for: request, isIdempotent: isIdempotent)
+        let (data, response): (Data, URLResponse)
+
+        if method == "GET" && body == nil {
+            let tokenFingerprint = authToken.map { String($0.suffix(16)) } ?? "anon"
+            let coalesceKey = "\(tokenFingerprint)|GET|\(url.absoluteString)"
+
+            if let existingTask = inFlightGETTasks[coalesceKey] {
+                coalescedRequestCount += 1
+                (data, response) = try await existingTask.value
+            } else {
+                let immutableRequest = request
+                let newTask = Task<(Data, URLResponse), Error> {
+                    try await self.executeDataTask(for: immutableRequest, isIdempotent: true)
+                }
+                inFlightGETTasks[coalesceKey] = newTask
+                do {
+                    let result = try await newTask.value
+                    inFlightGETTasks.removeValue(forKey: coalesceKey)
+                    (data, response) = result
+                } catch {
+                    inFlightGETTasks.removeValue(forKey: coalesceKey)
+                    throw error
+                }
+            }
+        } else {
+            (data, response) = try await executeDataTask(for: request, isIdempotent: isIdempotent)
+        }
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw NetworkError.unknown("Respon tidak valid dari server.")

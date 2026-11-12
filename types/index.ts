@@ -43,6 +43,10 @@ export interface TugasItem {
   jenis: "Individu" | "Kelompok" | string;
   status: "Belum Dikerjakan" | "Sedang Dikerjakan" | "Selesai" | string;
   progress: number;
+  isPinned?: boolean;
+  is_pinned?: boolean;
+  reminderAt?: Date | string | null;
+  reminder_at?: Date | string | null;
   createdAt: Date;
   jadwal?: {
     namaMatkul: string;

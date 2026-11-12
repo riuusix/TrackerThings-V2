@@ -82,6 +82,18 @@ public enum DockAction: Hashable, Identifiable, Sendable {
     }
 }
 
+/// Fase koreografi multi-tahap untuk **Gooey Action Dock**:
+/// - Pembukaan: `.closed` → `.pressing` (`scale(0.95)`) → `.expandingBubble` (bubble keluar & morph jadi panel) → `.open` (item menu masuk bertahap).
+/// - Penutupan: `.open` → `.collapsingItems` (item & teks hilang lebih dulu) → `.collapsingBubble` (panel menyusut kembali ke bubble `+`) → `.closed` (bersih tanpa panel transparan sisa).
+public enum GooeyDockPhase: String, Sendable, Equatable {
+    case closed
+    case pressing
+    case expandingBubble
+    case open
+    case collapsingItems
+    case collapsingBubble
+}
+
 /// PreferenceKey untuk melaporkan koordinat nyata tujuan Inbox/Dock ke `ActivityInboxStore.shared.inboxTargetRect`.
 public struct InboxTargetRectPreferenceKey: PreferenceKey {
     public nonisolated(unsafe) static var defaultValue: CGRect = .zero
@@ -95,6 +107,7 @@ public struct InboxTargetRectPreferenceKey: PreferenceKey {
 
 /// Bentuk jembatan cair (metaball/liquid stem) yang menghubungkan tombol trigger utama dengan kartu menu di atasnya
 /// secara kontinu selama animasi ekspansi dan penutupan.
+/// Ketika `progress <= 0.02`, mengembalikan `Path` kosong agar tidak ada residu visual saat tertutup.
 public struct GooeyDockBridgeShape: Shape {
     public var progress: CGFloat
 
@@ -109,9 +122,10 @@ public struct GooeyDockBridgeShape: Shape {
 
     public func path(in rect: CGRect) -> Path {
         let clamped = max(0, min(1, progress))
-        var path = Path()
+        guard clamped > 0.02 else { return Path() }
 
-        let baseRadius: CGFloat = 27
+        var path = Path()
+        let baseRadius: CGFloat = 26 * clamped
         let baseCenter = CGPoint(x: rect.midX, y: rect.maxY - 28)
         path.addEllipse(
             in: CGRect(
@@ -122,14 +136,12 @@ public struct GooeyDockBridgeShape: Shape {
             )
         )
 
-        guard clamped > 0.02 else { return path }
-
         // Leher cair yang menyempit di tengah lalu melebar menyatu ke dasar kontainer menu
         let stemHeight: CGFloat = 34 * clamped
         let topY = baseCenter.y - baseRadius - stemHeight + 8
         let bottomY = baseCenter.y - baseRadius + 10
         let waistWidth: CGFloat = 18 + (10 * (1 - clamped))
-        let flareWidth: CGFloat = 42 * clamped
+        let flareWidth: CGFloat = 44 * clamped
 
         var neck = Path()
         neck.move(to: CGPoint(x: baseCenter.x - flareWidth * 0.55, y: bottomY))
@@ -150,27 +162,143 @@ public struct GooeyDockBridgeShape: Shape {
 }
 
 /// Pengendali state untuk Gooey Action Dock, Morphing Quick Composer, & Kotak Aktivitas (Inbox).
-/// Memastikan transisi satu arah atau bolak-balik berjalan deterministik dan bebas duplikasi entry point.
+/// Memastikan koreografi pembukaan dan penutupan multi-tahap berjalan mulus tanpa artefak panel transparan.
 @Observable
 @MainActor
 public final class QuickActionDockController {
     public var isExpanded: Bool = false
+    public var phase: GooeyDockPhase = .closed
     public var activeComposer: QuickComposerKind? = nil
+    private var choreographyTask: Task<Void, Never>? = nil
 
     public init() {}
 
+    /// Apakah permukaan panel menu sedang dirender di hierarki view.
+    /// Bernilai `false` sepenuhnya saat `.closed` atau `.pressing` sehingga tidak ada panel transparan sisa.
+    public var isPanelSurfaceRendered: Bool {
+        switch phase {
+        case .expandingBubble, .open, .collapsingItems:
+            return true
+        case .closed, .pressing, .collapsingBubble:
+            return isExpanded
+        }
+    }
+
+    /// Apakah item menu & teks di dalam panel sedang ditampilkan.
+    /// Pada saat penutupan (`.collapsingItems`), bernilai `false` terlebih dahulu sebelum panel menyusut.
+    public var areMenuItemsRevealed: Bool {
+        phase == .open || (isExpanded && phase != .pressing && phase != .expandingBubble)
+    }
+
+    /// Progres jembatan cair (`0.0` saat tertutup, `1.0` saat bubble/panel terekspansi).
+    public var bridgeProgress: CGFloat {
+        switch phase {
+        case .expandingBubble, .open:
+            return 1.0
+        case .collapsingItems:
+            return 0.65
+        case .closed, .pressing, .collapsingBubble:
+            return isExpanded ? 1.0 : 0.0
+        }
+    }
+
+    /// Skala kompresi tombol `+` saat mulai ditekan (`0.95` pada `.pressing`).
+    public var triggerCompressionScale: CGFloat {
+        phase == .pressing ? 0.95 : 1.0
+    }
+
     public func toggleDock(reduceMotion: Bool = false) {
-        withAnimation(
-            AppTheme.Motion.resolve(
-                isExpanded ? AppTheme.Motion.dockCollapse : AppTheme.Motion.dockExpand,
-                reduceMotion: reduceMotion
-            )
-        ) {
-            if activeComposer != nil {
+        choreographyTask?.cancel()
+
+        if activeComposer != nil {
+            withAnimation(AppTheme.Motion.resolve(AppTheme.Motion.dockCollapse, reduceMotion: reduceMotion)) {
                 activeComposer = nil
                 isExpanded = false
-            } else {
-                isExpanded.toggle()
+                phase = .closed
+            }
+            return
+        }
+
+        if isExpanded {
+            closeDock(reduceMotion: reduceMotion)
+        } else {
+            openDock(reduceMotion: reduceMotion)
+        }
+    }
+
+    /// Menjalankan urutan pembukaan 5-tahap:
+    /// 1. Kompresi tekan (`scale(0.95)`)
+    /// 2. Bubble keluar dari tombol `+`
+    /// 3. Bubble morph menjadi panel
+    /// 4. Panel mencapai ukuran penuh
+    /// 5. Item menu masuk bertahap (stagger 35ms)
+    public func openDock(reduceMotion: Bool = false) {
+        choreographyTask?.cancel()
+        activeComposer = nil
+        isExpanded = true
+
+        if reduceMotion {
+            withAnimation(AppTheme.Motion.reducedMotionFallback) {
+                phase = .open
+            }
+            return
+        }
+
+        HapticsHelper.lightImpact()
+        withAnimation(AppTheme.Motion.dockPress) {
+            phase = .pressing
+        }
+
+        choreographyTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 45_000_000)
+            guard let self, !Task.isCancelled, self.isExpanded else { return }
+
+            withAnimation(AppTheme.Motion.dockExpand) {
+                self.phase = .expandingBubble
+            }
+
+            try? await Task.sleep(nanoseconds: 75_000_000)
+            guard !Task.isCancelled, self.isExpanded else { return }
+
+            withAnimation(AppTheme.Motion.dockExpand) {
+                self.phase = .open
+            }
+        }
+    }
+
+    /// Menjalankan urutan penutupan 3-tahap secara terbalik:
+    /// 1. Item menu dan teks menghilang lebih dulu (`.collapsingItems`)
+    /// 2. Panel menyusut kembali ke dalam bubble (`.collapsingBubble`)
+    /// 3. Bubble kembali ke tombol `+` (`.closed`) tanpa menyisakan overlay transparan
+    public func closeDock(reduceMotion: Bool = false) {
+        choreographyTask?.cancel()
+        isExpanded = false
+
+        if reduceMotion {
+            withAnimation(AppTheme.Motion.reducedMotionFallback) {
+                phase = .closed
+            }
+            return
+        }
+
+        HapticsHelper.lightImpact()
+        withAnimation(AppTheme.Motion.dockItemsExit) {
+            phase = .collapsingItems
+        }
+
+        choreographyTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 85_000_000)
+            guard let self, !Task.isCancelled, !self.isExpanded else { return }
+
+            withAnimation(AppTheme.Motion.dockCollapse) {
+                self.phase = .collapsingBubble
+            }
+
+            try? await Task.sleep(nanoseconds: 180_000_000)
+            guard !Task.isCancelled, !self.isExpanded else { return }
+
+            withAnimation(AppTheme.Motion.dockCollapse) {
+                self.phase = .closed
             }
         }
     }
@@ -180,6 +308,7 @@ public final class QuickActionDockController {
         inboxStore: ActivityInboxStore = .shared,
         reduceMotion: Bool = false
     ) {
+        choreographyTask?.cancel()
         switch action {
         case .create(let kind):
             selectAction(kind, reduceMotion: reduceMotion)
@@ -187,6 +316,7 @@ public final class QuickActionDockController {
             HapticsHelper.selectionChanged()
             withAnimation(AppTheme.Motion.resolve(AppTheme.Motion.dockCollapse, reduceMotion: reduceMotion)) {
                 isExpanded = false
+                phase = .closed
                 activeComposer = nil
             }
             inboxStore.dismissActiveFlight(reduceMotion: reduceMotion)
@@ -195,36 +325,43 @@ public final class QuickActionDockController {
     }
 
     public func selectAction(_ kind: QuickComposerKind, reduceMotion: Bool = false) {
+        choreographyTask?.cancel()
         HapticsHelper.selectionChanged()
         withAnimation(AppTheme.Motion.resolve(AppTheme.Motion.panelMorph, reduceMotion: reduceMotion)) {
             isExpanded = false
+            phase = .closed
             activeComposer = kind
         }
     }
 
     public func dismissComposer(reduceMotion: Bool = false) {
+        choreographyTask?.cancel()
         withAnimation(AppTheme.Motion.resolve(AppTheme.Motion.panelDismiss, reduceMotion: reduceMotion)) {
             activeComposer = nil
             isExpanded = false
+            phase = .closed
         }
     }
 
     public func resetStateImmediate() {
+        choreographyTask?.cancel()
         isExpanded = false
+        phase = .closed
         activeComposer = nil
     }
 }
 
 /// Signature Interaction 01 — TrackerThings Gooey Action Dock.
 /// Satu-satunya titik masuk kanonik untuk pembuatan cepat akademik ("Buat Cepat") dan Kotak Aktivitas ("Inbox").
-/// Dilengkapi jembatan cair animatable (`GooeyDockBridgeShape`), pengelompokan jelas (Create vs Activity),
-/// lencana jumlah belum dibaca yang berdenyut saat item Fly-to-Inbox mendarat, serta pelaporan koordinat nyata.
+/// Dilengkapi koreografi pembukaan/penutupan multi-tahap, jembatan cair animatable (`GooeyDockBridgeShape`),
+/// pengelompokan jelas (Create vs Activity), serta posisi stabil di atas `FrostedGlideTabBar`.
 public struct GooeyActionDock: View {
     @Bindable var controller: QuickActionDockController
     @Bindable var inboxStore: ActivityInboxStore
     var morphNamespace: Namespace.ID
     var hasCourses: Bool
 
+    @Namespace private var bubbleMorphNamespace
     @State private var isBadgePulsing: Bool = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
@@ -243,14 +380,13 @@ public struct GooeyActionDock: View {
 
     public var body: some View {
         ZStack(alignment: .bottomTrailing) {
-            // Backdrop Scrim saat menu terbuka
-            if controller.isExpanded {
+            // Backdrop Scrim hanya saat panel terbuka
+            if controller.isPanelSurfaceRendered {
                 Color.black
                     .opacity(colorScheme == .dark ? 0.44 : 0.20)
                     .ignoresSafeArea()
                     .transition(.opacity)
                     .onTapGesture {
-                        HapticsHelper.impactLight()
                         controller.toggleDock(reduceMotion: reduceMotion)
                     }
                     .accessibilityLabel("Tutup menu aksi cepat")
@@ -262,26 +398,28 @@ public struct GooeyActionDock: View {
 
             // Connected Gooey Container + Trigger Button
             VStack(alignment: .trailing, spacing: 0) {
-                if controller.isExpanded {
+                if controller.isPanelSurfaceRendered {
                     expandedMenuSurface
                         .padding(.bottom, 10)
                         .transition(
                             reduceMotion
                                 ? .opacity
                                 : .asymmetric(
-                                    insertion: .scale(scale: 0.88, anchor: .bottomTrailing)
+                                    insertion: .scale(scale: 0.22, anchor: .bottomTrailing)
                                         .combined(with: .opacity)
-                                        .combined(with: .offset(y: 16)),
-                                    removal: .scale(scale: 0.92, anchor: .bottomTrailing)
+                                        .combined(with: .offset(y: 24)),
+                                    removal: .scale(scale: 0.18, anchor: .bottomTrailing)
                                         .combined(with: .opacity)
+                                        .combined(with: .offset(y: 28))
                                 )
                         )
                 }
 
                 // Trigger Button dengan Liquid Metaball Stem & Unread Badge
                 ZStack(alignment: .topTrailing) {
-                    if !reduceMotion {
-                        GooeyDockBridgeShape(progress: controller.isExpanded ? 1.0 : 0.0)
+                    // Jembatan cair hanya dirender selama transisi buka/tutup (nol residu saat tertutup)
+                    if !reduceMotion && controller.bridgeProgress > 0.01 {
+                        GooeyDockBridgeShape(progress: controller.bridgeProgress)
                             .fill(
                                 LinearGradient(
                                     colors: [
@@ -295,6 +433,7 @@ public struct GooeyActionDock: View {
                             .frame(width: 76, height: 84)
                             .offset(y: -26)
                             .allowsHitTesting(false)
+                            .transition(.opacity)
                     }
 
                     Button {
@@ -329,7 +468,7 @@ public struct GooeyActionDock: View {
                                 .foregroundStyle(.white)
                                 .rotationEffect(.degrees(controller.isExpanded ? 45 : 0))
                         }
-                        .scaleEffect(isBadgePulsing ? 1.10 : 1.0)
+                        .scaleEffect(controller.triggerCompressionScale * (isBadgePulsing ? 1.10 : 1.0))
                     }
                     .buttonStyle(PressableScaleButtonStyle())
                     .background(
@@ -340,6 +479,7 @@ public struct GooeyActionDock: View {
                             )
                         }
                     )
+                    .accessibilityIdentifier("GooeyActionDock.triggerButton")
                     .accessibilityLabel(
                         controller.isExpanded
                             ? "Tutup menu aksi cepat"
@@ -353,7 +493,7 @@ public struct GooeyActionDock: View {
                     }
 
                     // Unread Activity Badge pada Trigger Utama (saat menu tertutup)
-                    if !controller.isExpanded && inboxStore.unreadCount > 0 {
+                    if !controller.isPanelSurfaceRendered && inboxStore.unreadCount > 0 {
                         HStack(spacing: 3) {
                             if inboxStore.hasUrgentUnread {
                                 Circle()
@@ -383,7 +523,7 @@ public struct GooeyActionDock: View {
                 }
             }
             .padding(.trailing, 20)
-            .padding(.bottom, 64)
+            .padding(.bottom, 76)
         }
         .onPreferenceChange(InboxTargetRectPreferenceKey.self) { newRect in
             if newRect != .zero {
@@ -421,6 +561,7 @@ public struct GooeyActionDock: View {
                 }
                 .padding(.horizontal, 6)
                 .padding(.top, 2)
+                .opacity(controller.areMenuItemsRevealed ? 1.0 : 0.0)
 
                 VStack(spacing: 6) {
                     ForEach(Array(QuickComposerKind.allCases.enumerated()), id: \.element.id) { index, kind in
@@ -431,6 +572,7 @@ public struct GooeyActionDock: View {
                 Divider()
                     .overlay(AppTheme.Colors.divider)
                     .padding(.vertical, 2)
+                    .opacity(controller.areMenuItemsRevealed ? 1.0 : 0.0)
 
                 // GROUP 2: AKTIVITAS AKADEMIK (INBOX)
                 HStack {
@@ -446,6 +588,7 @@ public struct GooeyActionDock: View {
                     }
                 }
                 .padding(.horizontal, 6)
+                .opacity(controller.areMenuItemsRevealed ? 1.0 : 0.0)
 
                 inboxActionRow(index: QuickComposerKind.allCases.count)
             }
@@ -475,6 +618,7 @@ public struct GooeyActionDock: View {
     @ViewBuilder
     private func quickCreateRow(for kind: QuickComposerKind, index: Int) -> some View {
         let isDisabledByMissingCourse = !hasCourses && (kind == .task || kind == .replacement || kind == .exam)
+        let isRevealed = controller.areMenuItemsRevealed
 
         Button {
             if isDisabledByMissingCourse {
@@ -522,11 +666,16 @@ public struct GooeyActionDock: View {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .strokeBorder(kind.accentColor.opacity(0.20), lineWidth: 1)
             )
+            .opacity(isRevealed ? 1.0 : 0.0)
+            .offset(y: isRevealed ? 0 : 10)
+            .scaleEffect(isRevealed ? 1.0 : 0.94, anchor: .bottomTrailing)
         }
         .buttonStyle(PressableScaleButtonStyle(hapticStyle: nil))
         .animation(
-            AppTheme.Motion.menuItemEntrance(index: index, reduceMotion: reduceMotion),
-            value: controller.isExpanded
+            isRevealed
+                ? AppTheme.Motion.menuItemEntrance(index: index, reduceMotion: reduceMotion)
+                : AppTheme.Motion.dockItemsExit,
+            value: isRevealed
         )
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(kind.title). \(kind.subtitle)")
@@ -538,6 +687,7 @@ public struct GooeyActionDock: View {
     private func inboxActionRow(index: Int) -> some View {
         let hasUnread = inboxStore.unreadCount > 0
         let accent = inboxStore.hasUrgentUnread ? AppTheme.Colors.danger : AppTheme.Colors.primary
+        let isRevealed = controller.areMenuItemsRevealed
 
         Button {
             controller.performAction(.openInbox, inboxStore: inboxStore, reduceMotion: reduceMotion)
@@ -609,11 +759,16 @@ public struct GooeyActionDock: View {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .strokeBorder(hasUnread ? accent.opacity(0.35) : AppTheme.Colors.borderSubtle, lineWidth: 1)
             )
+            .opacity(isRevealed ? 1.0 : 0.0)
+            .offset(y: isRevealed ? 0 : 10)
+            .scaleEffect(isRevealed ? 1.0 : 0.94, anchor: .bottomTrailing)
         }
         .buttonStyle(PressableScaleButtonStyle(hapticStyle: nil))
         .animation(
-            AppTheme.Motion.menuItemEntrance(index: index, reduceMotion: reduceMotion),
-            value: controller.isExpanded
+            isRevealed
+                ? AppTheme.Motion.menuItemEntrance(index: index, reduceMotion: reduceMotion)
+                : AppTheme.Motion.dockItemsExit,
+            value: isRevealed
         )
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Kotak Aktivitas Akademik, \(inboxStore.unreadCount) belum dibaca")

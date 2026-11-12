@@ -178,9 +178,17 @@ public enum AppTheme {
         public static let entranceEaseOut: Animation = .easeOut(duration: 0.22)
 
         // MARK: - Signature Interaction Motion Tokens
-        /// Ekspansi Gooey Action Dock (cepat & taktil, selesai <280ms)
+        /// Luncuran pill indikator tab aktif pada FrostedGlideTabBar
+        public static let tabGlide: Animation = .spring(response: 0.34, dampingFraction: 0.78, blendDuration: 0)
+        /// Transisi perpindahan halaman horizontal pada InvisibleTaskPager (maks 3 tugas per halaman)
+        public static let deckPageSpring: Animation = .spring(response: 0.32, dampingFraction: 0.84, blendDuration: 0)
+        /// Kompresi awal tombol `+` sebelum bubble Gooey Dock keluar (Stage 1 Open)
+        public static let dockPress: Animation = .spring(response: 0.18, dampingFraction: 0.82, blendDuration: 0)
+        /// Ekspansi Gooey Action Dock dari bubble ke panel penuh (Stage 2–3 Open)
         public static let dockExpand: Animation = .spring(response: 0.32, dampingFraction: 0.76, blendDuration: 0)
-        /// Penutupan simultan Gooey Action Dock tanpa reverse stagger
+        /// Keluarnya teks & item menu terlebih dahulu sebelum panel menyusut (Stage 1 Close)
+        public static let dockItemsExit: Animation = .easeOut(duration: 0.10)
+        /// Penyusutan panel kembali menjadi bubble `+` tanpa pantulan berlebih (Stage 2 Close)
         public static let dockCollapse: Animation = .spring(response: 0.24, dampingFraction: 0.88, blendDuration: 0)
         /// Transformasi tombol aksi menjadi Morphing Quick Composer
         public static let panelMorph: Animation = .spring(response: 0.38, dampingFraction: 0.82, blendDuration: 0)
@@ -207,14 +215,14 @@ public enum AppTheme {
         /// Fallback halus ketika pengguna mengaktifkan Reduce Motion
         public static let reducedMotionFallback: Animation = .easeOut(duration: 0.18)
 
-        /// Stagger non-uniform (0ms, 30ms, 55ms, 75ms, 90ms) untuk item menu yang muncul dari Gooey Dock.
+        /// Stagger terkoordinasi (35ms per item: 0ms, 35ms, 70ms, 105ms, 140ms) untuk item menu yang muncul setelah panel Gooey Dock terbentuk.
         public static func menuItemEntrance(index: Int, reduceMotion: Bool = false) -> Animation {
             if reduceMotion {
                 return reducedMotionFallback
             }
-            let delays: [Double] = [0.0, 0.030, 0.055, 0.075, 0.090]
-            let delay = index < delays.count ? delays[index] : 0.090
-            return .spring(response: 0.32, dampingFraction: 0.80, blendDuration: 0).delay(delay)
+            let delays: [Double] = [0.0, 0.035, 0.070, 0.105, 0.140]
+            let delay = index < delays.count ? delays[index] : 0.140
+            return .spring(response: 0.30, dampingFraction: 0.82, blendDuration: 0).delay(delay)
         }
 
         /// Menyesuaikan animasi secara otomatis dengan preferensi `accessibilityReduceMotion`.

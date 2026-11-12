@@ -1,9 +1,14 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect, useRef } from "react";
 import { TugasItem } from "@/types";
 import { formatIndonesianDate, getDaysDifference } from "@/lib/utils";
-import { updateTugasProgressAction, deleteTugasAction } from "@/app/actions/tugas";
+import {
+  updateTugasProgressAction,
+  deleteTugasAction,
+  toggleTugasPinAction,
+} from "@/app/actions/tugas";
+import { patchCachedTask, removeCachedTask } from "@/lib/requestCache";
 import {
   Calendar,
   Edit2,
@@ -11,6 +16,7 @@ import {
   Check,
   Loader2,
   Clock,
+  Pin,
 } from "lucide-react";
 import { useToast } from "./ToastProvider";
 import { classifyApiError } from "@/lib/feedback";
@@ -18,29 +24,93 @@ import { classifyApiError } from "@/lib/feedback";
 interface TaskItemProps {
   task: TugasItem;
   onEdit: (task: TugasItem) => void;
+  onTaskMutated?: (patch: Partial<TugasItem> & { id: number }) => void;
+  onTaskDeleted?: (id: number) => void;
 }
 
-export function TaskItem({ task, onEdit }: TaskItemProps) {
+export function TaskItem({
+  task,
+  onEdit,
+  onTaskMutated,
+  onTaskDeleted,
+}: TaskItemProps) {
   const [progress, setProgress] = useState<number>(task.progress);
+  const committedProgressRef = useRef<number>(task.progress);
+  const [isPinned, setIsPinned] = useState<boolean>(
+    Boolean(task.isPinned ?? task.is_pinned ?? false)
+  );
   const [isPending, startTransition] = useTransition();
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const { showSuccess, showError } = useToast();
+
+  useEffect(() => {
+    setProgress(task.progress);
+    committedProgressRef.current = task.progress;
+  }, [task.progress]);
+
+  useEffect(() => {
+    setIsPinned(Boolean(task.isPinned ?? task.is_pinned ?? false));
+  }, [task.isPinned, task.is_pinned]);
 
   const daysLeft = getDaysDifference(task.deadline);
   const isCompleted = task.status === "Selesai" || progress >= 100;
   const isUrgent = daysLeft <= 1 && !isCompleted;
   const isPast = daysLeft < 0 && !isCompleted;
 
-  const handleProgressChange = (newVal: number) => {
-    if (isPending || isDeleting) return;
-    setProgress(newVal);
+  const commitProgressChange = (targetVal: number) => {
+    const clamped = Math.min(100, Math.max(0, Math.round(targetVal)));
+    if (isPending || isDeleting || clamped === committedProgressRef.current) {
+      return;
+    }
+
+    const prevProgress = committedProgressRef.current;
+    const prevStatus = task.status;
+    const nextStatus =
+      clamped >= 100
+        ? "Selesai"
+        : clamped > 0
+        ? "Sedang Dikerjakan"
+        : "Belum Dikerjakan";
+
+    committedProgressRef.current = clamped;
+    setProgress(clamped);
+
+    // Optimistic single-item patch (no full-dashboard refetch storm)
+    patchCachedTask(task.id, (cached) => ({
+      ...cached,
+      progress: clamped,
+      status: nextStatus,
+    }));
+    onTaskMutated?.({ id: task.id, progress: clamped, status: nextStatus });
+
     startTransition(async () => {
       try {
-        const res = await updateTugasProgressAction(task.id, newVal);
+        const res = await updateTugasProgressAction(task.id, clamped);
         if (!res.success) {
-          showError(classifyApiError(res.error, "Gagal memperbarui progress tugas."));
+          committedProgressRef.current = prevProgress;
+          setProgress(prevProgress);
+          patchCachedTask(task.id, (cached) => ({
+            ...cached,
+            progress: prevProgress,
+            status: prevStatus,
+          }));
+          onTaskMutated?.({
+            id: task.id,
+            progress: prevProgress,
+            status: prevStatus,
+          });
+          showError(
+            classifyApiError(res.error, "Gagal memperbarui progress tugas.")
+          );
         }
       } catch (err) {
+        committedProgressRef.current = prevProgress;
+        setProgress(prevProgress);
+        onTaskMutated?.({
+          id: task.id,
+          progress: prevProgress,
+          status: prevStatus,
+        });
         showError(classifyApiError(err, "Gagal memperbarui progress tugas."));
       }
     });
@@ -49,7 +119,24 @@ export function TaskItem({ task, onEdit }: TaskItemProps) {
   const handleToggleComplete = () => {
     if (isPending || isDeleting) return;
     const nextProgress = isCompleted ? 0 : 100;
+    const nextStatus = nextProgress === 100 ? "Selesai" : "Belum Dikerjakan";
+    const prevProgress = committedProgressRef.current;
+    const prevStatus = task.status;
+
+    committedProgressRef.current = nextProgress;
     setProgress(nextProgress);
+
+    patchCachedTask(task.id, (cached) => ({
+      ...cached,
+      progress: nextProgress,
+      status: nextStatus,
+    }));
+    onTaskMutated?.({
+      id: task.id,
+      progress: nextProgress,
+      status: nextStatus,
+    });
+
     startTransition(async () => {
       try {
         const res = await updateTugasProgressAction(task.id, nextProgress);
@@ -60,10 +147,73 @@ export function TaskItem({ task, onEdit }: TaskItemProps) {
             showSuccess(`Tugas "${task.namaTugas}" dibuka kembali.`);
           }
         } else {
-          showError(classifyApiError(res.error, "Gagal memperbarui status tugas."));
+          committedProgressRef.current = prevProgress;
+          setProgress(prevProgress);
+          onTaskMutated?.({
+            id: task.id,
+            progress: prevProgress,
+            status: prevStatus,
+          });
+          showError(
+            classifyApiError(res.error, "Gagal memperbarui status tugas.")
+          );
         }
       } catch (err) {
+        committedProgressRef.current = prevProgress;
+        setProgress(prevProgress);
+        onTaskMutated?.({
+          id: task.id,
+          progress: prevProgress,
+          status: prevStatus,
+        });
         showError(classifyApiError(err, "Gagal memperbarui status tugas."));
+      }
+    });
+  };
+
+  const handleTogglePin = () => {
+    if (isPending || isDeleting || isCompleted) return;
+    const nextPinned = !isPinned;
+    setIsPinned(nextPinned);
+    patchCachedTask(task.id, (cached) => ({
+      ...cached,
+      isPinned: nextPinned,
+      is_pinned: nextPinned,
+    }));
+    onTaskMutated?.({
+      id: task.id,
+      isPinned: nextPinned,
+      is_pinned: nextPinned,
+    });
+
+    startTransition(async () => {
+      try {
+        const res = await toggleTugasPinAction(task.id, nextPinned);
+        if (res.success) {
+          showSuccess(
+            nextPinned
+              ? `Tugas "${task.namaTugas}" disematkan di atas.`
+              : `Sematan tugas "${task.namaTugas}" dilepas.`
+          );
+        } else {
+          setIsPinned(!nextPinned);
+          onTaskMutated?.({
+            id: task.id,
+            isPinned: !nextPinned,
+            is_pinned: !nextPinned,
+          });
+          showError(
+            classifyApiError(res.error, "Gagal memperbarui sematan tugas.")
+          );
+        }
+      } catch (err) {
+        setIsPinned(!nextPinned);
+        onTaskMutated?.({
+          id: task.id,
+          isPinned: !nextPinned,
+          is_pinned: !nextPinned,
+        });
+        showError(classifyApiError(err, "Gagal memperbarui sematan tugas."));
       }
     });
   };
@@ -75,6 +225,8 @@ export function TaskItem({ task, onEdit }: TaskItemProps) {
     try {
       const res = await deleteTugasAction(task.id);
       if (res.success) {
+        removeCachedTask(task.id);
+        onTaskDeleted?.(task.id);
         showSuccess(`Tugas "${task.namaTugas}" berhasil dihapus.`);
       } else {
         showError(classifyApiError(res.error, "Gagal menghapus tugas."));
@@ -115,7 +267,9 @@ export function TaskItem({ task, onEdit }: TaskItemProps) {
     <div
       className={`group relative rounded-2xl p-4 sm:p-5 bg-surface-elevated border transition-all duration-200 ${
         isCompleted
-          ? "opacity-65 bg-surface/50 border-line-subtle"
+          ? "opacity-70 bg-surface/50 border-line-subtle"
+          : isPinned
+          ? "border-accent/50 shadow-xs hover:border-accent"
           : isUrgent
           ? "border-rose-300 dark:border-rose-800/60 shadow-2xs hover:border-rose-400"
           : "border-line shadow-2xs hover:border-line-strong hover:shadow-xs"
@@ -146,16 +300,24 @@ export function TaskItem({ task, onEdit }: TaskItemProps) {
         {/* Center: Title & Metadata Hierarchy */}
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
-            <div>
-              <h4
-                className={`text-base font-semibold tracking-tight transition-colors leading-snug ${
-                  isCompleted
-                    ? "line-through text-content-muted"
-                    : "text-content-primary group-hover:text-accent"
-                }`}
-              >
-                {task.namaTugas}
-              </h4>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                {isPinned && !isCompleted && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-accent-muted text-accent border border-line-subtle">
+                    <Pin className="w-2.5 h-2.5 fill-current" />
+                    <span>Semat</span>
+                  </span>
+                )}
+                <h4
+                  className={`text-base font-semibold tracking-tight transition-colors leading-snug ${
+                    isCompleted
+                      ? "line-through text-content-muted"
+                      : "text-content-primary group-hover:text-accent"
+                  }`}
+                >
+                  {task.namaTugas}
+                </h4>
+              </div>
 
               {/* Scannable Metadata Line (Course · Due Date · Priority) */}
               <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 mt-1.5 text-xs text-content-secondary">
@@ -202,8 +364,25 @@ export function TaskItem({ task, onEdit }: TaskItemProps) {
               </div>
             </div>
 
-            {/* Right Action Icons (Edit & Delete) */}
-            <div className="flex items-center gap-1 shrink-0 opacity-80 group-hover:opacity-100 transition-opacity">
+            {/* Right Action Icons (Pin, Edit & Delete) */}
+            <div className="flex items-center gap-1 shrink-0 opacity-85 group-hover:opacity-100 transition-opacity">
+              {!isCompleted && (
+                <button
+                  type="button"
+                  onClick={handleTogglePin}
+                  disabled={isPending || isDeleting}
+                  title={isPinned ? "Lepas Sematan" : "Sematkan Tugas"}
+                  aria-label={isPinned ? "Lepas Sematan" : "Sematkan Tugas"}
+                  className={`p-1.5 rounded-lg border transition-all active:scale-95 disabled:opacity-50 ${
+                    isPinned
+                      ? "text-accent bg-accent-muted/70 border-line-subtle"
+                      : "text-content-secondary hover:text-accent hover:bg-surface border-transparent hover:border-line"
+                  }`}
+                >
+                  <Pin className={`w-3.5 h-3.5 ${isPinned ? "fill-current" : ""}`} />
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => onEdit(task)}
@@ -233,14 +412,18 @@ export function TaskItem({ task, onEdit }: TaskItemProps) {
             </div>
           </div>
 
-          {/* Interactive Progress Bar */}
+          {/* Interactive Progress Bar (commits on release to avoid server revalidation storms) */}
           <div className="mt-3 pt-2.5 border-t border-line/60">
             <div className="flex items-center justify-between text-[11px] mb-1.5">
               <span className="text-content-muted font-medium flex items-center gap-1.5">
                 Progress
-                {isPending && <Loader2 className="w-3 h-3 animate-spin text-accent" />}
+                {isPending && (
+                  <Loader2 className="w-3 h-3 animate-spin text-accent" />
+                )}
               </span>
-              <span className="font-mono tabular-nums font-bold text-accent">{progress}%</span>
+              <span className="font-mono tabular-nums font-bold text-accent">
+                {progress}%
+              </span>
             </div>
 
             <div className="relative flex items-center">
@@ -251,7 +434,27 @@ export function TaskItem({ task, onEdit }: TaskItemProps) {
                 step="5"
                 value={progress}
                 aria-label={`Progress tugas ${task.namaTugas}`}
-                onChange={(e) => handleProgressChange(parseInt(e.target.value, 10))}
+                onChange={(e) => setProgress(parseInt(e.target.value, 10))}
+                onMouseUp={(e) =>
+                  commitProgressChange(
+                    parseInt((e.target as HTMLInputElement).value, 10)
+                  )
+                }
+                onTouchEnd={(e) =>
+                  commitProgressChange(
+                    parseInt((e.target as HTMLInputElement).value, 10)
+                  )
+                }
+                onKeyUp={(e) =>
+                  commitProgressChange(
+                    parseInt((e.target as HTMLInputElement).value, 10)
+                  )
+                }
+                onBlur={(e) =>
+                  commitProgressChange(
+                    parseInt((e.target as HTMLInputElement).value, 10)
+                  )
+                }
                 className="w-full h-1.5 bg-surface rounded-lg appearance-none cursor-pointer accent-accent transition-all"
               />
             </div>

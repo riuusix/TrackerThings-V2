@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { logoutAction } from "@/app/actions/auth";
+import { clearUserRequestCache } from "@/lib/requestCache";
 import { NotificationItem } from "@/types";
 
 interface NavbarProps {
@@ -369,6 +370,7 @@ export function Navbar({
                     <form
                       action={async () => {
                         setIsLoggingOut(true);
+                        clearUserRequestCache();
                         await logoutAction();
                       }}
                     >
